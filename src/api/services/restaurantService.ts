@@ -1,4 +1,3 @@
-
 import { apiClient } from '../client';
 import { Restaurant, MenuItem } from '@/lib/database.types';
 
@@ -6,7 +5,7 @@ import { Restaurant, MenuItem } from '@/lib/database.types';
 const restaurantCache = {
   byId: new Map<string, { data: Restaurant; timestamp: number }>(),
   byUserId: new Map<string, { data: Restaurant; timestamp: number }>(),
-  all: { data: Restaurant[]; timestamp: number; } | null,
+  all: { data: Restaurant[], timestamp: number } | null,
 };
 
 // Cache TTL in milliseconds (5 minutes)
@@ -146,7 +145,6 @@ export const restaurantApi = {
     }
   },
   
-  // Menu related methods
   getMenuItems: async (restaurantId: string) => {
     try {
       console.log(`Fetching menu items for restaurant ${restaurantId}`);
@@ -191,7 +189,6 @@ export const restaurantApi = {
     }
   },
   
-  // Cache manipulation methods
   clearCache: (type?: 'byId' | 'byUserId' | 'all', key?: string) => {
     if (!type) {
       // Clear all caches
