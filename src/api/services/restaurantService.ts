@@ -6,7 +6,7 @@ import { Restaurant, MenuItem } from '@/lib/database.types';
 const restaurantCache = {
   byId: new Map<string, { data: Restaurant; timestamp: number }>(),
   byUserId: new Map<string, { data: Restaurant; timestamp: number }>(),
-  all: { data: Restaurant[]; timestamp: number; } | null,  // Fixed syntax by adding semicolon before the closing brace
+  all: { data: Restaurant[]; timestamp: number; } | null,
 };
 
 // Cache TTL in milliseconds (5 minutes)
