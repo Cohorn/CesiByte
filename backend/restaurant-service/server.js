@@ -1,3 +1,4 @@
+
 const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
@@ -176,15 +177,18 @@ app.get('/:id', async (req, res) => {
     const { data, error } = await supabase
       .from('restaurants')
       .select('*')
-      .eq('id', id)
-      .single();
+      .eq('id', id);
       
     if (error) {
       console.error('Supabase error:', error);
       return res.status(404).json({ error: 'Restaurant not found', details: error.message });
     }
     
-    console.log('Successfully fetched restaurant:', data);
+    if (!data || data.length === 0) {
+      return res.status(404).json({ error: 'Restaurant not found', details: 'No restaurant with that ID' });
+    }
+    
+    console.log('Successfully fetched restaurant:', data[0]);
     
     // Subscribe to restaurant-specific MQTT topics when we learn about a restaurant
     mqttClient.subscribe(`foodapp/restaurants/${id}/#`, (err) => {
@@ -195,7 +199,7 @@ app.get('/:id', async (req, res) => {
       }
     });
     
-    res.status(200).json(data);
+    res.status(200).json(data[0]);
   } catch (error) {
     console.error('Error fetching restaurant:', error);
     res.status(500).json({ error: 'Internal server error', message: error.message });
@@ -210,20 +214,31 @@ app.get('/user/:userId', async (req, res) => {
     const { data, error } = await supabase
       .from('restaurants')
       .select('*')
-      .eq('user_id', userId)
-      .single();
+      .eq('user_id', userId);
       
     if (error) {
       console.error('Supabase error:', error);
-      if (error.code === 'PGRST116') {
-        // No rows returned
-        return res.status(404).json({ error: 'Restaurant not found for this user' });
-      }
       return res.status(400).json({ error: error.message });
     }
     
-    console.log('Successfully fetched restaurant by user ID:', data);
-    res.status(200).json(data);
+    if (!data || data.length === 0) {
+      console.log(`No restaurant found for user ID: ${userId}`);
+      return res.status(404).json({ error: 'Restaurant not found for this user' });
+    }
+    
+    console.log('Successfully fetched restaurant by user ID:', data[0]);
+    
+    // Subscribe to restaurant-specific MQTT topics
+    const restaurantId = data[0].id;
+    mqttClient.subscribe(`foodapp/restaurants/${restaurantId}/#`, (err) => {
+      if (!err) {
+        console.log(`Subscribed to MQTT topics for restaurant ${restaurantId}`);
+      } else {
+        console.error(`Failed to subscribe to MQTT topics for restaurant ${restaurantId}:`, err);
+      }
+    });
+    
+    res.status(200).json(data[0]);
   } catch (error) {
     console.error('Error fetching restaurant by user:', error);
     res.status(500).json({ error: 'Internal server error', message: error.message });

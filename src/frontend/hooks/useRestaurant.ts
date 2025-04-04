@@ -1,170 +1,99 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { restaurantApi } from '@/api/services/restaurantService';
-import { useAuth } from './useAuth';
-import { useToast } from '@/hooks/use-toast';
 import { Restaurant } from '@/lib/database.types';
+import { useAuth } from './useAuth';
+import { toast } from '@/hooks/use-toast';
 
-export function useRestaurant() {
+export const useRestaurant = (initialRestaurantId?: string) => {
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
-  const [lastFetched, setLastFetched] = useState<number | null>(null);
   const { user } = useAuth();
-  const { toast } = useToast();
 
-  const fetchRestaurant = useCallback(async (id?: string, force = false) => {
-    // Skip if no identifiers available
-    if (!id && !user) {
-      console.log('useRestaurant: No ID or user available for fetching restaurant');
-      return null;
-    }
+  const fetchRestaurant = useCallback(async (id?: string, forceRefresh: boolean = false) => {
+    // If no id is provided, try to use the initialRestaurantId or the user's id
+    const restaurantId = id || initialRestaurantId;
+    const isUserIdFetch = !restaurantId && user && user.user_type === 'restaurant';
     
-    // Skip fetching if we've already fetched within the last 5 minutes and not forcing refresh
-    const now = Date.now();
-    if (!force && lastFetched && (now - lastFetched) < 300000 && restaurant) {
-      console.log('Skipping restaurant fetch - data is fresh');
-      return restaurant;
+    if (!restaurantId && !isUserIdFetch) {
+      console.log('No restaurant ID or user ID available for fetch');
+      return null;
     }
     
     setLoading(true);
     setError(null);
     
     try {
-      let result;
+      let fetchedRestaurant: Restaurant | null = null;
       
-      if (id) {
-        console.log(`Fetching restaurant by ID: ${id}`);
-        result = await restaurantApi.getRestaurantById(id);
-      } else if (user) {
-        console.log(`Fetching restaurant by user ID: ${user.id}`);
-        result = await restaurantApi.getRestaurantByUserId(user.id);
+      if (isUserIdFetch) {
+        console.log(`Fetching restaurant for user ID: ${user.id}`);
+        fetchedRestaurant = await restaurantApi.getRestaurantByUserId(user.id, forceRefresh);
+      } else if (restaurantId) {
+        console.log(`Fetching restaurant by ID: ${restaurantId}`);
+        fetchedRestaurant = await restaurantApi.getRestaurantById(restaurantId, forceRefresh);
       }
       
-      console.log('Restaurant fetch result:', result);
-      
-      // Only update state if component is still mounted
-      setRestaurant(result);
-      setLastFetched(now);
-      return result;
-    } catch (error) {
-      console.error("Error fetching restaurant:", error);
-      setError(error as Error);
-      
-      // Show toast only for non-404 errors to avoid excessive notifications
-      if (!(error as any).response || (error as any).response.status !== 404) {
-        toast({
-          title: "Error",
-          description: "Could not fetch restaurant data",
-          variant: "destructive",
-        });
-      }
-      return null;
-    } finally {
+      console.log('Fetched restaurant data:', fetchedRestaurant);
+      setRestaurant(fetchedRestaurant);
       setLoading(false);
+      return fetchedRestaurant;
+    } catch (err) {
+      console.error('Error fetching restaurant:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch restaurant data';
+      setError(err instanceof Error ? err : new Error(errorMessage));
+      setLoading(false);
+      
+      // Show toast for errors
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      
+      return null;
     }
-  }, [user, toast, restaurant, lastFetched]);
+  }, [initialRestaurantId, user]);
 
-  // Auto-fetch restaurant data when user type is restaurant
+  // Fetch restaurant data on component mount if we have a restaurantId or if the user is a restaurant
   useEffect(() => {
-    if (user && user.user_type === 'restaurant') {
-      console.log("useRestaurant hook - User is restaurant type, fetching data");
+    if (initialRestaurantId || (user && user.user_type === 'restaurant')) {
       fetchRestaurant();
     }
-  }, [user, fetchRestaurant]);
+  }, [initialRestaurantId, user, fetchRestaurant]);
 
-  const createRestaurant = async (data: Omit<Restaurant, 'id' | 'created_at'>) => {
-    if (!user) {
-      toast({
-        title: "Error",
-        description: "You must be logged in to create a restaurant",
-        variant: "destructive",
-      });
-      return null;
+  const updateRestaurant = useCallback(async (data: Partial<Restaurant>) => {
+    if (!restaurant) {
+      console.error('Cannot update restaurant: No restaurant data available');
+      return { success: false, error: new Error('No restaurant data available') };
     }
     
-    setLoading(true);
-    setError(null);
-    
     try {
-      console.log("Creating restaurant with data:", {
-        ...data,
-        user_id: user.id
+      const updatedRestaurant = await restaurantApi.updateRestaurant(restaurant.id, data);
+      setRestaurant(updatedRestaurant);
+      return { success: true, data: updatedRestaurant };
+    } catch (err) {
+      console.error('Error updating restaurant:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update restaurant';
+      setError(err instanceof Error ? err : new Error(errorMessage));
+      
+      // Show toast for errors
+      toast({
+        title: "Update Failed",
+        description: errorMessage,
+        variant: "destructive",
       });
       
-      const result = await restaurantApi.createRestaurant({
-        name: data.name,
-        address: data.address,
-        lat: data.lat,
-        lng: data.lng,
-        user_id: user.id,
-        image_url: data.image_url || null
-      });
-        
-      setRestaurant(result);
-      setLastFetched(Date.now());
-      toast({
-        title: "Success",
-        description: "Restaurant created successfully",
-      });
-      return result;
-    } catch (error) {
-      console.error("Error creating restaurant:", error);
-      setError(error as Error);
-      toast({
-        title: "Error",
-        description: "Could not create restaurant",
-        variant: "destructive",
-      });
-      return null;
-    } finally {
-      setLoading(false);
+      return { success: false, error: err };
     }
-  };
-
-  const updateRestaurant = async (data: Partial<Restaurant>) => {
-    if (!restaurant) {
-      toast({
-        title: "Error",
-        description: "No restaurant to update",
-        variant: "destructive",
-      });
-      return null;
-    }
-    
-    setLoading(true);
-    setError(null);
-    
-    try {
-      console.log(`Updating restaurant ${restaurant.id} with data:`, data);
-      const result = await restaurantApi.updateRestaurant(restaurant.id, data);
-      setRestaurant(result);
-      setLastFetched(Date.now());
-      toast({
-        title: "Success",
-        description: "Restaurant updated successfully",
-      });
-      return result;
-    } catch (error) {
-      console.error("Error updating restaurant:", error);
-      setError(error as Error);
-      toast({
-        title: "Error",
-        description: "Could not update restaurant",
-        variant: "destructive",
-      });
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [restaurant]);
 
   return {
     restaurant,
     loading,
     error,
     fetchRestaurant,
-    createRestaurant,
-    updateRestaurant,
+    updateRestaurant
   };
-}
+};
