@@ -4,9 +4,97 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const morgan = require('morgan');
 const axios = require('axios');
+const http = require('http');
+const WebSocket = require('ws');
+const mqtt = require('mqtt');
 
 const app = express();
 const PORT = process.env.PORT || 7500;
+const server = http.createServer(app);
+
+// Initialize WebSocket server
+const wss = new WebSocket.Server({ server });
+
+// Initialize MQTT client
+const mqttBrokerUrl = process.env.MQTT_BROKER_URL || 'mqtt://mqtt-broker:1883';
+console.log(`API Gateway connecting to MQTT broker at ${mqttBrokerUrl}`);
+const mqttClient = mqtt.connect(mqttBrokerUrl);
+
+// MQTT connection handling
+mqttClient.on('connect', () => {
+  console.log('API Gateway connected to MQTT broker');
+  
+  // Subscribe to all events
+  mqttClient.subscribe('foodapp/#', (err) => {
+    if (!err) {
+      console.log('API Gateway subscribed to all foodapp MQTT topics');
+    } else {
+      console.error('API Gateway failed to subscribe to MQTT topics:', err);
+    }
+  });
+});
+
+mqttClient.on('error', (err) => {
+  console.error('API Gateway MQTT connection error:', err);
+});
+
+// Handle MQTT messages and relay to WebSocket clients
+mqttClient.on('message', (topic, message) => {
+  // Relay to all connected WebSocket clients
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN && client.subscribedTopics && client.subscribedTopics.includes(topic)) {
+      client.send(JSON.stringify({
+        topic,
+        message: message.toString()
+      }));
+    }
+  });
+});
+
+// WebSocket connection handling
+wss.on('connection', (ws, req) => {
+  console.log('WebSocket client connected');
+  
+  // Initialize subscribed topics list for this client
+  ws.subscribedTopics = [];
+  
+  ws.on('message', (message) => {
+    try {
+      const data = JSON.parse(message);
+      
+      // Handle subscribe message
+      if (data.type === 'subscribe' && data.topic) {
+        console.log(`WebSocket client subscribing to ${data.topic}`);
+        ws.subscribedTopics.push(data.topic);
+        
+        // Subscribe to MQTT topic if not already subscribed
+        mqttClient.subscribe(data.topic, (err) => {
+          if (err) {
+            console.error(`Failed to subscribe to MQTT topic ${data.topic}:`, err);
+          }
+        });
+      }
+      
+      // Handle unsubscribe message
+      else if (data.type === 'unsubscribe' && data.topic) {
+        console.log(`WebSocket client unsubscribing from ${data.topic}`);
+        ws.subscribedTopics = ws.subscribedTopics.filter(t => t !== data.topic);
+      }
+      
+      // Handle publish message
+      else if (data.type === 'publish' && data.topic && data.message) {
+        console.log(`WebSocket client publishing to ${data.topic}`);
+        mqttClient.publish(data.topic, JSON.stringify(data.message));
+      }
+    } catch (error) {
+      console.error('Error processing WebSocket message:', error);
+    }
+  });
+  
+  ws.on('close', () => {
+    console.log('WebSocket client disconnected');
+  });
+});
 
 // Enhanced logging format
 morgan.token('body', (req) => {
@@ -99,7 +187,19 @@ const handleProxyRequest = (proxyReq, req, res) => {
 
 // Route for health check
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
+  res.status(200).json({ 
+    status: 'ok',
+    mqtt: mqttClient.connected ? 'connected' : 'disconnected'
+  });
+});
+
+// Add MQTT health check endpoint
+app.get('/mqtt/health', (req, res) => {
+  if (mqttClient.connected) {
+    res.status(200).json({ status: 'connected' });
+  } else {
+    res.status(503).json({ status: 'disconnected' });
+  }
 });
 
 // Define service URLs using Docker service names
@@ -115,6 +215,7 @@ console.log(`- Restaurant Service: ${RESTAURANT_SERVICE_URL}`);
 console.log(`- Order Service: ${ORDER_SERVICE_URL}`);
 console.log(`- Review Service: ${REVIEW_SERVICE_URL}`);
 console.log(`- User Service: ${USER_SERVICE_URL}`);
+console.log(`- MQTT Broker: ${mqttBrokerUrl}`);
 
 // Check if auth service is reachable
 const checkAuthService = async () => {
@@ -411,12 +512,32 @@ app.get('/ping-review', async (req, res) => {
   }
 });
 
+// Add MQTT WebSocket endpoint info
+app.get('/mqtt/info', (req, res) => {
+  res.status(200).json({
+    websocket_endpoint: 'ws://localhost:7500/mqtt',
+    instructions: 'Connect to this WebSocket endpoint to access MQTT topics'
+  });
+});
+
 // Catch-all route
 app.use('*', (req, res) => {
   res.status(404).json({ error: 'API endpoint not found' });
 });
 
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.log('Shutting down API gateway...');
+  mqttClient.end(() => {
+    console.log('MQTT client disconnected');
+    server.close(() => {
+      console.log('HTTP server closed');
+      process.exit(0);
+    });
+  });
+});
+
 // Start the server
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`API Gateway running on port ${PORT}`);
 });

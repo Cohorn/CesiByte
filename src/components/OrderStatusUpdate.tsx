@@ -1,9 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { OrderStatus } from '@/lib/database.types';
 import { useToast } from '@/hooks/use-toast';
 import { AlertTriangle } from 'lucide-react';
+import { useOrderMQTT } from '@/hooks/useMQTT';
 
 interface OrderStatusUpdateProps {
   orderId: string;
@@ -43,6 +44,23 @@ const OrderStatusUpdate: React.FC<OrderStatusUpdateProps> = ({
   const [isUpdating, setIsUpdating] = useState(false);
   const [localStatus, setLocalStatus] = useState<OrderStatus>(currentStatus);
   const { toast } = useToast();
+  
+  // Subscribe to MQTT updates for this order
+  const { orderStatus } = useOrderMQTT(orderId);
+  
+  // Update local status when MQTT update comes in
+  useEffect(() => {
+    if (orderStatus && orderStatus !== localStatus) {
+      setLocalStatus(orderStatus as OrderStatus);
+    }
+  }, [orderStatus, localStatus]);
+  
+  // Update local status from props when it changes
+  useEffect(() => {
+    if (currentStatus !== localStatus) {
+      setLocalStatus(currentStatus);
+    }
+  }, [currentStatus, localStatus]);
 
   // If the order is already at "ready_for_pickup" or beyond, don't show any update options
   if (
@@ -65,7 +83,6 @@ const OrderStatusUpdate: React.FC<OrderStatusUpdateProps> = ({
         toast({
           title: "Status Updated",
           description: `Order status updated to ${newStatus.replace(/_/g, ' ')}`,
-          // Remove the invalid 'icon' property that was causing the error
         });
       }
     } catch (error) {

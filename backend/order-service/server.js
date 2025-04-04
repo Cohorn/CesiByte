@@ -5,6 +5,7 @@ const { createClient } = require('@supabase/supabase-js');
 const morgan = require('morgan');
 const { Server } = require('socket.io');
 const http = require('http');
+const mqtt = require('mqtt');
 
 const app = express();
 const PORT = process.env.PORT || 3003;
@@ -22,6 +23,54 @@ const io = new Server(server, {
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Initialize MQTT client
+const mqttBrokerUrl = process.env.MQTT_BROKER_URL || 'mqtt://mqtt-broker:1883';
+console.log(`Connecting to MQTT broker at ${mqttBrokerUrl}`);
+const mqttClient = mqtt.connect(mqttBrokerUrl);
+
+// MQTT connection handling
+mqttClient.on('connect', () => {
+  console.log('Connected to MQTT broker');
+  
+  // Subscribe to relevant topics
+  mqttClient.subscribe('foodapp/orders/commands/#', (err) => {
+    if (!err) {
+      console.log('Subscribed to order commands');
+    } else {
+      console.error('Failed to subscribe to order commands:', err);
+    }
+  });
+});
+
+mqttClient.on('error', (err) => {
+  console.error('MQTT connection error:', err);
+});
+
+mqttClient.on('message', (topic, message) => {
+  console.log(`Received message on topic ${topic}: ${message.toString()}`);
+  
+  // Handle incoming MQTT messages
+  if (topic.startsWith('foodapp/orders/commands/')) {
+    try {
+      const command = JSON.parse(message.toString());
+      console.log('Received command:', command);
+      
+      // Process different command types
+      if (command.type === 'status_update' && command.orderId && command.status) {
+        console.log(`Processing status update for order ${command.orderId} to ${command.status}`);
+        // This would normally update the database, but for now we'll just publish the result
+        mqttClient.publish(`foodapp/orders/events/status_updated`, JSON.stringify({
+          orderId: command.orderId,
+          status: command.status,
+          timestamp: new Date().toISOString()
+        }));
+      }
+    } catch (error) {
+      console.error('Error processing MQTT message:', error);
+    }
+  }
+});
 
 // Middleware
 app.use(cors({
@@ -44,7 +93,11 @@ app.use((req, res, next) => {
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok', service: 'order-service' });
+  res.status(200).json({ 
+    status: 'ok', 
+    service: 'order-service',
+    mqtt: mqttClient.connected ? 'connected' : 'disconnected'
+  });
 });
 
 // Authentication middleware
@@ -263,10 +316,13 @@ app.get('/status/:status', authenticateJWT, async (req, res) => {
   }
 });
 
+// Modified route to create an order with MQTT
 app.post('/', authenticateJWT, async (req, res) => {
   try {
     const orderData = req.body;
     const { order_items, ...orderDetails } = orderData;
+    
+    console.log('Creating new order with data:', JSON.stringify(orderDetails));
     
     // Create the order
     const { data: order, error: orderError } = await supabase
@@ -276,6 +332,7 @@ app.post('/', authenticateJWT, async (req, res) => {
       .single();
       
     if (orderError) {
+      console.error('Error creating order:', orderError);
       return res.status(400).json({ error: orderError.message });
     }
     
@@ -291,24 +348,35 @@ app.post('/', authenticateJWT, async (req, res) => {
         .insert(orderItemsWithOrderId);
         
       if (itemsError) {
+        console.error('Error creating order items:', itemsError);
         return res.status(400).json({ error: itemsError.message });
       }
     }
     
-    // Notify clients via Socket.IO
+    // Publish new order event to MQTT
+    console.log(`Publishing new order event for order ${order.id}`);
+    mqttClient.publish('foodapp/orders/events/created', JSON.stringify(order));
+    
+    // Restaurant-specific topic
+    mqttClient.publish(`foodapp/restaurants/${order.restaurant_id}/orders`, JSON.stringify(order));
+    
+    // Notify Socket.IO clients (maintaining backward compatibility)
     io.to(order.restaurant_id).emit('new_order', order);
     
     res.status(201).json(order);
   } catch (error) {
     console.error('Error creating order:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
 
+// Modified route to update order status with MQTT
 app.put('/:orderId/status', authenticateJWT, async (req, res) => {
   try {
     const { orderId } = req.params;
     const { status } = req.body;
+    
+    console.log(`Updating order ${orderId} status to ${status}`);
     
     const { data, error } = await supabase
       .from('orders')
@@ -318,10 +386,34 @@ app.put('/:orderId/status', authenticateJWT, async (req, res) => {
       .single();
       
     if (error) {
+      console.error('Error updating order status:', error);
       return res.status(400).json({ error: error.message });
     }
     
-    // Notify clients via Socket.IO
+    // Publish order status update to MQTT
+    console.log(`Publishing status update for order ${orderId} to ${status}`);
+    mqttClient.publish('foodapp/orders/events/status_updated', JSON.stringify({
+      order: data,
+      previousStatus: req.body.previousStatus || null,
+      newStatus: status,
+      timestamp: new Date().toISOString()
+    }));
+    
+    // Order-specific topic
+    mqttClient.publish(`foodapp/orders/${orderId}/status`, JSON.stringify({
+      status,
+      timestamp: new Date().toISOString()
+    }));
+    
+    // User-specific topic if user_id exists
+    if (data.user_id) {
+      mqttClient.publish(`foodapp/users/${data.user_id}/orders/${orderId}/status`, JSON.stringify({
+        status,
+        timestamp: new Date().toISOString()
+      }));
+    }
+    
+    // Notify Socket.IO clients (maintaining backward compatibility)
     io.to(orderId).emit('order_updated', data);
     io.to(data.user_id).emit('order_updated', data);
     
@@ -332,14 +424,17 @@ app.put('/:orderId/status', authenticateJWT, async (req, res) => {
     res.status(200).json(data);
   } catch (error) {
     console.error('Error updating order status:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
 
+// Modified route to assign courier with MQTT
 app.put('/:orderId/courier', authenticateJWT, async (req, res) => {
   try {
     const { orderId } = req.params;
     const { courier_id } = req.body;
+    
+    console.log(`Assigning courier ${courier_id} to order ${orderId}`);
     
     const { data, error } = await supabase
       .from('orders')
@@ -353,10 +448,26 @@ app.put('/:orderId/courier', authenticateJWT, async (req, res) => {
       .single();
       
     if (error) {
+      console.error('Error assigning courier:', error);
       return res.status(400).json({ error: error.message });
     }
     
-    // Notify clients via Socket.IO
+    // Publish courier assignment to MQTT
+    console.log(`Publishing courier assignment for order ${orderId} to courier ${courier_id}`);
+    mqttClient.publish('foodapp/orders/events/courier_assigned', JSON.stringify({
+      order: data,
+      courierId: courier_id,
+      timestamp: new Date().toISOString()
+    }));
+    
+    // Courier-specific topic
+    mqttClient.publish(`foodapp/couriers/${courier_id}/assignments`, JSON.stringify({
+      orderId,
+      restaurantId: data.restaurant_id,
+      timestamp: new Date().toISOString()
+    }));
+    
+    // Notify Socket.IO clients (maintaining backward compatibility)
     io.to(orderId).emit('order_updated', data);
     io.to(data.user_id).emit('order_updated', data);
     io.to(courier_id).emit('order_assigned', data);
@@ -364,8 +475,20 @@ app.put('/:orderId/courier', authenticateJWT, async (req, res) => {
     res.status(200).json(data);
   } catch (error) {
     console.error('Error assigning courier:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error', details: error.message });
   }
+});
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.log('Shutting down order service...');
+  mqttClient.end(() => {
+    console.log('MQTT client disconnected');
+    server.close(() => {
+      console.log('HTTP server closed');
+      process.exit(0);
+    });
+  });
 });
 
 // Start the server

@@ -1,217 +1,195 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { orderApi } from '@/api/services/orderService';
-import { Order, OrderStatus, OrderItem } from '@/lib/database.types';
-import { useToast } from '@/hooks/use-toast';
+import { Order, OrderStatus } from '@/lib/database.types';
+import { useAuth } from './useAuth';
+import { toast } from '@/hooks/use-toast';
 
-type OrderFilters = {
+// MQTT WebSocket library would be imported here in a production app
+// For the prototype, we'll continue using existing Socket.IO setup
+/*
+import mqtt from 'mqtt';
+
+// Webosocket MQTT connection (typically would connect to the MQTT broker's WebSocket endpoint)
+const createMqttClient = () => {
+  return mqtt.connect('ws://api-gateway:9001');
+};
+*/
+
+interface OrdersOptions {
   userId?: string;
   restaurantId?: string;
   courierId?: string;
   status?: OrderStatus | OrderStatus[];
-};
+}
 
-// Prevent excessive refreshes
-const MIN_REFRESH_INTERVAL = 30000; // 30 seconds minimum between manual refreshes
-
-export function useOrders(filters: OrderFilters = {}) {
+export const useOrders = (options: OrdersOptions = {}) => {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
-  const [lastFetched, setLastFetched] = useState<number | null>(null);
-  const [lastRefreshAttempt, setLastRefreshAttempt] = useState<number | null>(null);
-  const { toast } = useToast();
+  const { user } = useAuth();
 
-  const fetchOrders = useCallback(async (force = false) => {
-    // Check if this is a manual refresh (force=true) and rate limit it
-    if (force && lastRefreshAttempt) {
-      const now = Date.now();
-      const timeSinceLastRefresh = now - lastRefreshAttempt;
-      
-      if (timeSinceLastRefresh < MIN_REFRESH_INTERVAL) {
-        console.log(`Skipping manual refresh - too soon (${timeSinceLastRefresh}ms since last attempt)`);
-        toast({
-          title: "Please wait",
-          description: `You can refresh again in ${Math.ceil((MIN_REFRESH_INTERVAL - timeSinceLastRefresh) / 1000)} seconds`,
-        });
-        return orders;
-      }
-      
-      setLastRefreshAttempt(now);
-    }
-
-    // Skip fetching if we've already fetched within the last minute and not forcing refresh
-    const now = Date.now();
-    if (!force && lastFetched && (now - lastFetched) < 60000) {
-      console.log('Skipping order fetch - data is fresh');
-      return orders;
-    }
-
+  // Determine which API method to use based on the options
+  const fetchOrders = useCallback(async (forceRefresh: boolean = false) => {
     setIsLoading(true);
-    setError(null);
-    
-    try {
-      console.log('Fetching orders with filters:', filters);
-      let data: Order[] = [];
-      
-      // Important: Only try to fetch if we have valid filter parameters
-      if (!filters || (Object.keys(filters).length === 0)) {
-        console.log('No filters provided, skipping fetch');
-        setIsLoading(false);
-        return [];
-      }
-      
-      if (filters.userId) {
-        console.log('Fetching orders for user:', filters.userId);
-        data = await orderApi.getOrdersByUser(filters.userId);
-      } else if (filters.restaurantId) {
-        console.log('Fetching orders for restaurant:', filters.restaurantId);
-        data = await orderApi.getOrdersByRestaurant(filters.restaurantId, force);
-      } else if (filters.courierId) {
-        data = await orderApi.getOrdersByCourier(filters.courierId);
-      } else if (filters.status) {
-        data = await orderApi.getOrdersByStatus(filters.status);
-      }
-      
-      // Ensure items are properly parsed
-      const processedData = (data || []).map(order => {
-        let parsedItems: OrderItem[] = [];
-        
-        // Handle items parsing based on what the API returns
-        if (typeof order.items === 'string') {
-          try {
-            parsedItems = JSON.parse(order.items);
-          } catch (e) {
-            console.error('Error parsing order items:', e);
-            parsedItems = [];
-          }
-        } else if (Array.isArray(order.items)) {
-          parsedItems = order.items;
-        }
-        
-        return {
-          ...order,
-          items: parsedItems
-        };
-      });
-      
-      console.log(`Fetched ${processedData.length} orders:`, processedData);
-      setOrders(processedData || []);
-      setFilteredOrders(processedData || []);
-      setLastFetched(now);
-      setIsLoading(false);
-      return processedData;
-    } catch (err: any) {
-      // Don't show error toast for rate limiting, which is normal
-      if (err.isRateLimited) {
-        console.log('Order fetch was rate limited');
-        setIsLoading(false);
-        return orders;
-      }
-      
-      console.error("Error fetching orders:", err);
-      setError(err as Error);
-      toast({
-        title: "Error",
-        description: "Failed to load orders. Please try again.",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-      return [];
-    }
-  }, [filters, toast, orders, lastFetched, lastRefreshAttempt]);
 
-  // Initial fetch on mount or when filters change
-  useEffect(() => {
-    console.log("useOrders hook mounted or filters changed, fetching orders");
-    fetchOrders(false);  // Don't force fetch on mount or filter change
+    try {
+      let fetchedOrders: Order[] = [];
+
+      if (options.userId) {
+        fetchedOrders = await orderApi.getOrdersByUser(options.userId);
+      } else if (options.restaurantId) {
+        fetchedOrders = await orderApi.getOrdersByRestaurant(options.restaurantId, forceRefresh);
+      } else if (options.courierId) {
+        fetchedOrders = await orderApi.getOrdersByCourier(options.courierId);
+      } else if (options.status) {
+        fetchedOrders = await orderApi.getOrdersByStatus(options.status);
+      } else if (user) {
+        // Default to current user's orders if no specific option is provided
+        fetchedOrders = await orderApi.getOrdersByUser(user.id);
+      }
+
+      // Update state with fetched orders
+      setOrders(fetchedOrders || []);
+      setError(null);
+      return fetchedOrders || [];
+    } catch (err) {
+      console.error("Error fetching orders:", err);
+      setError(err instanceof Error ? err : new Error('Failed to fetch orders'));
+      return [];
+    } finally {
+      setIsLoading(false);
+    }
+  }, [options.userId, options.restaurantId, options.courierId, options.status, user]);
+
+  const updateOrderStatus = useCallback(async (orderId: string, status: OrderStatus) => {
+    try {
+      const result = await orderApi.updateOrderStatus(orderId, status);
+      
+      // Success handling
+      toast({
+        title: "Status Updated",
+        description: `Order status has been updated to ${status.replace(/_/g, ' ')}`,
+      });
+
+      // Fetch latest orders after update
+      fetchOrders(true);
+      
+      return { success: true, data: result };
+    } catch (err) {
+      console.error("Error updating order status:", err);
+      
+      // Error handling
+      toast({
+        title: "Update Failed",
+        description: "Could not update the order status",
+        variant: "destructive"
+      });
+      
+      return { success: false, error: err };
+    }
   }, [fetchOrders]);
 
-  const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
-    setError(null);
-    
+  const assignCourier = useCallback(async (orderId: string, courierId: string) => {
     try {
-      await orderApi.updateOrderStatus(orderId, status);
+      const result = await orderApi.assignCourier(orderId, courierId);
       
-      toast({
-        title: "Success",
-        description: `Order status updated to ${status}`,
-      });
+      // Fetch latest orders after assignment
+      fetchOrders(true);
       
-      // Refresh orders after status update - but don't force refresh
-      fetchOrders(false);
-      
-      return { success: true };
+      return { success: true, data: result };
     } catch (err) {
-      setError(err as Error);
-      console.error("Error updating order status:", err);
-      toast({
-        title: "Error",
-        description: "Failed to update order status",
-        variant: "destructive",
-      });
-      return { success: false, error: err };
-    }
-  };
-
-  const assignCourier = async (orderId: string, courierId: string) => {
-    setError(null);
-    
-    try {
-      await orderApi.assignCourier(orderId, courierId);
-      
-      toast({
-        title: "Success",
-        description: "Order assigned successfully",
-      });
-      
-      // Refresh orders after courier assignment - but don't force refresh
-      fetchOrders(false);
-      
-      return { success: true };
-    } catch (err) {
-      setError(err as Error);
       console.error("Error assigning courier:", err);
-      toast({
-        title: "Error",
-        description: "Failed to assign courier",
-        variant: "destructive",
-      });
       return { success: false, error: err };
     }
-  };
+  }, [fetchOrders]);
 
-  // Filter orders by a secondary filter (e.g., for search functionality)
-  const filterOrders = useCallback((searchTerm: string) => {
-    if (!searchTerm.trim()) {
-      setFilteredOrders(orders);
-      return;
+  // Initial fetch
+  useEffect(() => {
+    if (user || options.restaurantId || options.courierId) {
+      fetchOrders();
     }
-    
-    const term = searchTerm.toLowerCase();
-    const filtered = orders.filter(order => 
-      order.id.toLowerCase().includes(term) ||
-      order.delivery_address.toLowerCase().includes(term)
-    );
-    
-    setFilteredOrders(filtered);
-  }, [orders]);
+  }, [user, options.restaurantId, options.courierId, fetchOrders]);
 
-  // Clear cache function 
-  const clearCache = useCallback(() => {
-    orderApi.clearCache();
-    setLastFetched(null);
-  }, []);
+  // Real-time updates using Socket.IO for now
+  // In a production app, we would use MQTT over WebSockets here
+  useEffect(() => {
+    /* 
+    // This would be MQTT implementation for production
+    const client = createMqttClient();
+    
+    client.on('connect', () => {
+      console.log('Connected to MQTT broker');
+      
+      // Subscribe to relevant topics based on options
+      if (options.userId) {
+        client.subscribe(`foodapp/users/${options.userId}/orders/#`);
+      }
+      
+      if (options.restaurantId) {
+        client.subscribe(`foodapp/restaurants/${options.restaurantId}/orders`);
+      }
+      
+      if (options.courierId) {
+        client.subscribe(`foodapp/couriers/${options.courierId}/assignments`);
+      }
+      
+      // Always subscribe to status updates for orders we know about
+      for (const order of orders) {
+        client.subscribe(`foodapp/orders/${order.id}/status`);
+      }
+    });
+    
+    client.on('message', (topic, message) => {
+      const data = JSON.parse(message.toString());
+      
+      if (topic.includes('/orders/') && topic.endsWith('/status')) {
+        // Handle status updates
+        // Update local state
+        setOrders(prev => prev.map(order => 
+          order.id === data.orderId ? { ...order, status: data.status } : order
+        ));
+      } else if (topic.endsWith('/orders')) {
+        // Handle new orders
+        // Add to local state if relevant
+        setOrders(prev => [data, ...prev]);
+      }
+    });
+    
+    return () => {
+      client.end();
+    };
+    */
+    
+    // Subscribe to order updates
+    const unsubscribe = orderApi.subscribeToOrderUpdates((updatedOrder) => {
+      setOrders(currentOrders => {
+        // Check if we already have this order
+        const orderIndex = currentOrders.findIndex(order => order.id === updatedOrder.id);
+        
+        if (orderIndex >= 0) {
+          // Update existing order
+          const newOrders = [...currentOrders];
+          newOrders[orderIndex] = updatedOrder;
+          return newOrders;
+        } else {
+          // Add new order
+          return [updatedOrder, ...currentOrders];
+        }
+      });
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [options.userId, options.restaurantId, options.courierId, orders]);
 
   return {
-    orders: filteredOrders,
+    orders,
     isLoading,
     error,
     refetch: fetchOrders,
     updateOrderStatus,
-    assignCourier,
-    filterOrders,
-    clearCache,
+    assignCourier
   };
-}
+};

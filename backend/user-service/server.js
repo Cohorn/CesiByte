@@ -1,9 +1,9 @@
-
 const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
 const morgan = require('morgan');
+const mqtt = require('mqtt');
 
 const app = express();
 const PORT = process.env.PORT || 3005;
@@ -13,10 +13,70 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// Initialize MQTT client
+const mqttBrokerUrl = process.env.MQTT_BROKER_URL || 'mqtt://mqtt-broker:1883';
+console.log(`Connecting to MQTT broker at ${mqttBrokerUrl}`);
+const mqttClient = mqtt.connect(mqttBrokerUrl);
+
+// MQTT connection handling
+mqttClient.on('connect', () => {
+  console.log('Connected to MQTT broker');
+  
+  // Subscribe to user events
+  mqttClient.subscribe('foodapp/users/events/#', (err) => {
+    if (!err) {
+      console.log('Subscribed to user events');
+    } else {
+      console.error('Failed to subscribe to user events:', err);
+    }
+  });
+  
+  // Subscribe to courier events
+  mqttClient.subscribe('foodapp/couriers/events/#', (err) => {
+    if (!err) {
+      console.log('Subscribed to courier events');
+    } else {
+      console.error('Failed to subscribe to courier events:', err);
+    }
+  });
+});
+
+mqttClient.on('error', (err) => {
+  console.error('MQTT connection error:', err);
+});
+
+mqttClient.on('message', (topic, message) => {
+  console.log(`Received message on topic ${topic}: ${message.toString()}`);
+  
+  // Process messages as needed
+  try {
+    const data = JSON.parse(message.toString());
+    
+    if (topic === 'foodapp/couriers/events/location_update') {
+      // Handle courier location update
+      console.log(`Courier ${data.courierId} location updated: ${data.lat}, ${data.lng}`);
+      
+      // We could update the database here, but that would duplicate 
+      // what our API endpoint already does
+    }
+  } catch (error) {
+    console.error('Error processing MQTT message:', error);
+  }
+});
+
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'ok', 
+    service: 'user-service',
+    mqtt: mqttClient.connected ? 'connected' : 'disconnected'
+  });
+});
 
 // Authentication middleware
 const authenticateJWT = (req, res, next) => {
@@ -158,6 +218,7 @@ app.get('/:id/simple', authenticateJWT, async (req, res) => {
   }
 });
 
+// Modified route to update a user with MQTT notification
 app.put('/:id', authenticateJWT, async (req, res) => {
   try {
     const { id } = req.params;
@@ -185,6 +246,13 @@ app.put('/:id', authenticateJWT, async (req, res) => {
         return res.status(400).json({ error: insertError.message });
       }
       
+      // Publish user created event to MQTT
+      console.log(`Publishing user created event for user ${id}`);
+      mqttClient.publish('foodapp/users/events/created', JSON.stringify({
+        id,
+        userType: userData.user_type
+      }));
+      
       return res.status(201).json(insertData);
     }
     
@@ -201,6 +269,23 @@ app.put('/:id', authenticateJWT, async (req, res) => {
       return res.status(400).json({ error: error.message });
     }
     
+    // Publish user updated event to MQTT
+    console.log(`Publishing user updated event for user ${id}`);
+    mqttClient.publish('foodapp/users/events/updated', JSON.stringify({
+      id,
+      userType: data.user_type
+    }));
+    
+    // If this is a courier, publish a special courier update
+    if (data.user_type === 'courier') {
+      mqttClient.publish('foodapp/couriers/events/updated', JSON.stringify({
+        id,
+        name: data.name,
+        lat: data.lat,
+        lng: data.lng
+      }));
+    }
+    
     res.status(200).json(data);
   } catch (error) {
     console.error('Error updating user:', error);
@@ -208,6 +293,7 @@ app.put('/:id', authenticateJWT, async (req, res) => {
   }
 });
 
+// Modified route to update user location with MQTT notification
 app.put('/:id/location', authenticateJWT, async (req, res) => {
   try {
     const { id } = req.params;
@@ -222,6 +308,25 @@ app.put('/:id/location', authenticateJWT, async (req, res) => {
       
     if (error) {
       return res.status(400).json({ error: error.message });
+    }
+    
+    // Publish location update to MQTT
+    console.log(`Publishing location update for user ${id}`);
+    mqttClient.publish('foodapp/users/events/location_update', JSON.stringify({
+      userId: id,
+      lat,
+      lng,
+      timestamp: new Date().toISOString()
+    }));
+    
+    // If this is a courier, publish to courier-specific topic
+    if (data.user_type === 'courier') {
+      mqttClient.publish('foodapp/couriers/events/location_update', JSON.stringify({
+        courierId: id,
+        lat,
+        lng,
+        timestamp: new Date().toISOString()
+      }));
     }
     
     res.status(200).json(data);
@@ -261,6 +366,18 @@ app.delete('/:id', authenticateJWT, async (req, res) => {
     console.error('Error deleting user:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.log('Shutting down user service...');
+  mqttClient.end(() => {
+    console.log('MQTT client disconnected');
+    app.close(() => {
+      console.log('HTTP server closed');
+      process.exit(0);
+    });
+  });
 });
 
 // Start the server

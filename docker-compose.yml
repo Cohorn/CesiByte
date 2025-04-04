@@ -13,6 +13,7 @@ services:
       - review-service
       - user-service
       - employee-service
+      - mqtt-broker
     environment:
       - PORT=7500
       - AUTH_SERVICE_URL=http://auth-service:3001
@@ -22,6 +23,7 @@ services:
       - USER_SERVICE_URL=http://user-service:3005
       - EMPLOYEE_SERVICE_URL=http://employee-service:3006
       - JWT_SECRET=${JWT_SECRET}
+      - MQTT_BROKER_URL=mqtt://mqtt-broker:1883
     networks:
       - backend-network
     restart: always
@@ -34,24 +36,7 @@ services:
 
   # Auth Service
   auth-service:
-    build:
-      context: ./backend/auth-service
-    ports:
-      - "3001:3001"
-    environment:
-      - PORT=3001
-      - JWT_SECRET=${JWT_SECRET}
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
-    networks:
-      - backend-network
-    restart: always
-    # Add healthcheck
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    # ... keep existing code (auth-service configuration)
 
   # Restaurant Service
   restaurant-service:
@@ -64,6 +49,7 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
+      - MQTT_BROKER_URL=mqtt://mqtt-broker:1883
     networks:
       - backend-network
     restart: always
@@ -84,6 +70,7 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
+      - MQTT_BROKER_URL=mqtt://mqtt-broker:1883
     networks:
       - backend-network
     restart: always
@@ -95,23 +82,7 @@ services:
 
   # Review Service
   review-service:
-    build:
-      context: ./backend/review-service
-    ports:
-      - "3004:3004"
-    environment:
-      - PORT=3004
-      - JWT_SECRET=${JWT_SECRET}
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
-    networks:
-      - backend-network
-    restart: always
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3004/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    # ... keep existing code (review-service configuration)
 
   # User Service
   user-service:
@@ -124,6 +95,7 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
+      - MQTT_BROKER_URL=mqtt://mqtt-broker:1883
     networks:
       - backend-network
     restart: always
@@ -135,20 +107,23 @@ services:
 
   # Employee Service
   employee-service:
-    build:
-      context: ./backend/employee-service
+    # ... keep existing code (employee-service configuration)
+
+  # MQTT Broker Service
+  mqtt-broker:
+    image: eclipse-mosquitto:latest
     ports:
-      - "3006:3006"
-    environment:
-      - PORT=3006
-      - JWT_SECRET=${JWT_SECRET}
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
+      - "1883:1883"  # MQTT port
+      - "9001:9001"  # WebSockets port
+    volumes:
+      - ./backend/mqtt/config:/mosquitto/config
+      - ./backend/mqtt/data:/mosquitto/data
+      - ./backend/mqtt/log:/mosquitto/log
     networks:
       - backend-network
     restart: always
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3006/health"]
+      test: ["CMD", "mosquitto_sub", "-t", "$SYS/broker/uptime", "-C", "1", "-i", "healthcheck", "-W", "3"]
       interval: 30s
       timeout: 10s
       retries: 3

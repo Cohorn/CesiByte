@@ -1,9 +1,9 @@
-
 const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
 const morgan = require('morgan');
+const mqtt = require('mqtt');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -12,6 +12,73 @@ const PORT = process.env.PORT || 3002;
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Initialize MQTT client
+const mqttBrokerUrl = process.env.MQTT_BROKER_URL || 'mqtt://mqtt-broker:1883';
+console.log(`Connecting to MQTT broker at ${mqttBrokerUrl}`);
+const mqttClient = mqtt.connect(mqttBrokerUrl);
+
+// Store for recently received orders via MQTT to avoid processing duplicates
+const recentOrdersCache = new Map();
+
+// MQTT connection handling
+mqttClient.on('connect', () => {
+  console.log('Connected to MQTT broker');
+  
+  // Subscribe to order events
+  mqttClient.subscribe('foodapp/orders/events/#', (err) => {
+    if (!err) {
+      console.log('Subscribed to order events');
+    } else {
+      console.error('Failed to subscribe to order events:', err);
+    }
+  });
+  
+  // Subscribe to restaurant-specific topics dynamically
+  // This will be done when we get restaurant data
+});
+
+mqttClient.on('error', (err) => {
+  console.error('MQTT connection error:', err);
+});
+
+mqttClient.on('message', (topic, message) => {
+  console.log(`Received message on topic ${topic}: ${message.toString()}`);
+  
+  // Handle different topics
+  try {
+    const data = JSON.parse(message.toString());
+    
+    if (topic === 'foodapp/orders/events/created') {
+      // Handle new order
+      console.log('New order received via MQTT:', data.id);
+      
+      // Prevent duplicate processing by using a simple cache
+      if (data.id && !recentOrdersCache.has(data.id)) {
+        recentOrdersCache.set(data.id, { timestamp: Date.now() });
+        
+        // We could process the order here, notify staff, etc.
+        console.log(`Restaurant service is processing new order ${data.id} for restaurant ${data.restaurant_id}`);
+        
+        // Clean up old cache entries every 100 orders
+        if (recentOrdersCache.size > 100) {
+          const now = Date.now();
+          for (const [orderId, details] of recentOrdersCache.entries()) {
+            if (now - details.timestamp > 3600000) { // 1 hour
+              recentOrdersCache.delete(orderId);
+            }
+          }
+        }
+      }
+    } 
+    else if (topic === 'foodapp/orders/events/status_updated') {
+      // Handle order status update
+      console.log(`Order ${data.order?.id} status updated to ${data.newStatus}`);
+    }
+  } catch (error) {
+    console.error('Error processing MQTT message:', error);
+  }
+});
 
 // Middleware
 app.use(cors());
@@ -71,6 +138,15 @@ const optionalAuthenticate = (req, res, next) => {
   next();
 };
 
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'ok', 
+    service: 'restaurant-service',
+    mqtt: mqttClient.connected ? 'connected' : 'disconnected'
+  });
+});
+
 // Restaurant routes
 app.get('/', async (req, res) => {
   console.log('GET /restaurants - Fetching all restaurants');
@@ -109,6 +185,16 @@ app.get('/:id', async (req, res) => {
     }
     
     console.log('Successfully fetched restaurant:', data);
+    
+    // Subscribe to restaurant-specific MQTT topics when we learn about a restaurant
+    mqttClient.subscribe(`foodapp/restaurants/${id}/#`, (err) => {
+      if (!err) {
+        console.log(`Subscribed to MQTT topics for restaurant ${id}`);
+      } else {
+        console.error(`Failed to subscribe to MQTT topics for restaurant ${id}:`, err);
+      }
+    });
+    
     res.status(200).json(data);
   } catch (error) {
     console.error('Error fetching restaurant:', error);
@@ -144,6 +230,7 @@ app.get('/user/:userId', async (req, res) => {
   }
 });
 
+// Modified route to create a restaurant with MQTT
 app.post('/', authenticateJWT, async (req, res) => {
   try {
     const restaurantData = req.body;
@@ -158,6 +245,19 @@ app.post('/', authenticateJWT, async (req, res) => {
       return res.status(400).json({ error: error.message });
     }
     
+    // Publish restaurant created event to MQTT
+    console.log(`Publishing restaurant created event for restaurant ${data.id}`);
+    mqttClient.publish('foodapp/restaurants/events/created', JSON.stringify(data));
+    
+    // Subscribe to this restaurant's MQTT topics
+    mqttClient.subscribe(`foodapp/restaurants/${data.id}/#`, (err) => {
+      if (!err) {
+        console.log(`Subscribed to MQTT topics for restaurant ${data.id}`);
+      } else {
+        console.error(`Failed to subscribe to MQTT topics for restaurant ${data.id}:`, err);
+      }
+    });
+    
     res.status(201).json(data);
   } catch (error) {
     console.error('Error creating restaurant:', error);
@@ -165,6 +265,7 @@ app.post('/', authenticateJWT, async (req, res) => {
   }
 });
 
+// Modified route to update a restaurant with MQTT
 app.put('/:id', authenticateJWT, async (req, res) => {
   try {
     const { id } = req.params;
@@ -180,6 +281,11 @@ app.put('/:id', authenticateJWT, async (req, res) => {
     if (error) {
       return res.status(400).json({ error: error.message });
     }
+    
+    // Publish restaurant updated event to MQTT
+    console.log(`Publishing restaurant updated event for restaurant ${id}`);
+    mqttClient.publish('foodapp/restaurants/events/updated', JSON.stringify(data));
+    mqttClient.publish(`foodapp/restaurants/${id}/updated`, JSON.stringify(data));
     
     res.status(200).json(data);
   } catch (error) {
@@ -212,6 +318,7 @@ app.get('/:restaurantId/menu', async (req, res) => {
   }
 });
 
+// Modified route to create a menu item with MQTT
 app.post('/menu-items', authenticateJWT, async (req, res) => {
   try {
     const menuItemData = req.body;
@@ -226,6 +333,14 @@ app.post('/menu-items', authenticateJWT, async (req, res) => {
       return res.status(400).json({ error: error.message });
     }
     
+    // Publish menu item created event to MQTT
+    console.log(`Publishing menu item created event for restaurant ${data.restaurant_id}`);
+    mqttClient.publish('foodapp/menu-items/events/created', JSON.stringify(data));
+    mqttClient.publish(`foodapp/restaurants/${data.restaurant_id}/menu/updated`, JSON.stringify({
+      type: 'created',
+      item: data
+    }));
+    
     res.status(201).json(data);
   } catch (error) {
     console.error('Error creating menu item:', error);
@@ -233,6 +348,7 @@ app.post('/menu-items', authenticateJWT, async (req, res) => {
   }
 });
 
+// Modified route to update a menu item with MQTT
 app.put('/menu-items/:id', authenticateJWT, async (req, res) => {
   try {
     const { id } = req.params;
@@ -249,6 +365,14 @@ app.put('/menu-items/:id', authenticateJWT, async (req, res) => {
       return res.status(400).json({ error: error.message });
     }
     
+    // Publish menu item updated event to MQTT
+    console.log(`Publishing menu item updated event for item ${id}`);
+    mqttClient.publish('foodapp/menu-items/events/updated', JSON.stringify(data));
+    mqttClient.publish(`foodapp/restaurants/${data.restaurant_id}/menu/updated`, JSON.stringify({
+      type: 'updated',
+      item: data
+    }));
+    
     res.status(200).json(data);
   } catch (error) {
     console.error('Error updating menu item:', error);
@@ -256,9 +380,21 @@ app.put('/menu-items/:id', authenticateJWT, async (req, res) => {
   }
 });
 
+// Modified route to delete a menu item with MQTT
 app.delete('/menu-items/:id', authenticateJWT, async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Get the menu item before deleting to know the restaurant_id
+    const { data: menuItem, error: fetchError } = await supabase
+      .from('menu_items')
+      .select('restaurant_id')
+      .eq('id', id)
+      .single();
+      
+    if (fetchError) {
+      return res.status(404).json({ error: 'Menu item not found' });
+    }
     
     const { error } = await supabase
       .from('menu_items')
@@ -269,11 +405,34 @@ app.delete('/menu-items/:id', authenticateJWT, async (req, res) => {
       return res.status(400).json({ error: error.message });
     }
     
+    // Publish menu item deleted event to MQTT
+    console.log(`Publishing menu item deleted event for item ${id}`);
+    mqttClient.publish('foodapp/menu-items/events/deleted', JSON.stringify({
+      id,
+      restaurant_id: menuItem.restaurant_id
+    }));
+    mqttClient.publish(`foodapp/restaurants/${menuItem.restaurant_id}/menu/updated`, JSON.stringify({
+      type: 'deleted',
+      itemId: id
+    }));
+    
     res.status(204).send();
   } catch (error) {
     console.error('Error deleting menu item:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.log('Shutting down restaurant service...');
+  mqttClient.end(() => {
+    console.log('MQTT client disconnected');
+    app.close(() => {
+      console.log('HTTP server closed');
+      process.exit(0);
+    });
+  });
 });
 
 // Start the server
