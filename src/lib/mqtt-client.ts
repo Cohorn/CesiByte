@@ -1,243 +1,206 @@
 
-import { useState, useEffect, useCallback } from 'react';
-
-// MQTT WebSocket client for browser
-export interface MQTTMessage {
-  topic: string;
-  message: string;
-}
+// MQTT client for the frontend
+// This is a simplified implementation that uses the WebSocket proxy in the API gateway
 
 class MQTTClient {
-  private webSocket: WebSocket | null = null;
-  private isConnected: boolean = false;
-  private reconnectTimer: number | null = null;
-  private messageCallbacks: ((topic: string, message: any) => void)[] = [];
-  private connectionCallbacks: ((connected: boolean) => void)[] = [];
-  private subscribedTopics: Set<string> = new Set();
-  private apiUrl: string = '';
-  
-  constructor() {
-    // Use window.location to determine the API URL
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = import.meta.env.PROD 
-      ? window.location.host 
-      : (import.meta.env.VITE_API_URL?.replace(/^https?:\/\//, '') || 'localhost:7500');
-    
-    this.apiUrl = `${protocol}//${host}/mqtt`;
-    console.log('MQTT WebSocket URL:', this.apiUrl);
-  }
-  
-  connect(): void {
-    if (this.webSocket) {
+  private ws: WebSocket | null = null;
+  private connected = false;
+  private reconnectTimeout: NodeJS.Timeout | null = null;
+  private subscriptions: Map<string, Set<(message: any) => void>> = new Map();
+  private messageQueue: Array<{topic: string, message: any}> = [];
+
+  // Connect to the MQTT WebSocket proxy
+  connect() {
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
       return;
     }
+
+    // Use API gateway WebSocket endpoint for MQTT
+    const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/mqtt`;
     
-    try {
-      console.log('Connecting to MQTT WebSocket proxy at', this.apiUrl);
-      this.webSocket = new WebSocket(this.apiUrl);
+    console.log(`Connecting to MQTT WebSocket proxy at ${wsUrl}`);
+    
+    this.ws = new WebSocket(wsUrl);
+    
+    this.ws.onopen = () => {
+      console.log('Connected to MQTT WebSocket proxy');
+      this.connected = true;
       
-      this.webSocket.onopen = () => {
-        console.log('Connected to MQTT WebSocket proxy');
-        this.isConnected = true;
-        
-        // Resubscribe to all topics
-        this.subscribedTopics.forEach(topic => {
-          this.sendSubscribeMessage(topic);
-        });
-        
-        // Notify connection callbacks
-        this.connectionCallbacks.forEach(callback => callback(true));
-        
-        // Clear any reconnection timer
-        if (this.reconnectTimer !== null) {
-          clearTimeout(this.reconnectTimer);
-          this.reconnectTimer = null;
-        }
-      };
+      // Resubscribe to all previously subscribed topics
+      for (const topic of this.subscriptions.keys()) {
+        this.subscribe(topic);
+      }
       
-      this.webSocket.onmessage = (event) => {
-        try {
-          const data: MQTTMessage = JSON.parse(event.data);
-          const { topic, message } = data;
-          
+      // Send any queued messages
+      while (this.messageQueue.length > 0) {
+        const { topic, message } = this.messageQueue.shift()!;
+        this.publish(topic, message);
+      }
+    };
+    
+    this.ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        if (data.topic && data.message) {
           // Parse the message if it's JSON
-          let parsedMessage;
+          let messageData;
           try {
-            parsedMessage = JSON.parse(message);
+            messageData = JSON.parse(data.message);
           } catch (e) {
-            parsedMessage = message;
+            messageData = data.message;
           }
           
-          console.log(`Received message on topic ${topic}:`, parsedMessage);
+          // Notify subscribers
+          const handlers = this.subscriptions.get(data.topic);
+          if (handlers) {
+            handlers.forEach(handler => handler(messageData));
+          }
           
-          // Notify message callbacks
-          this.messageCallbacks.forEach(callback => {
-            callback(topic, parsedMessage);
-          });
-        } catch (error) {
-          console.error('Error processing WebSocket message:', error);
+          // Check for wildcard subscribers
+          for (const [topic, topicHandlers] of this.subscriptions.entries()) {
+            if (topic.includes('#') && this.matchTopic(data.topic, topic)) {
+              topicHandlers.forEach(handler => handler(messageData));
+            }
+          }
         }
-      };
+      } catch (error) {
+        console.error('Error processing WebSocket message:', error);
+      }
+    };
+    
+    this.ws.onclose = () => {
+      console.log('Disconnected from MQTT WebSocket proxy');
+      this.connected = false;
       
-      this.webSocket.onclose = () => {
-        console.log('Disconnected from MQTT WebSocket proxy');
-        this.isConnected = false;
-        this.webSocket = null;
-        
-        // Notify connection callbacks
-        this.connectionCallbacks.forEach(callback => callback(false));
-        
-        // Schedule reconnection
-        this.scheduleReconnect();
-      };
-      
-      this.webSocket.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        // The onclose handler will be called after this
-      };
-    } catch (error) {
-      console.error('Error connecting to WebSocket:', error);
-      this.scheduleReconnect();
-    }
+      // Try to reconnect
+      if (!this.reconnectTimeout) {
+        this.reconnectTimeout = setTimeout(() => {
+          this.reconnectTimeout = null;
+          this.connect();
+        }, 3000);
+      }
+    };
+    
+    this.ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
   }
   
-  private scheduleReconnect(): void {
-    if (this.reconnectTimer === null) {
-      console.log('Scheduling reconnection in 5 seconds...');
-      this.reconnectTimer = window.setTimeout(() => {
-        this.reconnectTimer = null;
-        this.connect();
-      }, 5000);
-    }
-  }
-  
-  disconnect(): void {
-    if (this.webSocket && this.isConnected) {
-      this.webSocket.close();
+  // Checks if a topic matches a wildcard subscription
+  private matchTopic(actualTopic: string, subscribedTopic: string): boolean {
+    if (!subscribedTopic.includes('#')) {
+      return actualTopic === subscribedTopic;
     }
     
-    // Clear any reconnection timer
-    if (this.reconnectTimer !== null) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
-  }
-  
-  subscribe(topic: string): void {
-    this.subscribedTopics.add(topic);
+    const subParts = subscribedTopic.split('/');
+    const actualParts = actualTopic.split('/');
     
-    if (this.isConnected) {
-      this.sendSubscribeMessage(topic);
-    } else {
-      this.connect(); // Will automatically subscribe on connection
+    for (let i = 0; i < subParts.length; i++) {
+      if (subParts[i] === '#') {
+        return true; // Any remaining path matches
+      }
+      
+      if (subParts[i] !== '+' && subParts[i] !== actualParts[i]) {
+        return false;
+      }
     }
+    
+    return actualParts.length === subParts.length;
   }
   
-  private sendSubscribeMessage(topic: string): void {
-    if (this.webSocket && this.isConnected) {
-      this.webSocket.send(JSON.stringify({
+  // Subscribe to a topic
+  subscribe(topic: string, callback?: (message: any) => void) {
+    if (!this.subscriptions.has(topic)) {
+      this.subscriptions.set(topic, new Set());
+    }
+    
+    if (callback) {
+      this.subscriptions.get(topic)!.add(callback);
+    }
+    
+    if (this.connected && this.ws) {
+      this.ws.send(JSON.stringify({
         type: 'subscribe',
         topic
       }));
-      console.log(`Subscribed to topic: ${topic}`);
     }
   }
   
-  unsubscribe(topic: string): void {
-    this.subscribedTopics.delete(topic);
+  // Unsubscribe from a topic
+  unsubscribe(topic: string, callback?: (message: any) => void) {
+    if (!this.subscriptions.has(topic)) {
+      return;
+    }
     
-    if (this.webSocket && this.isConnected) {
-      this.webSocket.send(JSON.stringify({
+    if (callback) {
+      this.subscriptions.get(topic)!.delete(callback);
+      
+      if (this.subscriptions.get(topic)!.size === 0) {
+        this.subscriptions.delete(topic);
+      }
+    } else {
+      this.subscriptions.delete(topic);
+    }
+    
+    if (this.connected && this.ws) {
+      this.ws.send(JSON.stringify({
         type: 'unsubscribe',
         topic
       }));
-      console.log(`Unsubscribed from topic: ${topic}`);
     }
   }
   
-  publish(topic: string, message: any): void {
-    if (this.webSocket && this.isConnected) {
-      this.webSocket.send(JSON.stringify({
+  // Publish a message to a topic
+  publish(topic: string, message: any) {
+    if (this.connected && this.ws) {
+      this.ws.send(JSON.stringify({
         type: 'publish',
         topic,
         message
       }));
-      console.log(`Published message to ${topic}:`, message);
     } else {
-      console.warn('Cannot publish message: not connected');
-      // Auto-connect and retry
+      // Queue the message for when we connect
+      this.messageQueue.push({ topic, message });
+      
+      // Make sure we're trying to connect
       this.connect();
     }
   }
   
-  onMessage(callback: (topic: string, message: any) => void): () => void {
-    this.messageCallbacks.push(callback);
+  // Disconnect from the MQTT broker
+  disconnect() {
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
     
-    return () => {
-      const index = this.messageCallbacks.indexOf(callback);
-      if (index !== -1) {
-        this.messageCallbacks.splice(index, 1);
-      }
-    };
-  }
-  
-  onConnection(callback: (connected: boolean) => void): () => void {
-    this.connectionCallbacks.push(callback);
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
     
-    // Immediately call with current state
-    callback(this.isConnected);
-    
-    return () => {
-      const index = this.connectionCallbacks.indexOf(callback);
-      if (index !== -1) {
-        this.connectionCallbacks.splice(index, 1);
-      }
-    };
+    this.connected = false;
   }
 }
 
 // Create a singleton instance
-const mqttClient = new MQTTClient();
+export const mqttClient = new MQTTClient();
 
-export const useMQTT = () => {
-  const [isConnected, setIsConnected] = useState(false);
-  
-  useEffect(() => {
-    // Connect on component mount
-    mqttClient.connect();
+// Automatically connect when imported
+mqttClient.connect();
+
+// Hook for using MQTT in React components
+export function useMQTT(topic: string, callback: (message: any) => void) {
+  React.useEffect(() => {
+    mqttClient.subscribe(topic, callback);
     
-    // Track connection state
-    const unsubscribe = mqttClient.onConnection(setIsConnected);
-    
-    // Disconnect on component unmount
     return () => {
-      unsubscribe();
+      mqttClient.unsubscribe(topic, callback);
     };
-  }, []);
-  
-  const subscribe = useCallback((topic: string) => {
-    mqttClient.subscribe(topic);
-  }, []);
-  
-  const unsubscribe = useCallback((topic: string) => {
-    mqttClient.unsubscribe(topic);
-  }, []);
-  
-  const publish = useCallback((topic: string, message: any) => {
-    mqttClient.publish(topic, message);
-  }, []);
-  
-  const onMessage = useCallback((callback: (topic: string, message: any) => void) => {
-    return mqttClient.onMessage(callback);
-  }, []);
+  }, [topic, callback]);
   
   return {
-    isConnected,
-    subscribe,
-    unsubscribe,
-    publish,
-    onMessage
+    publish: mqttClient.publish.bind(mqttClient)
   };
-};
-
-export default mqttClient;
+}

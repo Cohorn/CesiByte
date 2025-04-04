@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import NavBar from '@/components/NavBar';
@@ -15,7 +16,6 @@ import {
   Tabs, TabsContent, TabsList, TabsTrigger 
 } from "@/components/ui/tabs";
 import { Order, OrderStatus } from '@/lib/database.types';
-import { useMQTT } from '@/lib/mqtt-client';
 
 const RestaurantOrders = () => {
   const { user } = useAuth();
@@ -25,7 +25,6 @@ const RestaurantOrders = () => {
   const [attemptedFetch, setAttemptedFetch] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<number | null>(null);
   const { toast } = useToast();
-  const { subscribe, onMessage } = useMQTT();
   
   // Prevent too frequent refreshes
   const REFRESH_COOLDOWN = 10000; // 10 seconds
@@ -37,16 +36,9 @@ const RestaurantOrders = () => {
       setAttemptedFetch(true);
       fetchRestaurant(user.id, true).then(result => {
         console.log("RestaurantOrders - Restaurant fetch result:", result);
-      }).catch(err => {
-        console.error("Error fetching restaurant:", err);
-        toast({
-          title: "Error",
-          description: "Failed to fetch restaurant data. Please try again.",
-          variant: "destructive"
-        });
       });
     }
-  }, [user, restaurant, fetchRestaurant, attemptedFetch, toast]);
+  }, [user, restaurant, fetchRestaurant, attemptedFetch]);
 
   // Only fetch orders if we have a restaurant
   const { 
@@ -68,36 +60,6 @@ const RestaurantOrders = () => {
       setLocalOrders(orders);
     }
   }, [orders]);
-
-  // Subscribe to MQTT topics for real-time updates when we have a restaurant
-  useEffect(() => {
-    if (restaurant?.id) {
-      // Subscribe to this restaurant's orders
-      const topic = `foodapp/restaurants/${restaurant.id}/orders`;
-      console.log(`Subscribing to MQTT topic: ${topic}`);
-      subscribe(topic);
-      
-      // Listen for order updates
-      const unsubscribe = onMessage((topic, message) => {
-        // If we receive a new order or order update
-        if (topic.includes(restaurant.id) && topic.includes('/orders')) {
-          console.log('Received order update via MQTT:', message);
-          // Refresh orders to get the latest data
-          refetch?.(true);
-          
-          // Show notification
-          toast({
-            title: "Order Update",
-            description: "New order information received"
-          });
-        }
-      });
-      
-      return () => {
-        unsubscribe();
-      };
-    }
-  }, [restaurant, subscribe, onMessage, refetch, toast]);
 
   const isLoading = restaurantLoading || ordersLoading;
 
@@ -330,45 +292,7 @@ const RestaurantOrders = () => {
             
             <TabsContent value="current" className="space-y-4">
               {currentOrders.length > 0 ? (
-                currentOrders.map(order => (
-                  <div key={order.id} className="bg-white rounded shadow p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <h2 className="text-lg font-semibold">Order #{order.id}</h2>
-                      <span className="text-sm text-gray-600">
-                        {format(new Date(order.created_at), 'PPP p')}
-                      </span>
-                    </div>
-                    
-                    <div className="mb-2">
-                      <strong>Delivery Address:</strong> {order.delivery_address}
-                    </div>
-                    
-                    <div className="mb-2">
-                      <strong>Status:</strong> <span className="capitalize">{order.status.replace(/_/g, ' ')}</span>
-                    </div>
-                    
-                    <div>
-                      <strong>Items:</strong>
-                      <ul className="mt-2">
-                        {order.items?.map((item, index) => (
-                          <li key={index} className="py-2">
-                            <OrderItemCard item={item} />
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    
-                    <div className="mt-4">
-                      <strong>Total:</strong> ${order.total_price?.toFixed(2)}
-                    </div>
-                    
-                    <OrderStatusUpdate 
-                      orderId={order.id}
-                      currentStatus={order.status}
-                      onStatusUpdate={handleUpdateOrderStatus}
-                    />
-                  </div>
-                ))
+                currentOrders.map(renderOrderCard)
               ) : (
                 <div className="bg-white rounded shadow p-8 text-center">
                   <p className="text-gray-500">No current orders.</p>
@@ -378,45 +302,7 @@ const RestaurantOrders = () => {
             
             <TabsContent value="past" className="space-y-4">
               {pastOrders.length > 0 ? (
-                pastOrders.map(order => (
-                  <div key={order.id} className="bg-white rounded shadow p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <h2 className="text-lg font-semibold">Order #{order.id}</h2>
-                      <span className="text-sm text-gray-600">
-                        {format(new Date(order.created_at), 'PPP p')}
-                      </span>
-                    </div>
-                    
-                    <div className="mb-2">
-                      <strong>Delivery Address:</strong> {order.delivery_address}
-                    </div>
-                    
-                    <div className="mb-2">
-                      <strong>Status:</strong> <span className="capitalize">{order.status.replace(/_/g, ' ')}</span>
-                    </div>
-                    
-                    <div>
-                      <strong>Items:</strong>
-                      <ul className="mt-2">
-                        {order.items?.map((item, index) => (
-                          <li key={index} className="py-2">
-                            <OrderItemCard item={item} />
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    
-                    <div className="mt-4">
-                      <strong>Total:</strong> ${order.total_price?.toFixed(2)}
-                    </div>
-                    
-                    <OrderStatusUpdate 
-                      orderId={order.id}
-                      currentStatus={order.status}
-                      onStatusUpdate={handleUpdateOrderStatus}
-                    />
-                  </div>
-                ))
+                pastOrders.map(renderOrderCard)
               ) : (
                 <div className="bg-white rounded shadow p-8 text-center">
                   <p className="text-gray-500">No past orders.</p>
