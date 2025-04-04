@@ -34,7 +34,7 @@ const Login = () => {
     
     try {
       console.log('Checking API connection...');
-      // Try a simple health check first
+      // Try a simple health check
       await apiClient.get('/health', { timeout: 5000 });
       console.log('API health check successful');
       setConnectionError(null);

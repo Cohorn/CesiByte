@@ -58,7 +58,6 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/employee-login" element={<EmployeeLogin />} />
-            {/* Add the new route that matches the URL structure */}
             <Route path="/employee/login" element={<EmployeeLogin />} />
             
             {/* Authenticated User Routes */}

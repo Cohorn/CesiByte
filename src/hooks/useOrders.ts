@@ -1,3 +1,3 @@
 
-// Re-export from frontend hooks, ensuring we are using the microservices
+// Re-export from frontend hooks
 export { useOrders } from '@/frontend/hooks';
