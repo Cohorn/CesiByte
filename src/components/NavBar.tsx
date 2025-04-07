@@ -7,6 +7,7 @@ import { Utensils, ShoppingBag, Truck, User, LogOut, Menu, X } from 'lucide-reac
 import SitemapBackButton from './SitemapBackButton';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
+import NotificationsPanel from './notifications/NotificationsPanel';
 
 const NavBar: React.FC = () => {
   const { user, signOut } = useAuth();
@@ -158,14 +159,17 @@ const NavBar: React.FC = () => {
         
         {isMobile ? (
           <>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={toggleMobileMenu}
-              className="z-50"
-            >
-              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </Button>
+            <div className="flex items-center space-x-2">
+              {user && <NotificationsPanel />}
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={toggleMobileMenu}
+                className="z-50"
+              >
+                {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              </Button>
+            </div>
             
             {mobileMenuOpen && (
               <div className="fixed inset-0 top-16 z-40 bg-background p-4 flex flex-col space-y-4 animate-fade-in">
@@ -176,6 +180,7 @@ const NavBar: React.FC = () => {
           </>
         ) : (
           <div className="flex items-center space-x-1 md:space-x-2">
+            {user && <NotificationsPanel />}
             {getNavItems()}
           </div>
         )}
