@@ -42,9 +42,22 @@ export const restaurantApi = {
   createRestaurant: async (data: Omit<Restaurant, 'id' | 'created_at'>) => {
     console.log('Creating restaurant with data:', data);
     try {
-      const response = await apiClient.post('/restaurants', data);
-      console.log('Restaurant created successfully:', response.data);
-      return response.data;
+      // Use supabase directly instead of the backend API
+      const { supabase } = await import('@/lib/supabase');
+      
+      const { data: result, error } = await supabase
+        .from('restaurants')
+        .insert(data)
+        .select()
+        .single();
+        
+      if (error) {
+        console.error('Supabase error creating restaurant:', error);
+        throw error;
+      }
+      
+      console.log('Restaurant created successfully via Supabase:', result);
+      return result as Restaurant;
     } catch (error) {
       console.error('Error creating restaurant:', error);
       throw error;
@@ -54,9 +67,23 @@ export const restaurantApi = {
   updateRestaurant: async (id: string, data: Partial<Restaurant>) => {
     console.log(`Updating restaurant ${id} with data:`, data);
     try {
-      const response = await apiClient.put(`/restaurants/${id}`, data);
-      console.log('Restaurant updated successfully:', response.data);
-      return response.data;
+      // Use supabase directly instead of the backend API
+      const { supabase } = await import('@/lib/supabase');
+      
+      const { data: result, error } = await supabase
+        .from('restaurants')
+        .update(data)
+        .eq('id', id)
+        .select()
+        .single();
+        
+      if (error) {
+        console.error('Supabase error updating restaurant:', error);
+        throw error;
+      }
+      
+      console.log('Restaurant updated successfully via Supabase:', result);
+      return result as Restaurant;
     } catch (error) {
       console.error(`Error updating restaurant ${id}:`, error);
       throw error;

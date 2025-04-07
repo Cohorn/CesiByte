@@ -1,8 +1,10 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { restaurantApi } from '@/api/services/restaurantService';
 import { useAuth } from './useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { Restaurant } from '@/lib/database.types';
+import { supabase } from '@/lib/supabase';
 
 export function useRestaurant() {
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
@@ -34,15 +36,38 @@ export function useRestaurant() {
       
       if (id) {
         console.log(`Fetching restaurant by ID: ${id}`);
-        result = await restaurantApi.getRestaurantById(id);
+        const { data, error: fetchError } = await supabase
+          .from('restaurants')
+          .select('*')
+          .eq('id', id)
+          .single();
+          
+        if (fetchError) {
+          throw fetchError;
+        }
+        
+        result = data;
       } else if (user) {
         console.log(`Fetching restaurant by user ID: ${user.id}`);
-        result = await restaurantApi.getRestaurantByUserId(user.id);
+        const { data, error: fetchError } = await supabase
+          .from('restaurants')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+          
+        if (fetchError) {
+          if (fetchError.code === 'PGRST116') {
+            // No restaurant found for this user
+            return null;
+          }
+          throw fetchError;
+        }
+        
+        result = data;
       }
       
       console.log('Restaurant fetch result:', result);
       
-      // Only update state if component is still mounted
       setRestaurant(result);
       setLastFetched(now);
       return result;
@@ -51,7 +76,7 @@ export function useRestaurant() {
       setError(error as Error);
       
       // Show toast only for non-404 errors to avoid excessive notifications
-      if (!(error as any).response || (error as any).response.status !== 404) {
+      if ((error as any).code !== 'PGRST116') {
         toast({
           title: "Error",
           description: "Could not fetch restaurant data",
@@ -99,15 +124,24 @@ export function useRestaurant() {
         user_id: user.id
       });
       
-      const result = await restaurantApi.createRestaurant({
-        name: data.name,
-        address: data.address,
-        lat: data.lat,
-        lng: data.lng,
-        user_id: user.id,
-        image_url: data.image_url || null
-      });
+      // Use Supabase directly
+      const { data: result, error: createError } = await supabase
+        .from('restaurants')
+        .insert({
+          name: data.name,
+          address: data.address,
+          lat: data.lat,
+          lng: data.lng,
+          user_id: user.id,
+          image_url: data.image_url || null
+        })
+        .select()
+        .single();
         
+      if (createError) {
+        throw createError;
+      }
+      
       setRestaurant(result);
       setLastFetched(Date.now());
       toast({
@@ -154,7 +188,19 @@ export function useRestaurant() {
     
     try {
       console.log(`Updating restaurant ${restaurant.id} with data:`, data);
-      const result = await restaurantApi.updateRestaurant(restaurant.id, data);
+      
+      // Use Supabase directly
+      const { data: result, error: updateError } = await supabase
+        .from('restaurants')
+        .update(data)
+        .eq('id', restaurant.id)
+        .select()
+        .single();
+        
+      if (updateError) {
+        throw updateError;
+      }
+      
       setRestaurant(result);
       setLastFetched(Date.now());
       toast({
