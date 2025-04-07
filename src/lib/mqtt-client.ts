@@ -10,6 +10,7 @@ class MQTTClient {
   private messageQueue: Array<{topic: string, message: any}> = [];
   private connectionAttempts = 0;
   private maxReconnectDelay = 30000; // Maximum delay is 30 seconds
+  private globalMessageHandlers: Set<(topic: string, message: any) => void> = new Set();
 
   // Connect to the MQTT WebSocket proxy
   connect() {
@@ -94,16 +95,19 @@ class MQTTClient {
         // Parse the message if it's JSON
         let messageData;
         try {
-          messageData = JSON.parse(data.message);
+          messageData = typeof data.message === 'string' ? JSON.parse(data.message) : data.message;
         } catch (e) {
           messageData = data.message;
         }
         
-        // Notify subscribers
+        // Notify topic-specific subscribers
         this.notifySubscribers(data.topic, messageData);
         
         // Check for wildcard subscribers
         this.notifyWildcardSubscribers(data.topic, messageData);
+        
+        // Notify global message handlers
+        this.notifyGlobalHandlers(data.topic, messageData);
       }
     } catch (error) {
       console.error('Error processing WebSocket message:', error);
@@ -135,6 +139,16 @@ class MQTTClient {
         });
       }
     }
+  }
+  
+  private notifyGlobalHandlers(topic: string, messageData: any) {
+    this.globalMessageHandlers.forEach(handler => {
+      try {
+        handler(topic, messageData);
+      } catch (error) {
+        console.error(`Error in global message handler for topic ${topic}:`, error);
+      }
+    });
   }
   
   // Checks if a topic matches a wildcard subscription
@@ -234,6 +248,20 @@ class MQTTClient {
       
       // Make sure we're trying to connect
       this.connect();
+    }
+  }
+  
+  // Register a global message handler
+  on(event: 'message', handler: (topic: string, message: any) => void) {
+    if (event === 'message') {
+      this.globalMessageHandlers.add(handler);
+    }
+  }
+  
+  // Remove a global message handler
+  off(event: 'message', handler: (topic: string, message: any) => void) {
+    if (event === 'message') {
+      this.globalMessageHandlers.delete(handler);
     }
   }
   
