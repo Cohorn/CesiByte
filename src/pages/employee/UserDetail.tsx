@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Navigate, useParams, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
@@ -41,14 +40,12 @@ const UserDetail = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
 
-  // Redirect if not logged in or not an employee
   if (!user) {
     return <Navigate to="/login" />;
   } else if (user.user_type !== 'employee') {
     return <Navigate to="/" />;
   }
 
-  // Fetch user data
   const { data, isLoading, error } = useQuery({
     queryKey: ['user', userId],
     queryFn: async () => {
@@ -58,11 +55,14 @@ const UserDetail = () => {
     }
   });
 
-  // Update user mutation
   const updateUser = useMutation({
     mutationFn: async (updatedData: UserData) => {
       if (!userId) throw new Error("User ID is required");
-      const response = await userApi.updateUser(userId, updatedData);
+      const typedData: Partial<User> = {
+        ...updatedData,
+        user_type: updatedData.user_type as UserType
+      };
+      const response = await userApi.updateUser(userId, typedData);
       return response;
     },
     onSuccess: () => {
@@ -88,7 +88,6 @@ const UserDetail = () => {
     }
   }, [data]);
 
-  // Validate latitude and longitude
   const validateCoordinates = useCallback(() => {
     const errors: {[key: string]: string} = {};
     
@@ -111,7 +110,6 @@ const UserDetail = () => {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     
-    // Handle numeric values for coordinates
     if (name === 'lat' || name === 'lng') {
       const numValue = parseFloat(value);
       setUserData(prev => ({ ...prev, [name]: isNaN(numValue) ? 0 : numValue }));
@@ -123,7 +121,6 @@ const UserDetail = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate coordinates before submitting
     if (!validateCoordinates()) {
       return;
     }
@@ -131,7 +128,6 @@ const UserDetail = () => {
     updateUser.mutate(userData);
   };
 
-  // Determine the back link based on user type
   const getBackLink = () => {
     if (!data) return "/employee/dashboard";
     
@@ -147,7 +143,6 @@ const UserDetail = () => {
     }
   };
 
-  // Format creation date
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('en-US', {
