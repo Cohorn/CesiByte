@@ -7,7 +7,7 @@ import OrderStatusUpdate from '@/components/OrderStatusUpdate';
 import DeliveryReviewButton from '@/components/DeliveryReviewButton';
 import { getTimeRemainingBeforeCancel, formatRemainingTime, getEffectiveOrderStatus } from '@/utils/orderTimeUtils';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, LockKeyhole } from 'lucide-react';
 
 interface OrderListItemProps {
   order: Order;
@@ -45,6 +45,15 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
     return 'bg-blue-100 text-blue-800';
   };
 
+  // Show PIN code only for active orders that have a delivery_pin
+  const shouldShowPinCode = () => {
+    return (
+      order.delivery_pin && 
+      isCurrentOrder && 
+      ['accepted_by_restaurant', 'preparing', 'ready_for_pickup', 'picked_up', 'on_the_way'].includes(order.status)
+    );
+  };
+
   return (
     <div className="bg-white rounded shadow p-4">
       <div className="flex items-center justify-between mb-2">
@@ -77,6 +86,18 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
           <span className="text-xs text-red-600 ml-2">Auto-canceled due to timeout</span>
         )}
       </div>
+      
+      {/* Show delivery PIN code */}
+      {shouldShowPinCode() && (
+        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded flex items-center">
+          <LockKeyhole className="h-5 w-5 text-yellow-600 mr-2" />
+          <div>
+            <p className="font-medium text-yellow-800">Your Delivery PIN</p>
+            <p className="text-xl font-bold tracking-wider">{order.delivery_pin}</p>
+            <p className="text-xs text-yellow-700 mt-1">Share this PIN with your courier to confirm delivery</p>
+          </div>
+        </div>
+      )}
       
       <div>
         <strong>Items:</strong>
