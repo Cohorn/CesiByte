@@ -28,11 +28,11 @@ export function useRestaurant(initialId?: string) {
       let restaurantData: Restaurant;
       
       try {
-        restaurantData = await restaurantApi.getRestaurantById(restaurantId);
+        restaurantData = await restaurantApi.getRestaurant(restaurantId);
       } catch (err) {
         // If that fails, check if it's a user ID instead
         console.log(`Restaurant not found by ID, trying as user ID: ${restaurantId}`);
-        restaurantData = await restaurantApi.getRestaurantByUserId(restaurantId);
+        restaurantData = await restaurantApi.getRestaurantByUser(restaurantId);
       }
       
       if (restaurantData) {

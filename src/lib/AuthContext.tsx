@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, ReactNode } from 'react';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth as useAuthHook } from '@/hooks/useAuth';
 import { User, UserType } from './database.types';
 
 // Define the context shape
@@ -22,7 +22,7 @@ const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
 // Create a provider component
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const auth = useAuth();
+  const auth = useAuthHook();
   
   return (
     <AuthContext.Provider value={auth}>

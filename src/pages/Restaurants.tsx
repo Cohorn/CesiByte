@@ -30,7 +30,7 @@ const Restaurants = () => {
     
     try {
       console.log("Fetching restaurants");
-      const data = await restaurantApi.getAllRestaurants();
+      const data = await restaurantApi.getRestaurants();
       
       console.log(`Fetched ${data?.length || 0} restaurants:`, data);
       setRestaurants(data || []);
