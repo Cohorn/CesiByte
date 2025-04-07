@@ -1,4 +1,3 @@
-
 // This is a simplified version for demonstration
 import { apiClient } from '../client';
 import { Order, OrderStatus } from '@/lib/database.types';
@@ -242,7 +241,6 @@ export const orderApi = {
     try {
       console.log(`Verifying delivery PIN for order ${orderId} with pin ${pin}`);
       
-      // FIX: Use the correct endpoint path with the /orders/ prefix
       const response = await apiClient.post(`/orders/${orderId}/verify-pin`, { pin });
       console.log('PIN verification response:', response.data);
       
@@ -309,9 +307,7 @@ export const orderApi = {
     }
   },
 
-  // Expose cache clearing functionality
   clearCache: orderCacheService.clearCache,
   
-  // Expose subscription functionality
   subscribeToOrderUpdates: orderMQTTService.subscribeToOrderUpdates
 };

@@ -28,6 +28,7 @@ const DeliveryPinInput: React.FC<DeliveryPinInputProps> = ({
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attemptCount, setAttemptCount] = useState(0);
+  const [success, setSuccess] = useState(false);
   
   // Reset pin and error when dialog opens
   useEffect(() => {
@@ -36,6 +37,7 @@ const DeliveryPinInput: React.FC<DeliveryPinInputProps> = ({
       setError(null);
       setIsVerifying(false);
       setAttemptCount(0);
+      setSuccess(false);
     }
   }, [isOpen]);
 
@@ -54,11 +56,14 @@ const DeliveryPinInput: React.FC<DeliveryPinInputProps> = ({
       console.log('Verification result:', result);
       
       if (result.success) {
+        // Show success state
+        setSuccess(true);
+        
         // Wait a moment before closing to show success state
         setTimeout(() => {
           setPin('');
           onClose();
-        }, 1000);
+        }, 1500);
       } else {
         setAttemptCount(prev => prev + 1);
         setError(result.message || 'Invalid PIN. Please try again.');
@@ -106,7 +111,7 @@ const DeliveryPinInput: React.FC<DeliveryPinInputProps> = ({
             maxLength={4} 
             value={pin} 
             onChange={setPin}
-            disabled={isVerifying}
+            disabled={isVerifying || success}
           >
             <InputOTPGroup>
               <InputOTPSlot index={0} />
@@ -119,6 +124,13 @@ const DeliveryPinInput: React.FC<DeliveryPinInputProps> = ({
           {error && (
             <p className="text-sm text-red-500">{error}</p>
           )}
+          
+          {success && (
+            <div className="flex items-center text-green-500 font-medium">
+              <Check className="mr-2 h-5 w-5" />
+              Delivery confirmed!
+            </div>
+          )}
         </div>
         
         <DialogFooter className="flex justify-between">
@@ -127,7 +139,7 @@ const DeliveryPinInput: React.FC<DeliveryPinInputProps> = ({
               type="button" 
               variant="outline" 
               onClick={handleReset}
-              disabled={isVerifying || pin.length === 0}
+              disabled={isVerifying || pin.length === 0 || success}
             >
               <X className="mr-2 h-4 w-4" />
               Clear
@@ -136,11 +148,11 @@ const DeliveryPinInput: React.FC<DeliveryPinInputProps> = ({
             <Button 
               type="submit" 
               onClick={handleVerify}
-              disabled={isVerifying || pin.length !== 4}
-              className={isVerifying ? "opacity-80" : ""}
+              disabled={isVerifying || pin.length !== 4 || success}
+              className={`${isVerifying ? "opacity-80" : ""} ${success ? "bg-green-500" : ""}`}
             >
               <Check className="mr-2 h-4 w-4" />
-              {isVerifying ? "Verifying..." : "Verify PIN"}
+              {isVerifying ? "Verifying..." : success ? "Verified!" : "Verify PIN"}
             </Button>
           </div>
         </DialogFooter>

@@ -57,6 +57,7 @@ export type Database = {
           delivery_address: string
           delivery_lat: number
           delivery_lng: number
+          delivery_pin: string
           id: string
           items: Json
           restaurant_id: string
@@ -71,6 +72,7 @@ export type Database = {
           delivery_address: string
           delivery_lat: number
           delivery_lng: number
+          delivery_pin: string
           id?: string
           items: Json
           restaurant_id: string
@@ -85,6 +87,7 @@ export type Database = {
           delivery_address?: string
           delivery_lat?: number
           delivery_lng?: number
+          delivery_pin?: string
           id?: string
           items?: Json
           restaurant_id?: string
