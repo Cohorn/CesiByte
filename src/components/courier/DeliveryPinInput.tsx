@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
@@ -27,6 +27,15 @@ const DeliveryPinInput: React.FC<DeliveryPinInputProps> = ({
   const [pin, setPin] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Reset pin and error when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      setPin('');
+      setError(null);
+      setIsVerifying(false);
+    }
+  }, [isOpen]);
 
   const handleVerify = async () => {
     if (pin.length !== 4) {
@@ -38,7 +47,9 @@ const DeliveryPinInput: React.FC<DeliveryPinInputProps> = ({
     setError(null);
 
     try {
+      console.log(`Attempting to verify PIN for order ${orderId}: ${pin}`);
       const result = await onVerify(orderId, pin);
+      console.log('Verification result:', result);
       
       if (result.success) {
         // Wait a moment before closing to show success state
@@ -50,6 +61,7 @@ const DeliveryPinInput: React.FC<DeliveryPinInputProps> = ({
         setError(result.message || 'Invalid PIN. Please try again.');
       }
     } catch (err) {
+      console.error('Error during pin verification:', err);
       setError('Failed to verify PIN. Please try again.');
     } finally {
       setIsVerifying(false);
@@ -62,7 +74,9 @@ const DeliveryPinInput: React.FC<DeliveryPinInputProps> = ({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!open) onClose();
+    }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Enter Delivery PIN</DialogTitle>

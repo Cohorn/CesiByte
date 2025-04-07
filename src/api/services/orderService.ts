@@ -239,9 +239,12 @@ export const orderApi = {
 
   verifyDeliveryPin: async (orderId: string, pin: string) => {
     try {
-      console.log(`Verifying delivery PIN for order ${orderId}`);
-      // Fix: Use the correct API endpoint path
+      console.log(`Verifying delivery PIN for order ${orderId} with pin ${pin}`);
+      
+      // The issue might be in the URL construction - let's fix it to ensure it's correct
+      // We're explicitly using the full endpoint path to avoid any confusion
       const response = await apiClient.post(`/orders/${orderId}/verify-pin`, { pin });
+      console.log('PIN verification response:', response.data);
       
       if (response.data.success) {
         console.log('PIN verified successfully, order marked as delivered');
@@ -261,7 +264,7 @@ export const orderApi = {
           }
         );
         
-        if (updatedOrder.restaurant_id) {
+        if (updatedOrder?.restaurant_id) {
           orderMQTTService.publishOrderEvent(
             `foodapp/restaurants/${updatedOrder.restaurant_id}/orders/updated`, 
             updatedOrder
@@ -282,7 +285,7 @@ export const orderApi = {
           message: response.data.message || 'Invalid PIN'
         };
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error verifying delivery PIN:', error);
       // Extract the error message from the response if possible
       const errorMessage = 
@@ -290,6 +293,14 @@ export const orderApi = {
         error.response?.data?.message || 
         error.message || 
         'Error processing your request';
+      
+      console.log('Detailed error info:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        url: error.config?.url,
+        method: error.config?.method,
+        responseData: error.response?.data
+      });
       
       return {
         success: false,

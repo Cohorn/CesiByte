@@ -163,7 +163,19 @@ export const useOrders = (options: OrdersOptions = {}) => {
   const verifyDeliveryPin = useCallback(async (orderId: string, pin: string) => {
     try {
       console.log(`Sending verification request for order ${orderId} with PIN ${pin}`);
-      return await orderApi.verifyDeliveryPin(orderId, pin);
+      const result = await orderApi.verifyDeliveryPin(orderId, pin);
+      
+      console.log('PIN verification API response:', result);
+      
+      if (result.success && isMounted.current) {
+        setOrders(prevOrders => 
+          prevOrders.map(order => 
+            order.id === orderId ? { ...order, status: 'delivered' } : order
+          )
+        );
+      }
+      
+      return result;
     } catch (err) {
       console.error("Error in verifyDeliveryPin:", err);
       return { 

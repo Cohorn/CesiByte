@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
@@ -22,6 +21,10 @@ const CourierActiveOrders = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<string>('active');
   const { toast } = useToast();
+  const [pinVerificationState, setPinVerificationState] = useState<{ 
+    orderId: string | null; 
+    isVerifying: boolean; 
+  }>({ orderId: null, isVerifying: false });
   
   const { 
     activeOrders, 
@@ -41,8 +44,15 @@ const CourierActiveOrders = () => {
   // Callback for PIN verification
   const handleVerifyPin = useCallback(async (orderId: string, pin: string) => {
     try {
+      if (pinVerificationState.isVerifying) {
+        return { success: false, message: "Verification already in progress" };
+      }
+      
+      setPinVerificationState({ orderId, isVerifying: true });
       console.log(`Verifying PIN for order ${orderId} with value ${pin}`);
+      
       const result = await verifyDeliveryPin(orderId, pin);
+      console.log('PIN verification result:', result);
       
       if (result.success) {
         toast({
@@ -52,6 +62,7 @@ const CourierActiveOrders = () => {
         
         // If PIN is verified, refetch orders to update the UI
         refetch();
+        setPinVerificationState({ orderId: null, isVerifying: false });
         return { success: true, message: "Delivery confirmed" };
       } else {
         const errorMessage = result.message || "Invalid PIN";
@@ -63,6 +74,7 @@ const CourierActiveOrders = () => {
           variant: "destructive"
         });
         
+        setPinVerificationState({ orderId: null, isVerifying: false });
         return { success: false, message: errorMessage };
       }
     } catch (err) {
@@ -75,9 +87,10 @@ const CourierActiveOrders = () => {
         variant: "destructive"
       });
       
+      setPinVerificationState({ orderId: null, isVerifying: false });
       return { success: false, message: "An unexpected error occurred" };
     }
-  }, [verifyDeliveryPin, refetch, toast]);
+  }, [verifyDeliveryPin, refetch, toast, pinVerificationState.isVerifying]);
 
   // Redirect if user is not a courier
   if (!user || user.user_type !== 'courier') {
