@@ -1,189 +1,154 @@
 
-import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { Button } from './ui/button';
-import { Utensils, ShoppingBag, Truck, User, LogOut, Menu, X } from 'lucide-react';
-import SitemapBackButton from './SitemapBackButton';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { UserCircle2, LogOut, ShoppingBag, Store, Truck, User, UserCog, Map } from 'lucide-react';
 import NotificationsPanel from './notifications/NotificationsPanel';
 
-const NavBar: React.FC = () => {
+const NavBar = () => {
   const { user, signOut } = useAuth();
-  const location = useLocation();
-  const isMobile = useIsMobile();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  
-  const isActive = (path: string) => {
-    return location.pathname === path;
+  const navigate = useNavigate();
+
+  // Generate user's initials for avatar
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2);
   };
 
-  // Check if user is an employee
-  const isEmployee = user?.user_type === 'employee';
-  const showSitemapButton = isEmployee && location.pathname !== '/employee/sitemap';
-
-  const toggleMobileMenu = () => setMobileMenuOpen(!mobileMenuOpen);
-
-  // Define navigation items based on user type
-  const getNavItems = () => {
-    if (!user) {
-      return (
-        <>
-          <Button asChild variant="ghost" size="sm" className="nav-link">
-            <Link to="/login">Login</Link>
-          </Button>
-          <Button asChild variant="default" size="sm">
-            <Link to="/register">Register</Link>
-          </Button>
-        </>
-      );
+  // Get dashboard route based on user type
+  const getDashboardRoute = () => {
+    if (!user) return '/';
+    
+    switch (user.user_type) {
+      case 'customer':
+        return '/orders';
+      case 'restaurant':
+        return '/restaurant/orders';
+      case 'courier':
+        return '/courier/orders';
+      case 'employee':
+        return '/employee';
+      default:
+        return '/';
     }
-    
-    const navItems = {
-      customer: [
-        {
-          path: '/restaurants',
-          icon: <ShoppingBag className="mr-1 h-4 w-4" />,
-          label: 'Restaurants',
-        },
-        {
-          path: '/orders',
-          icon: <Utensils className="mr-1 h-4 w-4" />,
-          label: 'My Orders',
-        },
-      ],
-      restaurant: [
-        {
-          path: '/restaurant/menu',
-          icon: <Utensils className="mr-1 h-4 w-4" />,
-          label: 'Menu',
-        },
-        {
-          path: '/restaurant/orders',
-          icon: <ShoppingBag className="mr-1 h-4 w-4" />,
-          label: 'Orders',
-        },
-      ],
-      courier: [
-        {
-          path: '/courier/available',
-          icon: <ShoppingBag className="mr-1 h-4 w-4" />,
-          label: 'Available',
-        },
-        {
-          path: '/courier/active',
-          icon: <Truck className="mr-1 h-4 w-4" />,
-          label: 'Active',
-        },
-      ],
-      employee: [
-        {
-          path: '/employee/dashboard',
-          icon: <User className="mr-1 h-4 w-4" />,
-          label: 'Dashboard',
-        },
-      ],
-    };
-    
-    // Get navigation items based on user type
-    const userNavItems = navItems[user.user_type] || [];
-    
-    // Add profile link
-    const profilePath = isEmployee ? '/employee/profile' : '/profile';
-    
-    return (
-      <>
-        {userNavItems.map((item) => (
-          <Button 
-            key={item.path}
-            asChild 
-            variant={isActive(item.path) ? "default" : "ghost"} 
-            size="sm" 
-            className={cn(
-              isActive(item.path) ? "nav-link-active" : "nav-link",
-              isMobile && mobileMenuOpen ? "w-full justify-start" : ""
-            )}
-          >
-            <Link to={item.path}>
-              {item.icon}
-              <span className={isMobile ? "inline" : "hidden md:inline"}>{item.label}</span>
-            </Link>
-          </Button>
-        ))}
-        
-        <Button 
-          asChild 
-          variant={isActive(profilePath) ? "default" : "ghost"} 
-          size="sm"
-          className={cn(
-            isActive(profilePath) ? "nav-link-active" : "nav-link",
-            isMobile && mobileMenuOpen ? "w-full justify-start" : ""
-          )}
-        >
-          <Link to={profilePath}>
-            <User className="mr-1 h-4 w-4" />
-            <span className={isMobile ? "inline" : "hidden md:inline"}>Profile</span>
-          </Link>
-        </Button>
-        
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className={cn(
-            "nav-link",
-            isMobile && mobileMenuOpen ? "w-full justify-start" : ""
-          )}
-          onClick={() => signOut()}
-        >
-          <LogOut className="mr-1 h-4 w-4" />
-          <span className={isMobile ? "inline" : "hidden md:inline"}>Logout</span>
-        </Button>
-      </>
-    );
   };
 
   return (
-    <nav className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        <div className="flex items-center space-x-2 md:space-x-4">
-          <Link to="/" className="flex items-center space-x-2">
-            <div className="flex items-center">
-              <span className="inline-block bg-yellow-300 text-black font-bold rounded-l-md px-2 py-1">C</span>
-              <span className="font-bold text-xl">esiByte</span>
+    <nav className="border-b bg-white">
+      <div className="container mx-auto flex justify-between items-center py-3">
+        <div className="flex items-center space-x-4">
+          <Link to="/" className="text-xl font-bold">FoodApp</Link>
+          
+          {user && (
+            <div className="hidden md:flex space-x-2">
+              <Button variant="ghost" size="sm" asChild>
+                <Link to={getDashboardRoute()}>Dashboard</Link>
+              </Button>
+              
+              {/* User-specific navigation links */}
+              {user.user_type === 'customer' && (
+                <>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link to="/restaurants">Restaurants</Link>
+                  </Button>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link to="/orders">My Orders</Link>
+                  </Button>
+                </>
+              )}
+              
+              {user.user_type === 'restaurant' && (
+                <>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link to="/restaurant/orders">Orders</Link>
+                  </Button>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link to="/restaurant/menu">Menu</Link>
+                  </Button>
+                </>
+              )}
+              
+              {user.user_type === 'courier' && (
+                <>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link to="/courier/orders">My Deliveries</Link>
+                  </Button>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link to="/courier/available">Available Orders</Link>
+                  </Button>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link to="/courier/map">Map</Link>
+                  </Button>
+                </>
+              )}
+              
+              {user.user_type === 'employee' && (
+                <>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link to="/employee">Dashboard</Link>
+                  </Button>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link to="/employee/restaurants">Restaurants</Link>
+                  </Button>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link to="/employee/customers">Customers</Link>
+                  </Button>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link to="/employee/couriers">Couriers</Link>
+                  </Button>
+                </>
+              )}
             </div>
-            <span className="text-xs text-muted-foreground italic hidden sm:inline-block">Food for thought, Engineer's favourite</span>
-          </Link>
-          {!isMobile && showSitemapButton && <SitemapBackButton />}
+          )}
         </div>
         
-        {isMobile ? (
-          <>
-            <div className="flex items-center space-x-2">
-              {user && <NotificationsPanel />}
+        <div className="flex items-center space-x-2">
+          {user ? (
+            <>
+              {/* Notifications */}
+              <NotificationsPanel />
+              
+              <Button 
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate('/profile')}
+                className="flex items-center space-x-2"
+              >
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+                </Avatar>
+                <span className="hidden md:block">{user.name}</span>
+              </Button>
+              
               <Button 
                 variant="ghost" 
-                size="icon" 
-                onClick={toggleMobileMenu}
-                className="z-50"
+                size="sm"
+                onClick={() => {
+                  signOut();
+                  navigate('/');
+                }}
               >
-                {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                <LogOut className="h-5 w-5 md:mr-2" />
+                <span className="hidden md:block">Logout</span>
               </Button>
-            </div>
-            
-            {mobileMenuOpen && (
-              <div className="fixed inset-0 top-16 z-40 bg-background p-4 flex flex-col space-y-4 animate-fade-in">
-                {getNavItems()}
-                {showSitemapButton && <SitemapBackButton className="w-full justify-start" />}
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="flex items-center space-x-1 md:space-x-2">
-            {user && <NotificationsPanel />}
-            {getNavItems()}
-          </div>
-        )}
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/login">Login</Link>
+              </Button>
+              <Button variant="default" size="sm" asChild>
+                <Link to="/register">Register</Link>
+              </Button>
+            </>
+          )}
+        </div>
       </div>
     </nav>
   );
