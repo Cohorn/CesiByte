@@ -66,7 +66,7 @@ export type Order = {
   delivery_lng: number;
   created_at: string;
   updated_at: string;
-  delivery_pin?: string; // Added delivery PIN field
+  delivery_pin: string; // Make this non-optional to ensure it's always present
 };
 
 export type OrderItem = {

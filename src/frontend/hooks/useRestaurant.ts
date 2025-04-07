@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { restaurantApi } from '@/api/services/restaurantService';
 import { useAuth } from './useAuth';
@@ -83,6 +82,14 @@ export function useRestaurant() {
       return null;
     }
     
+    // Validate coordinates or fallback to user coordinates
+    if (!data.lat || !data.lng || isNaN(data.lat) || isNaN(data.lng) || 
+        data.lat < -90 || data.lat > 90 || data.lng < -180 || data.lng > 180) {
+      console.log("Invalid coordinates, using user coordinates instead");
+      data.lat = user.lat || 0;
+      data.lng = user.lng || 0;
+    }
+    
     setLoading(true);
     setError(null);
     
@@ -130,6 +137,16 @@ export function useRestaurant() {
         variant: "destructive",
       });
       return null;
+    }
+    
+    // Validate coordinates if provided
+    if (data.lat !== undefined && data.lng !== undefined) {
+      if (isNaN(data.lat) || isNaN(data.lng) || 
+          data.lat < -90 || data.lat > 90 || data.lng < -180 || data.lng > 180) {
+        // Keep existing coordinates if new ones are invalid
+        data.lat = restaurant.lat;
+        data.lng = restaurant.lng;
+      }
     }
     
     setLoading(true);

@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { MapPin, Upload, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
+import { Link } from 'react-router-dom';
 
 const formSchema = z.object({
   name: z.string().min(2, {
@@ -32,8 +33,6 @@ const RestaurantSetup = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [lat, setLat] = useState<number | null>(null);
-  const [lng, setLng] = useState<number | null>(null);
   const { toast } = useToast();
   const { restaurant, loading, createRestaurant, updateRestaurant } = useRestaurant();
 
@@ -59,8 +58,6 @@ const RestaurantSetup = () => {
         setValue("image_url", restaurant.image_url);
         setImagePreview(restaurant.image_url);
       }
-      setLat(restaurant.lat);
-      setLng(restaurant.lng);
     }
   }, [restaurant, setValue]);
 
@@ -69,39 +66,6 @@ const RestaurantSetup = () => {
       navigate('/login');
     }
   }, [user, navigate]);
-
-  const geocodeAddress = async (address: string) => {
-    const apiKey = process.env.NEXT_PUBLIC_MAPBOX_API_KEY;
-    const encodedAddress = encodeURIComponent(address);
-    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedAddress}.json?access_token=${apiKey}`;
-
-    try {
-      const response = await fetch(url);
-      const data = await response.json();
-
-      if (data.features && data.features.length > 0) {
-        const [lng, lat] = data.features[0].center;
-        setLat(lat);
-        setLng(lng);
-        return { lat, lng };
-      } else {
-        toast({
-          title: "Error",
-          description: "Could not geocode address",
-          variant: "destructive"
-        });
-        return { lat: null, lng: null };
-      }
-    } catch (error) {
-      console.error('Geocoding error:', error);
-      toast({
-        title: "Error",
-        description: "Geocoding failed",
-        variant: "destructive"
-      });
-      return { lat: null, lng: null };
-    }
-  };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -179,27 +143,14 @@ const RestaurantSetup = () => {
     
     setIsSubmitting(true);
     try {
-      // Geocode the address
-      const { lat: newLat, lng: newLng } = await geocodeAddress(data.address);
-      
-      if (newLat === null || newLng === null) {
-        toast({
-          title: "Error",
-          description: "Invalid address. Could not find coordinates.",
-          variant: "destructive"
-        });
-        setIsSubmitting(false);
-        return;
-      }
-      
-      // Prepare restaurant data
+      // Instead of geocoding, use the coordinates from user registration
       const restaurantData = {
         name: data.name,
         address: data.address,
-        lat: newLat || 0,
-        lng: newLng || 0,
+        lat: user.lat || 0, // Use user's coordinates from registration
+        lng: user.lng || 0, // Use user's coordinates from registration
         user_id: user.id,
-        image_url: data.image_url || null
+        image_url: data.image_url || null // Optional image URL
       };
       
       let result;
@@ -272,17 +223,23 @@ const RestaurantSetup = () => {
                 {errors.address && (
                   <p className="text-red-500 text-sm mt-1">{errors.address.message}</p>
                 )}
+                <p className="text-xs text-gray-500 mt-1">
+                  We'll use the location you provided during registration.
+                </p>
               </div>
               
-              {lat && lng && (
+              {user && (
                 <div className="flex items-center text-sm text-blue-600 mt-1">
                   <MapPin className="h-4 w-4 mr-1" />
-                  <span>Lat: {lat}, Lng: {lng}</span>
+                  <span>Using your registered location: Lat: {user.lat}, Lng: {user.lng}</span>
                 </div>
               )}
               
               <div>
-                <Label htmlFor="image">Restaurant Photo</Label>
+                <div className="flex items-center justify-between mb-1">
+                  <Label htmlFor="image">Restaurant Photo (Optional)</Label>
+                  <span className="text-xs text-gray-500">You can add this later</span>
+                </div>
                 <div className="mt-1">
                   {imagePreview ? (
                     <div className="relative w-full aspect-video mb-2 rounded-md overflow-hidden bg-gray-100">
@@ -317,7 +274,7 @@ const RestaurantSetup = () => {
                       >
                         <Upload className="h-10 w-10 text-gray-400 mb-2" />
                         <span className="text-sm text-gray-600">
-                          {isUploading ? 'Uploading...' : 'Upload restaurant photo'}
+                          {isUploading ? 'Uploading...' : 'Upload restaurant photo (optional)'}
                         </span>
                         <span className="text-xs text-gray-400 mt-1">
                           JPG, PNG, GIF up to 5MB
