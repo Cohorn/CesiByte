@@ -32,6 +32,7 @@ export function useNotifications() {
     const newNotification: NotificationProps = {
       id: crypto.randomUUID(),
       time: new Date(),
+      read: false,
       ...notification
     };
 
@@ -109,24 +110,21 @@ export function useNotifications() {
             title: 'New Order',
             message: `You've received a new order${data.id ? ` #${data.id.substring(0, 8)}` : ''}!`,
             type: 'restaurant',
-            data,
-            read: false
+            data
           });
         } else if (topic.includes('/available_orders')) {
           addNotification({
             title: 'Available Delivery',
             message: `There's a new order available for delivery!`,
             type: 'courier',
-            data,
-            read: false
+            data
           });
         } else if (topic.includes('/assignments')) {
           addNotification({
             title: 'New Assignment',
             message: `You've been assigned to a new delivery!`,
             type: 'courier',
-            data,
-            read: false
+            data
           });
         } else if (topic.includes('/notifications')) {
           // User notifications, likely about order status changes
@@ -137,8 +135,7 @@ export function useNotifications() {
             title,
             message,
             type: 'order',
-            data,
-            read: false
+            data
           });
         }
       } catch (error) {

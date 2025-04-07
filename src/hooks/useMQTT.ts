@@ -38,29 +38,18 @@ export function useMQTT<T = any>(topic: string) {
   useEffect(() => {
     if (!mqttClient?.subscribe) return;
 
-    const handleMessage = (messageTopic: string, message: any) => {
-      // Only process messages for our topic
-      if (messageTopic === topic) {
-        setLastMessage(message);
-        setMessages(prev => [message, ...prev].slice(0, 100)); // Keep last 100 messages
-      }
+    const handleMessage = (message: T) => {
+      setLastMessage(message);
+      setMessages(prev => [message, ...prev].slice(0, 100)); // Keep last 100 messages
     };
     
     console.log(`Subscribing to MQTT topic: ${topic}`);
-    mqttClient.subscribe(topic);
-    
-    // Add message handler
-    mqttClient.on('message', handleMessage);
+    mqttClient.subscribe(topic, handleMessage);
     
     return () => {
       console.log(`Unsubscribing from MQTT topic: ${topic}`);
       if (mqttClient?.unsubscribe) {
-        mqttClient.unsubscribe(topic);
-      }
-      
-      // Remove message handler
-      if (mqttClient?.off) {
-        mqttClient.off('message', handleMessage);
+        mqttClient.unsubscribe(topic, handleMessage);
       }
     };
   }, [topic]);
@@ -80,7 +69,7 @@ export function useOrderMQTT(orderId?: string) {
   useEffect(() => {
     if (!orderId || !mqttClient?.subscribe) return;
     
-    const handleStatusUpdate = (topic: string, message: any) => {
+    const handleStatusUpdate = (message: any) => {
       if (message && message.status) {
         setOrderStatus(message.status);
       }
@@ -88,20 +77,12 @@ export function useOrderMQTT(orderId?: string) {
     
     const topic = `foodapp/orders/${orderId}/status`;
     console.log(`Subscribing to order status MQTT topic: ${topic}`);
-    mqttClient.subscribe(topic);
-    
-    // Add message handler
-    mqttClient.on('message', handleStatusUpdate);
+    mqttClient.subscribe(topic, handleStatusUpdate);
     
     return () => {
       console.log(`Unsubscribing from order status MQTT topic: ${topic}`);
       if (mqttClient?.unsubscribe) {
-        mqttClient.unsubscribe(topic);
-      }
-      
-      // Remove message handler
-      if (mqttClient?.off) {
-        mqttClient.off('message', handleStatusUpdate);
+        mqttClient.unsubscribe(topic, handleStatusUpdate);
       }
     };
   }, [orderId]);
@@ -142,7 +123,7 @@ export function useRestaurantOrdersMQTT(restaurantId?: string) {
       return;
     }
     
-    const handleNewOrder = (topic: string, order: any) => {
+    const handleNewOrder = (order: any) => {
       console.log("Restaurant MQTT - New order received:", order);
       setNewOrder(order);
       // Reset after a short delay to allow for subsequent notifications
@@ -151,20 +132,12 @@ export function useRestaurantOrdersMQTT(restaurantId?: string) {
     
     const topic = `foodapp/restaurants/${restaurantId}/orders`;
     console.log(`Subscribing to restaurant MQTT topic: ${topic}`);
-    mqttClient.subscribe(topic);
-    
-    // Add message handler
-    mqttClient.on('message', handleNewOrder);
+    mqttClient.subscribe(topic, handleNewOrder);
     
     return () => {
       console.log(`Unsubscribing from restaurant MQTT topic: ${topic}`);
       if (mqttClient?.unsubscribe) {
-        mqttClient.unsubscribe(topic);
-      }
-      
-      // Remove message handler
-      if (mqttClient?.off) {
-        mqttClient.off('message', handleNewOrder);
+        mqttClient.unsubscribe(topic, handleNewOrder);
       }
     };
   }, [restaurantId]);
@@ -179,26 +152,18 @@ export function useCourierAssignmentsMQTT(courierId?: string) {
   useEffect(() => {
     if (!courierId || !mqttClient?.subscribe) return;
     
-    const handleNewAssignment = (topic: string, assignment: any) => {
+    const handleNewAssignment = (assignment: any) => {
       setNewAssignment(assignment);
     };
     
     const topic = `foodapp/couriers/${courierId}/assignments`;
     console.log(`Subscribing to courier assignments MQTT topic: ${topic}`);
-    mqttClient.subscribe(topic);
-    
-    // Add message handler
-    mqttClient.on('message', handleNewAssignment);
+    mqttClient.subscribe(topic, handleNewAssignment);
     
     return () => {
       console.log(`Unsubscribing from courier assignments MQTT topic: ${topic}`);
       if (mqttClient?.unsubscribe) {
-        mqttClient.unsubscribe(topic);
-      }
-      
-      // Remove message handler
-      if (mqttClient?.off) {
-        mqttClient.off('message', handleNewAssignment);
+        mqttClient.unsubscribe(topic, handleNewAssignment);
       }
     };
   }, [courierId]);

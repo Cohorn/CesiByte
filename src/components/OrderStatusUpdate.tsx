@@ -16,7 +16,6 @@ interface OrderStatusUpdateProps {
   courierId?: string;
   userId?: string;
   className?: string;
-  onUpdateStatus?: (orderId: string, status: OrderStatus) => Promise<{ success: boolean, error?: any }>;
 }
 
 const OrderStatusUpdate: React.FC<OrderStatusUpdateProps> = ({ 
@@ -25,8 +24,7 @@ const OrderStatusUpdate: React.FC<OrderStatusUpdateProps> = ({
   restaurantId,
   courierId,
   userId,
-  className,
-  onUpdateStatus
+  className
 }) => {
   const [isUpdating, setIsUpdating] = useState(false);
   const { updateOrderStatus } = useOrders();
@@ -35,38 +33,25 @@ const OrderStatusUpdate: React.FC<OrderStatusUpdateProps> = ({
 
   // Define the status flow based on user type
   // This determines what status options are available for each user type
-  const restaurantStatusFlow: Record<OrderStatus, OrderStatus[]> = {
-    created: ['accepted_by_restaurant', 'canceled'],
-    accepted_by_restaurant: ['preparing', 'canceled'],
-    preparing: ['ready_for_pickup', 'canceled'],
-    ready_for_pickup: ['picked_up', 'canceled'],
+  const restaurantStatusFlow = {
+    pending: ['accepted_by_restaurant', 'cancelled'],
+    accepted_by_restaurant: ['preparing', 'cancelled'],
+    preparing: ['ready_for_pickup', 'cancelled'],
+    ready_for_pickup: ['picked_up', 'cancelled'],
     // Restaurant can't update beyond this point
-    picked_up: [],
-    on_the_way: [],
-    delivered: [],
-    completed: [],
-    canceled: []
   };
 
-  const courierStatusFlow: Record<OrderStatus, OrderStatus[]> = {
-    picked_up: ['on_the_way', 'canceled'],
-    on_the_way: ['delivered', 'canceled'],
-    // Courier can't update beyond this point or before pickup
-    created: [],
-    accepted_by_restaurant: [],
-    preparing: [],
-    ready_for_pickup: [],
-    delivered: [],
-    completed: [],
-    canceled: []
+  const courierStatusFlow = {
+    picked_up: ['in_delivery', 'cancelled'],
+    in_delivery: ['delivered', 'cancelled']
   };
 
   // Get the next possible statuses based on user type and current status
   const getNextStatuses = (): OrderStatus[] => {
     if (user?.user_type === 'restaurant') {
-      return restaurantStatusFlow[currentStatus] || [];
+      return restaurantStatusFlow[currentStatus as keyof typeof restaurantStatusFlow] || [];
     } else if (user?.user_type === 'courier') {
-      return courierStatusFlow[currentStatus] || [];
+      return courierStatusFlow[currentStatus as keyof typeof courierStatusFlow] || [];
     }
     return [];
   };
@@ -79,12 +64,12 @@ const OrderStatusUpdate: React.FC<OrderStatusUpdateProps> = ({
 
     if (user?.user_type === 'restaurant' && user.id === restaurantId) {
       // Restaurant can only update their own orders and only within the restaurant flow
-      return restaurantStatusFlow[currentStatus]?.length > 0;
+      return !!restaurantStatusFlow[currentStatus as keyof typeof restaurantStatusFlow];
     }
 
     if (user?.user_type === 'courier' && user.id === courierId) {
       // Courier can only update their assigned orders and only within the courier flow
-      return courierStatusFlow[currentStatus]?.length > 0;
+      return !!courierStatusFlow[currentStatus as keyof typeof courierStatusFlow];
     }
 
     return false;
@@ -104,8 +89,7 @@ const OrderStatusUpdate: React.FC<OrderStatusUpdateProps> = ({
     
     try {
       const oldStatus = currentStatus;
-      const updateMethod = onUpdateStatus || updateOrderStatus;
-      const result = await updateMethod(orderId, newStatus);
+      const result = await updateOrderStatus(orderId, newStatus);
       
       if (result && result.success) {
         toast({
@@ -117,21 +101,7 @@ const OrderStatusUpdate: React.FC<OrderStatusUpdateProps> = ({
         // 1. Notify user about order status change
         if (userId) {
           notificationService.notifyOrderStatusUpdate(
-            { 
-              id: orderId, 
-              user_id: userId, 
-              status: newStatus, 
-              restaurant_id: restaurantId || '',
-              courier_id: null,
-              items: [],
-              total_price: 0,
-              delivery_address: '',
-              delivery_lat: 0,
-              delivery_lng: 0,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-              delivery_pin: ''
-            },
+            { id: orderId, user_id: userId, status: newStatus, restaurant_id: restaurantId },
             oldStatus
           );
         }
@@ -139,21 +109,7 @@ const OrderStatusUpdate: React.FC<OrderStatusUpdateProps> = ({
         // 2. If status is ready_for_pickup, notify couriers
         if (newStatus === 'ready_for_pickup') {
           notificationService.notifyOrderAvailableForPickup(
-            { 
-              id: orderId, 
-              status: newStatus, 
-              restaurant_id: restaurantId || '',
-              user_id: '',
-              courier_id: null,
-              items: [],
-              total_price: 0,
-              delivery_address: '',
-              delivery_lat: 0,
-              delivery_lng: 0,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-              delivery_pin: ''
-            }
+            { id: orderId, status: newStatus, restaurant_id: restaurantId }
           );
         }
       } else {
@@ -198,12 +154,12 @@ const OrderStatusUpdate: React.FC<OrderStatusUpdateProps> = ({
           {nextStatuses.map((status) => (
             <Button
               key={status}
-              variant={status === 'canceled' ? "destructive" : "outline"}
+              variant={status === 'cancelled' ? "destructive" : "outline"}
               size="sm"
               onClick={() => handleStatusUpdate(status)}
               className="text-xs"
             >
-              {status === 'canceled' ? (
+              {status === 'cancelled' ? (
                 <X className="h-3 w-3 mr-1" />
               ) : (
                 <Check className="h-3 w-3 mr-1" />
