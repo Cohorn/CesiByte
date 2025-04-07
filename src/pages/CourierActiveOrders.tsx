@@ -24,21 +24,20 @@ const CourierActiveOrders = () => {
     restaurants, 
     reviews, 
     reviewers, 
+    averageRating,
     loading, 
     error,
     updateOrderStatus,
     refetch
   } = useCourierActiveOrders(user?.id);
 
-  // Calculate average rating
-  const averageRating = reviews.length > 0 
-    ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length 
-    : null;
-
   // Redirect if user is not a courier
   if (!user || user.user_type !== 'courier') {
     return <Navigate to="/" />;
   }
+
+  // Separate loading state for initial load vs refresh
+  const isInitialLoading = loading && (activeOrders.length === 0 && reviews.length === 0);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -47,7 +46,7 @@ const CourierActiveOrders = () => {
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold">Courier Dashboard</h1>
-          {loading ? (
+          {loading && !averageRating ? (
             <Skeleton className="h-8 w-24" />
           ) : (
             averageRating !== null && (
@@ -85,7 +84,7 @@ const CourierActiveOrders = () => {
               </Alert>
             )}
 
-            {loading && activeOrders.length === 0 ? (
+            {isInitialLoading ? (
               <LoadingState message="Loading your active orders..." />
             ) : activeOrders.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -131,7 +130,7 @@ const CourierActiveOrders = () => {
           <TabsContent value="reviews">
             <h2 className="text-xl font-semibold mb-4">Your Reviews</h2>
             
-            {loading && reviews.length === 0 ? (
+            {isInitialLoading ? (
               <LoadingState message="Loading your reviews..." />
             ) : error ? (
               <Alert variant="destructive" className="mb-4">

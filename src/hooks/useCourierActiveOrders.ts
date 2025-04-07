@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Order, OrderStatus, SimpleUser } from '@/lib/database.types';
 import { useToast } from '@/hooks/use-toast';
@@ -14,14 +14,21 @@ export function useCourierActiveOrders(courierId?: string) {
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { toast } = useToast();
+  const initCompletedRef = useRef(false);
+  
+  // Use memoized courierId for useReviews to prevent unnecessary re-fetches
+  const reviewsParams = useCallback(() => ({ 
+    courierId: courierId 
+  }), [courierId]);
   
   // Use isLoading instead of loading and correctly handle the error
   const { 
     reviews, 
     isLoading: reviewsLoading, 
     error: reviewsError,
-    refetch: refetchReviews 
-  } = useReviews({ courierId });
+    refetch: refetchReviews,
+    averageRating
+  } = useReviews(reviewsParams());
   
   // Handle reviews error separately
   useEffect(() => {
@@ -98,7 +105,7 @@ export function useCourierActiveOrders(courierId?: string) {
         setRestaurants(restaurantData || []);
       }
 
-      // Fetch reviewers if needed
+      // Fetch reviewers if needed - only if we have reviews
       if (reviews.length > 0) {
         const reviewerIds = reviews.map(review => review.user_id);
         const { data: reviewersData, error: reviewersError } = await supabase
@@ -122,8 +129,9 @@ export function useCourierActiveOrders(courierId?: string) {
     } finally {
       setLoading(false);
       setIsRefreshing(false);
+      initCompletedRef.current = true;
     }
-  }, [courierId, reviews.length, toast, isRefreshing]);
+  }, [courierId, reviews.length, isRefreshing]);
 
   const refetch = useCallback(async () => {
     setIsRefreshing(true);
@@ -139,7 +147,7 @@ export function useCourierActiveOrders(courierId?: string) {
     let isMounted = true;
     
     const loadInitialData = async () => {
-      if (isMounted) {
+      if (isMounted && !initCompletedRef.current) {
         await fetchActiveOrders();
         if (isMounted) {
           await refetchReviews();
@@ -214,6 +222,7 @@ export function useCourierActiveOrders(courierId?: string) {
     restaurants,
     reviews,
     reviewers,
+    averageRating,
     loading: loading || reviewsLoading,
     error,
     updateOrderStatus,
