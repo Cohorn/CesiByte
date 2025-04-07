@@ -125,6 +125,8 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
                     placeholder="Latitude" 
                     {...field}
                     onChange={e => field.onChange(parseFloat(e.target.value))}
+                    min="-90"
+                    max="90"
                   />
                 </FormControl>
                 <FormMessage />
@@ -145,6 +147,8 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
                     placeholder="Longitude" 
                     {...field}
                     onChange={e => field.onChange(parseFloat(e.target.value))}
+                    min="-180"
+                    max="180"
                   />
                 </FormControl>
                 <FormMessage />

@@ -25,6 +25,7 @@ const Register = () => {
   const [userType, setUserType] = useState<UserType>(defaultType);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
   
   const { signUp, user, isLoading } = useAuth();
   const navigate = useNavigate();
@@ -37,8 +38,30 @@ const Register = () => {
     }
   }, [email, password, name, address, userType]);
 
+  // Validate latitude and longitude
+  const validateCoordinates = () => {
+    const errors: {[key: string]: string} = {};
+    
+    if (isNaN(lat) || lat < -90 || lat > 90) {
+      errors.lat = "Latitude must be between -90 and 90.";
+    }
+    
+    if (isNaN(lng) || lng < -180 || lng > 180) {
+      errors.lng = "Longitude must be between -180 and 180.";
+    }
+    
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate coordinates before submitting
+    if (!validateCoordinates()) {
+      return;
+    }
+    
     setIsSubmitting(true);
     setErrorMessage(null);
     
@@ -241,8 +264,14 @@ const Register = () => {
                         value={lat || ''}
                         onChange={(e) => setLat(parseFloat(e.target.value) || 0)}
                         placeholder="Latitude coordinate"
+                        min="-90"
+                        max="90"
                         required
+                        className={validationErrors.lat ? "border-red-500" : ""}
                       />
+                      {validationErrors.lat && (
+                        <p className="text-sm text-red-500">{validationErrors.lat}</p>
+                      )}
                     </div>
                     
                     <div className="space-y-2">
@@ -254,8 +283,14 @@ const Register = () => {
                         value={lng || ''}
                         onChange={(e) => setLng(parseFloat(e.target.value) || 0)}
                         placeholder="Longitude coordinate"
+                        min="-180"
+                        max="180"
                         required
+                        className={validationErrors.lng ? "border-red-500" : ""}
                       />
+                      {validationErrors.lng && (
+                        <p className="text-sm text-red-500">{validationErrors.lng}</p>
+                      )}
                     </div>
                   </div>
                 </>

@@ -18,6 +18,8 @@ interface UserData {
   email: string;
   address: string;
   user_type: string;
+  lat?: number;
+  lng?: number;
   created_at?: string;
 }
 
@@ -30,9 +32,12 @@ const UserDetail = () => {
     name: '',
     email: '',
     address: '',
-    user_type: ''
+    user_type: '',
+    lat: 0,
+    lng: 0
   });
   const [isEditing, setIsEditing] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
 
   // Redirect if not logged in or not an employee
   if (!user) {
@@ -87,13 +92,46 @@ const UserDetail = () => {
     }
   }, [data]);
 
+  // Validate latitude and longitude
+  const validateCoordinates = () => {
+    const errors: {[key: string]: string} = {};
+    
+    if (userData.lat !== undefined) {
+      if (isNaN(userData.lat) || userData.lat < -90 || userData.lat > 90) {
+        errors.lat = "Latitude must be between -90 and 90.";
+      }
+    }
+    
+    if (userData.lng !== undefined) {
+      if (isNaN(userData.lng) || userData.lng < -180 || userData.lng > 180) {
+        errors.lng = "Longitude must be between -180 and 180.";
+      }
+    }
+    
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setUserData(prev => ({ ...prev, [name]: value }));
+    
+    // Handle numeric values for coordinates
+    if (name === 'lat' || name === 'lng') {
+      const numValue = parseFloat(value);
+      setUserData(prev => ({ ...prev, [name]: isNaN(numValue) ? 0 : numValue }));
+    } else {
+      setUserData(prev => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate coordinates before submitting
+    if (!validateCoordinates()) {
+      return;
+    }
+    
     updateUser.mutate(userData);
   };
 
@@ -191,6 +229,46 @@ const UserDetail = () => {
                       />
                     </div>
                     
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="lat">Latitude</Label>
+                        <Input
+                          id="lat"
+                          name="lat"
+                          type="number"
+                          step="any"
+                          min="-90"
+                          max="90"
+                          value={userData.lat || 0}
+                          onChange={handleInputChange}
+                          readOnly={!isEditing}
+                          className={`${!isEditing ? "bg-gray-50" : ""} ${validationErrors.lat ? "border-red-500" : ""}`}
+                        />
+                        {validationErrors.lat && (
+                          <p className="text-sm text-red-500">{validationErrors.lat}</p>
+                        )}
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="lng">Longitude</Label>
+                        <Input
+                          id="lng"
+                          name="lng"
+                          type="number"
+                          step="any"
+                          min="-180"
+                          max="180"
+                          value={userData.lng || 0}
+                          onChange={handleInputChange}
+                          readOnly={!isEditing}
+                          className={`${!isEditing ? "bg-gray-50" : ""} ${validationErrors.lng ? "border-red-500" : ""}`}
+                        />
+                        {validationErrors.lng && (
+                          <p className="text-sm text-red-500">{validationErrors.lng}</p>
+                        )}
+                      </div>
+                    </div>
+                    
                     <div className="space-y-2">
                       <Label htmlFor="user_type">User Type</Label>
                       <Input
@@ -211,6 +289,7 @@ const UserDetail = () => {
                             onClick={() => {
                               setIsEditing(false);
                               if (data) setUserData(data);
+                              setValidationErrors({});
                             }}
                             className="mr-2"
                           >
