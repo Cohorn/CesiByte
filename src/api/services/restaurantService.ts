@@ -52,13 +52,11 @@ export const restaurantApi = {
   createRestaurant: async (data: Omit<Restaurant, 'id' | 'created_at'>) => {
     console.log('Creating restaurant with data:', data);
     try {
-      // Validate that user_id is present
       if (!data.user_id) {
         console.error('Error: user_id is required to create a restaurant');
         throw new Error('User ID is required to create a restaurant');
       }
       
-      // Use supabase directly
       const { data: result, error } = await supabase
         .from('restaurants')
         .insert({
@@ -88,7 +86,6 @@ export const restaurantApi = {
   updateRestaurant: async (id: string, data: Partial<Restaurant>) => {
     console.log(`Updating restaurant ${id} with data:`, data);
     try {
-      // Use supabase directly
       const { data: result, error } = await supabase
         .from('restaurants')
         .update(data)
@@ -112,7 +109,6 @@ export const restaurantApi = {
   deleteRestaurant: async (id: string) => {
     console.log(`Deleting restaurant ${id}`);
     try {
-      // Use supabase directly
       const { error } = await supabase
         .from('restaurants')
         .delete()
@@ -202,7 +198,6 @@ export const restaurantApi = {
     try {
       console.log('Checking if restaurant_images bucket exists');
       
-      // First try to check if the bucket exists
       const { data: buckets, error } = await supabase
         .storage
         .listBuckets();
@@ -228,43 +223,22 @@ export const restaurantApi = {
         
         console.log('Bucket created successfully');
         
-        // Create public access policies
-        try {
-          await supabase.rpc('execute_sql', { 
-            sql_query: `
-              -- Allow public READ access
-              CREATE POLICY IF NOT EXISTS "Public Access for restaurant_images" 
-              ON storage.objects 
-              FOR SELECT 
-              TO public 
-              USING (bucket_id = 'restaurant_images');
-              
-              -- Allow authenticated users to upload
-              CREATE POLICY IF NOT EXISTS "Upload Access for restaurant_images" 
-              ON storage.objects 
-              FOR INSERT 
-              TO authenticated 
-              WITH CHECK (bucket_id = 'restaurant_images');
-              
-              -- Allow authenticated users to update their own objects
-              CREATE POLICY IF NOT EXISTS "Update Access for restaurant_images" 
-              ON storage.objects 
-              FOR UPDATE 
-              TO authenticated 
-              USING (bucket_id = 'restaurant_images');
-              
-              -- Allow authenticated users to delete their own objects
-              CREATE POLICY IF NOT EXISTS "Delete Access for restaurant_images" 
-              ON storage.objects 
-              FOR DELETE 
-              TO authenticated 
-              USING (bucket_id = 'restaurant_images');
-            `
-          });
+        const storageUrl = `${supabase.supabaseUrl}/functions/v1/create_storage_policy`;
+        
+        const response = await fetch(storageUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabase.supabaseKey}`
+          },
+          body: JSON.stringify({ bucketName: 'restaurant_images' })
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Error creating access policies:', errorData);
+        } else {
           console.log('Public access policies created successfully');
-        } catch (policyError) {
-          console.error('Error creating access policies:', policyError);
-          // Continue even if policy creation fails, as the bucket might work anyway
         }
         
         return true;
