@@ -15,13 +15,8 @@ import {
   Card, CardContent, CardDescription, CardHeader, CardTitle 
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { 
-  ArrowLeft, Search, Trash, UserCog, Loader2, MapPin, 
-  Calendar, Mail, Phone, Home
-} from 'lucide-react';
+import { ArrowLeft, Search, Trash, UserCog, Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { formatDistanceToNow } from 'date-fns';
-import { Badge } from '@/components/ui/badge';
 
 const CustomerManagement = () => {
   const { user } = useAuth();
@@ -87,24 +82,15 @@ const CustomerManagement = () => {
             </Link>
           </Button>
           <h1 className="text-2xl font-bold">Customer Management</h1>
-          <p className="text-gray-500">View and manage customer accounts</p>
+          <p className="text-gray-500">Manage customer accounts</p>
         </div>
         
         <Card>
           <CardHeader>
-            <div className="flex justify-between items-center">
-              <div>
-                <CardTitle>Customers</CardTitle>
-                <CardDescription>
-                  View and manage all customer accounts
-                </CardDescription>
-              </div>
-              {!isLoading && filteredCustomers && (
-                <Badge variant="outline" className="ml-2">
-                  {filteredCustomers.length} {filteredCustomers.length === 1 ? 'customer' : 'customers'}
-                </Badge>
-              )}
-            </div>
+            <CardTitle>Customers</CardTitle>
+            <CardDescription>
+              View and manage all customer accounts
+            </CardDescription>
             <div className="relative mt-4">
               <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
               <Input
@@ -132,8 +118,6 @@ const CustomerManagement = () => {
                       <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Address</TableHead>
-                      <TableHead>Location</TableHead>
-                      <TableHead>Created</TableHead>
                       <TableHead className="w-24">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -141,31 +125,9 @@ const CustomerManagement = () => {
                     {filteredCustomers?.length ? (
                       filteredCustomers.map((customer: User) => (
                         <TableRow key={customer.id}>
-                          <TableCell className="font-medium">{customer.name}</TableCell>
-                          <TableCell>
-                            <div className="flex items-center">
-                              <Mail className="h-3 w-3 mr-1 text-gray-400" />
-                              {customer.email}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center">
-                              <Home className="h-3 w-3 mr-1 text-gray-400" />
-                              {customer.address}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center">
-                              <MapPin className="h-3 w-3 mr-1 text-gray-400" />
-                              {`${customer.lat.toFixed(4)}, ${customer.lng.toFixed(4)}`}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center">
-                              <Calendar className="h-3 w-3 mr-1 text-gray-400" />
-                              {formatDistanceToNow(new Date(customer.created_at), { addSuffix: true })}
-                            </div>
-                          </TableCell>
+                          <TableCell>{customer.name}</TableCell>
+                          <TableCell>{customer.email}</TableCell>
+                          <TableCell>{customer.address}</TableCell>
                           <TableCell>
                             <div className="flex space-x-1">
                               <Button
@@ -197,7 +159,7 @@ const CustomerManagement = () => {
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                        <TableCell colSpan={4} className="text-center py-8 text-gray-500">
                           {searchTerm ? "No customers found matching your search." : "No customers found."}
                         </TableCell>
                       </TableRow>

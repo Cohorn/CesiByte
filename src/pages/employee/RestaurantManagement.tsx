@@ -15,14 +15,8 @@ import {
   Card, CardContent, CardDescription, CardHeader, CardTitle 
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { 
-  ArrowLeft, Search, Trash, UserCog, Loader2, MapPin, 
-  Calendar, Mail, UtensilsCrossed, Store
-} from 'lucide-react';
+import { ArrowLeft, Search, Trash, UserCog, Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { formatDistanceToNow } from 'date-fns';
-import { Badge } from '@/components/ui/badge';
-import { restaurantApi } from '@/api/services';
 
 const RestaurantManagement = () => {
   const { user } = useAuth();
@@ -44,16 +38,6 @@ const RestaurantManagement = () => {
       const response = await userApi.getUsersByType('restaurant');
       return response;
     }
-  });
-
-  // Fetch restaurant details (like menu items count)
-  const { data: restaurantDetails } = useQuery({
-    queryKey: ['restaurants-details'],
-    queryFn: async () => {
-      const response = await restaurantApi.getRestaurants();
-      return response;
-    },
-    enabled: !isLoading && !!restaurants
   });
 
   const handleDeleteUser = async (userId: string) => {
@@ -103,19 +87,10 @@ const RestaurantManagement = () => {
         
         <Card>
           <CardHeader>
-            <div className="flex justify-between items-center">
-              <div>
-                <CardTitle>Restaurants</CardTitle>
-                <CardDescription>
-                  View and manage all restaurant accounts
-                </CardDescription>
-              </div>
-              {!isLoading && filteredRestaurants && (
-                <Badge variant="outline" className="ml-2">
-                  {filteredRestaurants.length} {filteredRestaurants.length === 1 ? 'restaurant' : 'restaurants'}
-                </Badge>
-              )}
-            </div>
+            <CardTitle>Restaurants</CardTitle>
+            <CardDescription>
+              View and manage all restaurant accounts
+            </CardDescription>
             <div className="relative mt-4">
               <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
               <Input
@@ -143,85 +118,48 @@ const RestaurantManagement = () => {
                       <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Address</TableHead>
-                      <TableHead>Location</TableHead>
-                      <TableHead>Created</TableHead>
                       <TableHead className="w-24">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredRestaurants?.length ? (
-                      filteredRestaurants.map((restaurant: User) => {
-                        // Find matching restaurant details if available
-                        const restaurantDetail = restaurantDetails?.find(
-                          (r) => r.user_id === restaurant.id
-                        );
-
-                        return (
-                          <TableRow key={restaurant.id}>
-                            <TableCell className="font-medium">
-                              <div className="flex items-center">
-                                <Store className="h-3 w-3 mr-1 text-gray-400" />
-                                {restaurant.name}
-                                {restaurantDetail && (
-                                  <Badge variant="outline" className="ml-2">
-                                    <UtensilsCrossed className="h-3 w-3 mr-1" />
-                                    {restaurantDetail.id}
-                                  </Badge>
+                      filteredRestaurants.map((restaurant: User) => (
+                        <TableRow key={restaurant.id}>
+                          <TableCell>{restaurant.name}</TableCell>
+                          <TableCell>{restaurant.email}</TableCell>
+                          <TableCell>{restaurant.address}</TableCell>
+                          <TableCell>
+                            <div className="flex space-x-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                asChild
+                              >
+                                <Link to={`/employee/restaurants/${restaurant.id}`}>
+                                  <UserCog className="h-4 w-4" />
+                                  <span className="sr-only">Edit</span>
+                                </Link>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDeleteUser(restaurant.id)}
+                                disabled={isDeleting === restaurant.id}
+                              >
+                                {isDeleting === restaurant.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash className="h-4 w-4 text-red-500" />
                                 )}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center">
-                                <Mail className="h-3 w-3 mr-1 text-gray-400" />
-                                {restaurant.email}
-                              </div>
-                            </TableCell>
-                            <TableCell>{restaurant.address}</TableCell>
-                            <TableCell>
-                              <div className="flex items-center">
-                                <MapPin className="h-3 w-3 mr-1 text-gray-400" />
-                                {`${restaurant.lat.toFixed(4)}, ${restaurant.lng.toFixed(4)}`}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center">
-                                <Calendar className="h-3 w-3 mr-1 text-gray-400" />
-                                {formatDistanceToNow(new Date(restaurant.created_at), { addSuffix: true })}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex space-x-1">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  asChild
-                                >
-                                  <Link to={`/employee/restaurants/${restaurant.id}`}>
-                                    <UserCog className="h-4 w-4" />
-                                    <span className="sr-only">Edit</span>
-                                  </Link>
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleDeleteUser(restaurant.id)}
-                                  disabled={isDeleting === restaurant.id}
-                                >
-                                  {isDeleting === restaurant.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Trash className="h-4 w-4 text-red-500" />
-                                  )}
-                                  <span className="sr-only">Delete</span>
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
+                                <span className="sr-only">Delete</span>
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                        <TableCell colSpan={4} className="text-center py-8 text-gray-500">
                           {searchTerm ? "No restaurants found matching your search." : "No restaurants found."}
                         </TableCell>
                       </TableRow>
