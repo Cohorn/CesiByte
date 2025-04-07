@@ -1,3 +1,4 @@
+
 import { apiClient } from '../client';
 import { Restaurant, MenuItem } from '@/lib/database.types';
 import { supabase } from '@/lib/supabase';
@@ -223,13 +224,17 @@ export const restaurantApi = {
         
         console.log('Bucket created successfully');
         
-        const storageUrl = `${supabase.supabaseUrl}/functions/v1/create_storage_policy`;
+        // Use the correct URL with environment variables
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://ukrukdqjvvsvfvmqzxdv.supabase.co";
+        const supabaseKey = import.meta.env.VITE_SUPABASE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVrcnVrZHFqdnZzdmZ2bXF6eGR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM0MDYxMTcsImV4cCI6MjA1ODk4MjExN30.V9T0HKUznzB1Gp1_RpwrDADDWfvRXdtehx5y0u6hK4c";
+        
+        const storageUrl = `${supabaseUrl}/functions/v1/create_storage_policy`;
         
         const response = await fetch(storageUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabase.supabaseKey}`
+            'Authorization': `Bearer ${supabaseKey}`
           },
           body: JSON.stringify({ bucketName: 'restaurant_images' })
         });
