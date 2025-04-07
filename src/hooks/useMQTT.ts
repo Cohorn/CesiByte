@@ -1,5 +1,5 @@
 
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import { mqttClient } from '@/lib/mqtt-client';
 
 // Generic hook for using MQTT in React components
@@ -7,14 +7,26 @@ export function useMQTT<T = any>(topic: string) {
   const [messages, setMessages] = useState<T[]>([]);
   const [lastMessage, setLastMessage] = useState<T | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
+  const checkConnectionIntervalRef = useRef<number | null>(null);
   
   // Check connection status periodically
   useEffect(() => {
-    const intervalId = setInterval(() => {
-      setIsConnected(mqttClient?.isConnected?.() || false);
-    }, 2000);
+    // Clear any existing interval
+    if (checkConnectionIntervalRef.current) {
+      clearInterval(checkConnectionIntervalRef.current);
+    }
     
-    return () => clearInterval(intervalId);
+    // Set up new interval
+    checkConnectionIntervalRef.current = window.setInterval(() => {
+      setIsConnected(mqttClient?.isConnected?.() || false);
+    }, 5000) as unknown as number;
+    
+    return () => {
+      if (checkConnectionIntervalRef.current) {
+        clearInterval(checkConnectionIntervalRef.current);
+        checkConnectionIntervalRef.current = null;
+      }
+    };
   }, []);
   
   const publish = useCallback((message: any) => {
@@ -82,14 +94,26 @@ export function useOrderMQTT(orderId?: string) {
 export function useRestaurantOrdersMQTT(restaurantId?: string) {
   const [newOrder, setNewOrder] = useState<any | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
+  const checkConnectionIntervalRef = useRef<number | null>(null);
   
   // Check connection status periodically
   useEffect(() => {
-    const intervalId = setInterval(() => {
-      setIsConnected(mqttClient?.isConnected?.() || false);
-    }, 2000);
+    // Clear any existing interval
+    if (checkConnectionIntervalRef.current) {
+      clearInterval(checkConnectionIntervalRef.current);
+    }
     
-    return () => clearInterval(intervalId);
+    // Set up new interval with less frequent checks
+    checkConnectionIntervalRef.current = window.setInterval(() => {
+      setIsConnected(mqttClient?.isConnected?.() || false);
+    }, 5000) as unknown as number;
+    
+    return () => {
+      if (checkConnectionIntervalRef.current) {
+        clearInterval(checkConnectionIntervalRef.current);
+        checkConnectionIntervalRef.current = null;
+      }
+    };
   }, []);
   
   useEffect(() => {

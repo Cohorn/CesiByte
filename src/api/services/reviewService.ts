@@ -8,9 +8,32 @@ export interface ReviewFilters {
   courierId?: string;
 }
 
+// Cache for review data to reduce API calls
+const reviewCache = new Map<string, {
+  data: any;
+  timestamp: number;
+}>();
+
+// Function to generate cache key from filters
+const getCacheKey = (filters: ReviewFilters = {}): string => {
+  return `reviews:${filters.userId || ''}:${filters.restaurantId || ''}:${filters.courierId || ''}`;
+};
+
+// Cache expiration time (5 minutes)
+const CACHE_EXPIRATION = 5 * 60 * 1000;
+
 export const reviewApi = {
   getReviewsByFilters: async (filters: ReviewFilters = {}) => {
     try {
+      const cacheKey = getCacheKey(filters);
+      const cachedData = reviewCache.get(cacheKey);
+      
+      // Return cached data if it's fresh
+      if (cachedData && (Date.now() - cachedData.timestamp < CACHE_EXPIRATION)) {
+        console.log(`Using cached reviews for filters: ${JSON.stringify(filters)}`);
+        return cachedData.data;
+      }
+      
       const params = new URLSearchParams();
       if (filters.userId) params.append('userId', filters.userId);
       if (filters.restaurantId) params.append('restaurantId', filters.restaurantId);
@@ -19,6 +42,13 @@ export const reviewApi = {
       console.log(`Fetching reviews with filters: ${params.toString()}`);
       const response = await apiClient.get(`/reviews?${params.toString()}`);
       console.log(`Retrieved ${response.data?.length || 0} reviews`);
+      
+      // Cache the response
+      reviewCache.set(cacheKey, {
+        data: response.data,
+        timestamp: Date.now()
+      });
+      
       return response.data;
     } catch (error) {
       console.error('Error fetching reviews by filters:', error);
@@ -40,6 +70,14 @@ export const reviewApi = {
     try {
       console.log('Creating new review with data:', reviewData);
       const response = await apiClient.post('/reviews', reviewData);
+      
+      // Clear cache for related filters
+      this.clearCache({
+        userId: reviewData.user_id,
+        restaurantId: reviewData.restaurant_id,
+        courierId: reviewData.courier_id
+      });
+      
       return response.data;
     } catch (error) {
       console.error('Error creating review:', error);
@@ -50,6 +88,10 @@ export const reviewApi = {
   updateReview: async (id: string, reviewData: Partial<Review>) => {
     try {
       const response = await apiClient.put(`/reviews/${id}`, reviewData);
+      
+      // Invalidate all cache since we don't know which filters this affects
+      this.clearCache();
+      
       return response.data;
     } catch (error) {
       console.error(`Error updating review ${id}:`, error);
@@ -60,6 +102,10 @@ export const reviewApi = {
   deleteReview: async (id: string) => {
     try {
       const response = await apiClient.delete(`/reviews/${id}`);
+      
+      // Invalidate all cache since we don't know which filters this affects
+      this.clearCache();
+      
       return response.data;
     } catch (error) {
       console.error(`Error deleting review ${id}:`, error);
@@ -93,6 +139,16 @@ export const reviewApi = {
     } catch (error) {
       console.error('Error fetching average rating:', error);
       return { average: 0, count: 0 };
+    }
+  },
+  
+  // Clear cache for specific filters or all cache if no filters provided
+  clearCache: (filters?: ReviewFilters) => {
+    if (filters) {
+      const cacheKey = getCacheKey(filters);
+      reviewCache.delete(cacheKey);
+    } else {
+      reviewCache.clear();
     }
   }
 };
