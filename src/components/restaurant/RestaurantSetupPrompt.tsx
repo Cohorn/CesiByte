@@ -2,13 +2,14 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
-import { Settings } from 'lucide-react';
+import { Settings, StoreIcon } from 'lucide-react';
 
 const RestaurantSetupPrompt: React.FC = () => {
   const navigate = useNavigate();
 
   return (
     <div className="bg-white rounded shadow p-8 text-center">
+      <StoreIcon className="h-12 w-12 mx-auto mb-4 text-gray-400" />
       <h2 className="text-xl font-semibold mb-4">Restaurant Not Found</h2>
       <p className="text-gray-500 mb-4">
         Please set up your restaurant profile to continue.

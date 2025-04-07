@@ -1,17 +1,19 @@
 
-import React, { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
+import { useRestaurant } from '@/frontend/hooks';
 import Map from '@/components/Map';
 import NavBar from '@/components/NavBar';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, Edit, X, User } from 'lucide-react';
+import { RefreshCw, Edit, X, User, Store, Image } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import EditProfileForm from '@/components/EditProfileForm';
 import DeleteAccountDialog from '@/components/DeleteAccountDialog';
+import RestaurantImageUpload from '@/components/restaurant/RestaurantImageUpload';
 import { userApi } from '@/api/services/userService';
 
 const Profile = () => {
@@ -20,6 +22,20 @@ const Profile = () => {
   const [loading, setLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const { restaurant, fetchRestaurant, updateRestaurant } = useRestaurant();
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user && user.user_type === 'restaurant') {
+      fetchRestaurant(undefined, true);
+    }
+  }, [user, fetchRestaurant]);
+
+  useEffect(() => {
+    if (restaurant?.image_url) {
+      setImagePreview(restaurant.image_url);
+    }
+  }, [restaurant]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -60,6 +76,49 @@ const Profile = () => {
       toast({
         title: "Delete failed",
         description: error.message || "Failed to delete your account.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleImageUpload = async (url: string) => {
+    if (!restaurant) return;
+    
+    try {
+      await updateRestaurant({
+        image_url: url
+      });
+      toast({
+        title: "Success",
+        description: "Restaurant image updated successfully.",
+      });
+    } catch (error) {
+      console.error('Error updating restaurant image:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update restaurant image.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const removeImage = async () => {
+    if (!restaurant) return;
+    
+    try {
+      await updateRestaurant({
+        image_url: null
+      });
+      setImagePreview(null);
+      toast({
+        title: "Success",
+        description: "Restaurant image removed successfully.",
+      });
+    } catch (error) {
+      console.error('Error removing restaurant image:', error);
+      toast({
+        title: "Error",
+        description: "Failed to remove restaurant image.",
         variant: "destructive",
       });
     }
@@ -169,6 +228,51 @@ const Profile = () => {
                 <DeleteAccountDialog onConfirm={handleDeleteAccount} />
               </CardFooter>
             </Card>
+
+            {user.user_type === 'restaurant' && restaurant && (
+              <Card className="mt-6">
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Store className="h-5 w-5 mr-2" />
+                    Restaurant Profile
+                  </CardTitle>
+                  <CardDescription>
+                    Manage your restaurant
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-sm font-medium">Name</p>
+                      <p className="text-gray-500">{restaurant.name}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Address</p>
+                      <p className="text-gray-500">{restaurant.address}</p>
+                    </div>
+                    <div className="pt-2">
+                      <p className="text-sm font-medium mb-2">Restaurant Image</p>
+                      <RestaurantImageUpload 
+                        currentImageUrl={imagePreview}
+                        onImageUpload={handleImageUpload}
+                        onImageRemove={removeImage}
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <Link to="/restaurant/setup" className="w-full">
+                    <Button 
+                      variant="outline" 
+                      className="w-full flex items-center"
+                    >
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit Restaurant Profile
+                    </Button>
+                  </Link>
+                </CardFooter>
+              </Card>
+            )}
           </div>
 
           <div className="md:col-span-2">

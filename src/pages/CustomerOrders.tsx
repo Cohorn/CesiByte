@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useOrders } from '@/hooks/useOrders';
 import { useAuth } from '@/lib/AuthContext';
@@ -12,7 +13,7 @@ interface CustomerOrdersProps {
 
 const CustomerOrders: React.FC<CustomerOrdersProps> = () => {
   const { user } = useAuth();
-  const { orders, loading, error, refetch } = useOrders(user?.id || '');
+  const { orders, isLoading, error, refetch } = useOrders(user?.id || '');
   const [processedOrders, setProcessedOrders] = useState<OrderWithRestaurant[]>([]);
 
   useEffect(() => {
@@ -26,7 +27,7 @@ const CustomerOrders: React.FC<CustomerOrdersProps> = () => {
     refetch();
   }, [refetch]);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center h-screen">
         <p>Loading orders...</p>
@@ -44,7 +45,7 @@ const CustomerOrders: React.FC<CustomerOrdersProps> = () => {
 
   const processOrdersWithRestaurants = (data: any[]): OrderWithRestaurant[] => {
     return data.map(order => {
-      // Add delivery_pin with default value if it doesn't exist
+      // Add delivery_pin with default value if it doesn't exist in the order record
       const delivery_pin = order.delivery_pin || '0000';
       
       return {
