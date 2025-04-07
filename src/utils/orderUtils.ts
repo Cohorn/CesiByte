@@ -1,7 +1,9 @@
 
 import { OrderStatus } from '@/lib/database.types';
+import { getEffectiveOrderStatus } from './orderTimeUtils';
 
 export const isCurrentOrder = (status: OrderStatus): boolean => {
+  // Orders are considered "current" if they're not delivered, completed, or canceled
   const currentOrderStatuses: OrderStatus[] = [
     'created',
     'accepted_by_restaurant',
@@ -14,6 +16,12 @@ export const isCurrentOrder = (status: OrderStatus): boolean => {
   return currentOrderStatuses.includes(status);
 };
 
+// This function checks if an order should be displayed in the "current" tab
+export const isDisplayedAsCurrentOrder = (order: any): boolean => {
+  const effectiveStatus = getEffectiveOrderStatus(order);
+  return isCurrentOrder(effectiveStatus);
+};
+
 export const orderStatusLabels: Record<OrderStatus, string> = {
   'created': 'Created',
   'accepted_by_restaurant': 'Accepted',
@@ -22,7 +30,8 @@ export const orderStatusLabels: Record<OrderStatus, string> = {
   'picked_up': 'Picked Up',
   'on_the_way': 'On the Way',
   'delivered': 'Delivered',
-  'completed': 'Completed'
+  'completed': 'Completed',
+  'canceled': 'Canceled'
 };
 
 export const getNextOrderStatuses = (currentStatus: OrderStatus): OrderStatus[] => {
@@ -42,6 +51,7 @@ export const getNextOrderStatuses = (currentStatus: OrderStatus): OrderStatus[] 
     case 'delivered':
       return ['completed'];
     case 'completed':
+    case 'canceled':
       return [];
     default:
       return [];
