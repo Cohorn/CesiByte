@@ -6,7 +6,7 @@ import NotificationsPanel from './notifications/NotificationsPanel';
 import { useNotifications } from '@/hooks/useNotifications';
 
 const NavBar: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, signOut } = useAuth(); // Changed 'logout' to 'signOut' to match AuthContext
   const location = useLocation();
   const { 
     notifications, 
@@ -113,7 +113,7 @@ const NavBar: React.FC = () => {
                   {user.name || user.email}
                 </span>
                 <button
-                  onClick={logout}
+                  onClick={signOut} // Changed from logout to signOut
                   className="text-red-600 hover:text-red-900 px-3 py-2 rounded-md text-sm font-medium"
                 >
                   Logout

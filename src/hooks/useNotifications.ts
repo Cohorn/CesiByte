@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { NotificationProps } from '@/components/notifications/NotificationItem';
@@ -104,7 +105,10 @@ export const useNotifications = () => {
       try {
         console.log('Received order status update:', message);
         let shouldNotify = false;
-        let notificationContent = {};
+        let notificationContent: Omit<NotificationProps, 'id' | 'time'> = {
+          title: '',
+          message: ''
+        };
         
         // Restaurant user receiving a new order
         if (user.user_type === 'restaurant' && message.status === 'created') {
