@@ -241,7 +241,7 @@ export const orderApi = {
     try {
       console.log(`Verifying delivery PIN for order ${orderId} with pin ${pin}`);
       
-      // Fix the endpoint path - should be /orders/:orderId/verify-pin
+      // Fixed endpoint path - this was previously causing a 404 error
       const response = await apiClient.post(`/orders/${orderId}/verify-pin`, { pin });
       console.log('PIN verification API response:', response.data);
       
@@ -251,27 +251,28 @@ export const orderApi = {
         // Clear caches to ensure fresh data
         orderCacheService.clearCache();
         
-        // Notify over MQTT
+        // Notify over MQTT and subscribers if order data is available
         const updatedOrder = response.data.order ? processOrderItems(response.data.order) : null;
         
-        orderMQTTService.publishOrderEvent(
-          `foodapp/orders/${orderId}/status`, 
-          {
-            orderId,
-            status: 'delivered',
-            timestamp: new Date().toISOString()
-          }
-        );
-        
-        if (updatedOrder?.restaurant_id) {
-          orderMQTTService.publishOrderEvent(
-            `foodapp/restaurants/${updatedOrder.restaurant_id}/orders/updated`, 
-            updatedOrder
-          );
-        }
-        
-        // Notify subscribers
         if (updatedOrder) {
+          // Publish events to MQTT topics
+          orderMQTTService.publishOrderEvent(
+            `foodapp/orders/${orderId}/status`, 
+            {
+              orderId,
+              status: 'delivered',
+              timestamp: new Date().toISOString()
+            }
+          );
+          
+          if (updatedOrder.restaurant_id) {
+            orderMQTTService.publishOrderEvent(
+              `foodapp/restaurants/${updatedOrder.restaurant_id}/orders/updated`, 
+              updatedOrder
+            );
+          }
+          
+          // Notify subscribers
           orderMQTTService.notifySubscribers(updatedOrder);
         }
         
@@ -289,7 +290,7 @@ export const orderApi = {
     } catch (error: any) {
       console.error('Error verifying delivery PIN:', error);
       
-      // Improved error extraction and logging
+      // Extract error message from response
       const errorMessage = 
         error.response?.data?.error || 
         error.response?.data?.message || 

@@ -27,16 +27,14 @@ const DeliveryPinInput: React.FC<DeliveryPinInputProps> = ({
   const [pin, setPin] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [attemptCount, setAttemptCount] = useState(0);
   const [success, setSuccess] = useState(false);
   
-  // Reset pin and error when dialog opens
+  // Reset state when dialog opens
   useEffect(() => {
     if (isOpen) {
       setPin('');
       setError(null);
       setIsVerifying(false);
-      setAttemptCount(0);
       setSuccess(false);
     }
   }, [isOpen]);
@@ -51,32 +49,20 @@ const DeliveryPinInput: React.FC<DeliveryPinInputProps> = ({
     setError(null);
 
     try {
-      console.log(`Attempting to verify PIN for order ${orderId}: ${pin}`);
       const result = await onVerify(orderId, pin);
-      console.log('Verification result:', result);
       
       if (result.success) {
-        // Show success state
         setSuccess(true);
-        
         // Wait a moment before closing to show success state
         setTimeout(() => {
-          setPin('');
           onClose();
         }, 1500);
       } else {
-        setAttemptCount(prev => prev + 1);
         setError(result.message || 'Invalid PIN. Please try again.');
-        
-        // If there have been several failed attempts, give a more helpful message
-        if (attemptCount >= 2) {
-          setError((result.message || 'Invalid PIN') + '. Please double-check the PIN with the customer.');
-        }
       }
     } catch (err: any) {
       console.error('Error during pin verification:', err);
-      const errorMessage = err.message || 'Failed to verify PIN. Please try again.';
-      setError(errorMessage);
+      setError(err.message || 'Failed to verify PIN. Please try again.');
     } finally {
       setIsVerifying(false);
     }
@@ -86,17 +72,10 @@ const DeliveryPinInput: React.FC<DeliveryPinInputProps> = ({
     setPin('');
     setError(null);
   };
-  
-  const handleDialogClose = () => {
-    // Prevent accidental closing if verification is in progress
-    if (!isVerifying) {
-      onClose();
-    }
-  };
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
-      if (!open) handleDialogClose();
+      if (!open && !isVerifying) onClose();
     }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>

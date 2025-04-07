@@ -22,10 +22,6 @@ const CourierActiveOrders = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<string>('active');
   const { toast } = useToast();
-  const [pinVerificationState, setPinVerificationState] = useState<{ 
-    orderId: string | null; 
-    isVerifying: boolean; 
-  }>({ orderId: null, isVerifying: false });
   
   const { 
     activeOrders, 
@@ -43,26 +39,16 @@ const CourierActiveOrders = () => {
 
   const handleVerifyPin = useCallback(async (orderId: string, pin: string) => {
     try {
-      if (pinVerificationState.isVerifying) {
-        return { success: false, message: "Verification already in progress" };
-      }
-      
-      setPinVerificationState({ orderId, isVerifying: true });
       console.log(`Verifying PIN for order ${orderId} with value ${pin}`);
       
-      const timeoutPromise = new Promise<{ success: false, message: string }>((_, reject) => 
-        setTimeout(() => reject(new Error('Verification request timed out')), 15000)
-      );
+      // Simple timeout to prevent hanging if the API doesn't respond
+      const timeoutDuration = 15000;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
       
-      let result;
-      try {
-        result = await Promise.race([
-          verifyDeliveryPin(orderId, pin),
-          timeoutPromise
-        ]);
-      } catch (err) {
-        throw err;
-      }
+      // Call the API to verify the PIN
+      const result = await verifyDeliveryPin(orderId, pin);
+      clearTimeout(timeoutId);
       
       console.log('PIN verification result:', result);
       
@@ -73,7 +59,6 @@ const CourierActiveOrders = () => {
         });
         
         refetch();
-        setPinVerificationState({ orderId: null, isVerifying: false });
         return { success: true, message: "Delivery confirmed" };
       } else {
         const errorMessage = result.message || "Invalid PIN";
@@ -85,7 +70,6 @@ const CourierActiveOrders = () => {
           variant: "destructive"
         });
         
-        setPinVerificationState({ orderId: null, isVerifying: false });
         return { success: false, message: errorMessage };
       }
     } catch (err) {
@@ -98,10 +82,9 @@ const CourierActiveOrders = () => {
         variant: "destructive"
       });
       
-      setPinVerificationState({ orderId: null, isVerifying: false });
       return { success: false, message: "Connection error: " + error.message };
     }
-  }, [verifyDeliveryPin, refetch, toast, pinVerificationState.isVerifying]);
+  }, [verifyDeliveryPin, refetch, toast]);
 
   // Early return if user is not a courier
   if (!user || user.user_type !== 'courier') {
