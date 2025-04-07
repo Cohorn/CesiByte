@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Navigate, useParams, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
@@ -11,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { userApi } from '@/api/services/userService';
+import { User, UserType } from '@/lib/database.types';
 
 interface UserData {
   id?: string;
