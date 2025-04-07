@@ -1,16 +1,17 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Navigate, useParams, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import NavBar from '@/components/NavBar';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { ArrowLeft, Loader2, MapPin, Mail, User as UserIcon, Home, Calendar, Tag, Info } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Separator } from "@/components/ui/separator";
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
+import { userApi } from '@/api/services/userService';
 
 interface UserData {
   id?: string;
@@ -21,6 +22,7 @@ interface UserData {
   lat?: number;
   lng?: number;
   created_at?: string;
+  employee_role?: string;
 }
 
 const UserDetail = () => {
@@ -50,24 +52,18 @@ const UserDetail = () => {
   const { data, isLoading, error } = useQuery({
     queryKey: ['user', userId],
     queryFn: async () => {
-      const response = await axios.get(`/api/employee/user/${userId}`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      return response.data as UserData;
+      if (!userId) return null;
+      const response = await userApi.getUserById(userId);
+      return response;
     }
   });
 
   // Update user mutation
   const updateUser = useMutation({
     mutationFn: async (updatedData: UserData) => {
-      const response = await axios.put(`/api/employee/user/${userId}`, updatedData, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      return response.data;
+      if (!userId) throw new Error("User ID is required");
+      const response = await userApi.updateUser(userId, updatedData);
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user', userId] });
@@ -93,7 +89,7 @@ const UserDetail = () => {
   }, [data]);
 
   // Validate latitude and longitude
-  const validateCoordinates = () => {
+  const validateCoordinates = useCallback(() => {
     const errors: {[key: string]: string} = {};
     
     if (userData.lat !== undefined) {
@@ -110,7 +106,7 @@ const UserDetail = () => {
     
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
-  };
+  }, [userData.lat, userData.lng]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -149,6 +145,18 @@ const UserDetail = () => {
       default:
         return "/employee/dashboard";
     }
+  };
+
+  // Format creation date
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   return (
@@ -193,7 +201,10 @@ const UserDetail = () => {
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="name">Name</Label>
+                        <Label htmlFor="name" className="flex items-center">
+                          <UserIcon className="h-3.5 w-3.5 mr-1.5 text-gray-500" />
+                          Name
+                        </Label>
                         <Input
                           id="name"
                           name="name"
@@ -205,7 +216,10 @@ const UserDetail = () => {
                       </div>
                       
                       <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
+                        <Label htmlFor="email" className="flex items-center">
+                          <Mail className="h-3.5 w-3.5 mr-1.5 text-gray-500" />
+                          Email
+                        </Label>
                         <Input
                           id="email"
                           name="email"
@@ -218,7 +232,10 @@ const UserDetail = () => {
                     </div>
                     
                     <div className="space-y-2">
-                      <Label htmlFor="address">Address</Label>
+                      <Label htmlFor="address" className="flex items-center">
+                        <Home className="h-3.5 w-3.5 mr-1.5 text-gray-500" />
+                        Address
+                      </Label>
                       <Input
                         id="address"
                         name="address"
@@ -231,7 +248,10 @@ const UserDetail = () => {
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="lat">Latitude</Label>
+                        <Label htmlFor="lat" className="flex items-center">
+                          <MapPin className="h-3.5 w-3.5 mr-1.5 text-gray-500" />
+                          Latitude
+                        </Label>
                         <Input
                           id="lat"
                           name="lat"
@@ -250,7 +270,10 @@ const UserDetail = () => {
                       </div>
                       
                       <div className="space-y-2">
-                        <Label htmlFor="lng">Longitude</Label>
+                        <Label htmlFor="lng" className="flex items-center">
+                          <MapPin className="h-3.5 w-3.5 mr-1.5 text-gray-500" />
+                          Longitude
+                        </Label>
                         <Input
                           id="lng"
                           name="lng"
@@ -270,7 +293,10 @@ const UserDetail = () => {
                     </div>
                     
                     <div className="space-y-2">
-                      <Label htmlFor="user_type">User Type</Label>
+                      <Label htmlFor="user_type" className="flex items-center">
+                        <Tag className="h-3.5 w-3.5 mr-1.5 text-gray-500" />
+                        User Type
+                      </Label>
                       <Input
                         id="user_type"
                         name="user_type"
@@ -279,6 +305,22 @@ const UserDetail = () => {
                         className="bg-gray-50"
                       />
                     </div>
+
+                    {userData.user_type === 'employee' && (
+                      <div className="space-y-2">
+                        <Label htmlFor="employee_role" className="flex items-center">
+                          <Info className="h-3.5 w-3.5 mr-1.5 text-gray-500" />
+                          Employee Role
+                        </Label>
+                        <Input
+                          id="employee_role"
+                          name="employee_role"
+                          value={userData.employee_role || 'N/A'}
+                          readOnly
+                          className="bg-gray-50"
+                        />
+                      </div>
+                    )}
                     
                     <div className="flex justify-end pt-4">
                       {isEditing ? (
@@ -326,23 +368,83 @@ const UserDetail = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div>
-                    <p className="text-sm font-medium">User ID</p>
-                    <p className="text-sm text-gray-500">{userId}</p>
+                  <div className="flex items-center pt-2">
+                    <div className="min-w-8">
+                      <UserIcon className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">User ID</p>
+                      <p className="text-sm text-gray-500 break-all">{userId}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium">Created At</p>
-                    <p className="text-sm text-gray-500">
-                      {data?.created_at && new Date(data.created_at).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </p>
+                  
+                  <Separator />
+                  
+                  <div className="flex items-center">
+                    <div className="min-w-8">
+                      <Calendar className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Created</p>
+                      <p className="text-sm text-gray-500">{formatDate(data?.created_at)}</p>
+                    </div>
                   </div>
+                  
+                  <Separator />
+                  
+                  {userData.user_type === 'restaurant' && (
+                    <>
+                      <div className="flex items-center">
+                        <div className="min-w-8">
+                          <Info className="h-5 w-5 text-gray-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">Restaurant Management</p>
+                          <Button asChild variant="outline" size="sm" className="mt-2">
+                            <Link to={`/restaurant/${userId}/menu`}>
+                              View Restaurant Menu
+                            </Link>
+                          </Button>
+                        </div>
+                      </div>
+                      <Separator />
+                    </>
+                  )}
+
+                  {userData.user_type === 'courier' && (
+                    <>
+                      <div className="flex items-center">
+                        <div className="min-w-8">
+                          <Info className="h-5 w-5 text-gray-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">Courier Management</p>
+                          <Button asChild variant="outline" size="sm" className="mt-2">
+                            <Link to={`/courier/${userId}/orders`}>
+                              View Courier Orders
+                            </Link>
+                          </Button>
+                        </div>
+                      </div>
+                      <Separator />
+                    </>
+                  )}
                 </CardContent>
+                <CardFooter className="flex flex-col items-start">
+                  <p className="text-sm font-medium mb-2">Quick Actions</p>
+                  <div className="flex flex-wrap gap-2 w-full">
+                    <Button asChild variant="outline" size="sm">
+                      <Link to={`/orders?userId=${userId}`}>
+                        View Orders
+                      </Link>
+                    </Button>
+                    <Button asChild variant="outline" size="sm">
+                      <Link to={`/reviews?userId=${userId}`}>
+                        View Reviews
+                      </Link>
+                    </Button>
+                  </div>
+                </CardFooter>
               </Card>
             </div>
           </div>
