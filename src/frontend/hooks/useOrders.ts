@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { orderApi } from '@/api/services/orderService';
 import { Order, OrderStatus } from '@/lib/database.types';
@@ -17,11 +16,18 @@ export const useOrders = (options: OrdersOptions = {}) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
+  const [hasFetched, setHasFetched] = useState<boolean>(false);
   const { user } = useAuth();
   const { toast } = useToast();
 
   // Determine which API method to use based on the options
   const fetchOrders = useCallback(async (forceRefresh: boolean = false) => {
+    if (!user && !options.restaurantId && !options.userId && !options.courierId) {
+      console.log('No user or specific ID provided for fetching orders');
+      setIsLoading(false);
+      return [];
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -50,6 +56,7 @@ export const useOrders = (options: OrdersOptions = {}) => {
       
       // Update state with fetched orders
       setOrders(fetchedOrders || []);
+      setHasFetched(true);
       return fetchedOrders || [];
     } catch (err) {
       console.error("Error fetching orders:", err);
@@ -109,13 +116,29 @@ export const useOrders = (options: OrdersOptions = {}) => {
     }
   }, [fetchOrders]);
 
-  // Initial fetch
+  // Initial fetch - with proper dependency tracking
   useEffect(() => {
-    console.log('useOrders hook - initial fetch with options:', options);
-    if (user || options.restaurantId || options.courierId) {
-      fetchOrders();
+    const shouldFetch = 
+      !hasFetched && 
+      (user || options.restaurantId || options.courierId || options.userId);
+    
+    if (shouldFetch) {
+      console.log('useOrders hook - initial fetch with options:', options);
+      fetchOrders().then(() => {
+        console.log('Initial orders fetch complete');
+      });
+    } else if (!shouldFetch && !isLoading) {
+      console.log('Skipping initial fetch - no relevant IDs available');
     }
-  }, [user, options.restaurantId, options.courierId, fetchOrders]);
+  }, [
+    user?.id, 
+    options.restaurantId, 
+    options.courierId, 
+    options.userId, 
+    fetchOrders, 
+    hasFetched,
+    isLoading
+  ]);
 
   // Subscribe to real-time updates
   useEffect(() => {

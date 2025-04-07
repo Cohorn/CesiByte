@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import NavBar from '@/components/NavBar';
@@ -14,7 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import OrderStatusUpdate, { isCurrentOrder } from '@/components/OrderStatusUpdate';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Order, OrderStatus } from '@/lib/database.types';
-import { useMQTT } from '@/hooks/useMQTT';
+import { useRestaurantOrdersMQTT } from '@/hooks/useMQTT';
 
 const RestaurantOrders = () => {
   const { user } = useAuth();
@@ -25,10 +24,8 @@ const RestaurantOrders = () => {
   const [lastRefreshTime, setLastRefreshTime] = useState<number | null>(null);
   const { toast } = useToast();
   
-  // Prevent too frequent refreshes
   const REFRESH_COOLDOWN = 10000; // 10 seconds
   
-  // Fetch restaurant data if needed
   useEffect(() => {
     if (user?.user_type === 'restaurant' && !restaurant && !attemptedFetch) {
       console.log("RestaurantOrders - Fetching restaurant data for user:", user.id);
@@ -39,7 +36,6 @@ const RestaurantOrders = () => {
     }
   }, [user, restaurant, fetchRestaurant, attemptedFetch]);
 
-  // Only fetch orders if we have a restaurant
   const { 
     orders, 
     isLoading: ordersLoading, 
@@ -50,12 +46,10 @@ const RestaurantOrders = () => {
     restaurant ? { restaurantId: restaurant.id } : {}
   );
 
-  // Listen for MQTT updates if we have a restaurant
   const { newOrder } = restaurant 
     ? useRestaurantOrdersMQTT(restaurant.id) 
     : { newOrder: null };
 
-  // Update orders when we get a new order
   useEffect(() => {
     if (newOrder) {
       console.log("Received new order from MQTT:", newOrder);
@@ -67,10 +61,8 @@ const RestaurantOrders = () => {
     }
   }, [newOrder, refetch, toast]);
 
-  // State to track orders that are being updated
   const [localOrders, setLocalOrders] = useState<Order[]>([]);
 
-  // Update local orders whenever orders from the API change
   useEffect(() => {
     if (orders.length > 0) {
       console.log("Setting local orders from API orders:", orders);
@@ -80,7 +72,6 @@ const RestaurantOrders = () => {
 
   const isLoading = restaurantLoading || ordersLoading;
 
-  // Separate orders into current and past
   const currentOrders = localOrders.filter(order => isCurrentOrder(order.status));
   const pastOrders = localOrders.filter(order => !isCurrentOrder(order.status));
 
@@ -88,7 +79,6 @@ const RestaurantOrders = () => {
     console.log("RestaurantOrders - Current restaurant:", restaurant);
     console.log("RestaurantOrders - Current orders:", orders);
     
-    // If we have a restaurant but no orders and we're not loading, try to fetch orders just once
     if (restaurant && orders.length === 0 && !ordersLoading && !ordersError && !isRefreshing && !attemptedFetch) {
       console.log("RestaurantOrders - Auto-refreshing orders for restaurant:", restaurant.id);
       handleRefresh();
@@ -104,7 +94,6 @@ const RestaurantOrders = () => {
   }, [lastRefreshTime]);
 
   const handleRefresh = async () => {
-    // Check if we can refresh (not too soon after last refresh)
     if (!canRefresh()) {
       const remainingTime = Math.ceil((REFRESH_COOLDOWN - (Date.now() - (lastRefreshTime || 0))) / 1000);
       toast({
@@ -164,12 +153,10 @@ const RestaurantOrders = () => {
     navigate('/restaurant/setup');
   };
 
-  // Custom handler for updating order status that updates local state immediately
   const handleUpdateOrderStatus = async (orderId: string, status: OrderStatus) => {
     try {
       const result = await updateOrderStatus(orderId, status);
       
-      // Update the local state immediately for responsive UI
       if (result.success) {
         setLocalOrders(prevOrders => 
           prevOrders.map(order => 

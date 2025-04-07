@@ -10,6 +10,8 @@ class MQTTClient {
   private reconnectTimeout: NodeJS.Timeout | null = null;
   private subscriptions: Map<string, Set<(message: any) => void>> = new Map();
   private messageQueue: Array<{topic: string, message: any}> = [];
+  private connectionAttempts = 0;
+  private maxReconnectDelay = 30000; // Maximum delay is 30 seconds
 
   // Connect to the MQTT WebSocket proxy
   connect() {
@@ -27,6 +29,7 @@ class MQTTClient {
     this.ws.onopen = () => {
       console.log('Connected to MQTT WebSocket proxy');
       this.connected = true;
+      this.connectionAttempts = 0;
       
       // Resubscribe to all previously subscribed topics
       for (const topic of this.subscriptions.keys()) {
@@ -75,12 +78,21 @@ class MQTTClient {
       console.log('Disconnected from MQTT WebSocket proxy');
       this.connected = false;
       
-      // Try to reconnect
+      // Try to reconnect with exponential backoff
       if (!this.reconnectTimeout) {
+        // Calculate delay with exponential backoff, capped at maxReconnectDelay
+        const delay = Math.min(
+          1000 * Math.pow(2, this.connectionAttempts), 
+          this.maxReconnectDelay
+        );
+        
+        console.log(`Will try to reconnect in ${delay}ms`);
+        
         this.reconnectTimeout = setTimeout(() => {
           this.reconnectTimeout = null;
+          this.connectionAttempts++;
           this.connect();
-        }, 3000);
+        }, delay);
       }
     };
     
@@ -184,6 +196,11 @@ class MQTTClient {
     
     this.connected = false;
   }
+
+  // Check if currently connected
+  isConnected() {
+    return this.connected;
+  }
 }
 
 // Create a singleton instance
@@ -192,7 +209,7 @@ export const mqttClient = new MQTTClient();
 // Automatically connect when imported
 mqttClient.connect();
 
-// Hook for using MQTT in React components
+// Export the useMQTT hook directly from the client
 export function useMQTT(topic: string, callback: (message: any) => void) {
   React.useEffect(() => {
     mqttClient.subscribe(topic, callback);
