@@ -21,9 +21,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { MapPin, Upload, X, Trash, RotateCcw } from 'lucide-react';
+import { MapPin, RotateCcw, Trash } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/lib/supabase';
+import RestaurantImageUpload from '@/components/restaurant/RestaurantImageUpload';
 
 const formSchema = z.object({
   name: z.string().min(2, {
@@ -41,7 +41,6 @@ const RestaurantSetup = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const { toast } = useToast();
@@ -79,95 +78,9 @@ const RestaurantSetup = () => {
     }
   }, [user, navigate]);
 
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    
-    // Check file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast({
-        title: "Error",
-        description: "Image file is too large (maximum 5MB)",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    // Validate file type
-    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    if (!validTypes.includes(file.type)) {
-      toast({
-        title: "Error",
-        description: "Invalid file type. Please upload a JPG, PNG, GIF or WEBP image.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    setIsUploading(true);
-    
-    try {
-      // Create a unique file name
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random().toString(36).substring(2, 15)}-${Date.now()}.${fileExt}`;
-      const filePath = `restaurants/${fileName}`;
-      
-      // Check if storage bucket exists and create if needed
-      const { data: bucketData } = await supabase
-        .from('storage.buckets')
-        .select('id')
-        .eq('id', 'restaurant_images')
-        .maybeSingle();
-      
-      if (!bucketData) {
-        console.log('Creating restaurant_images bucket');
-        const { error: bucketError } = await supabase
-          .storage
-          .createBucket('restaurant_images', {
-            public: true
-          });
-          
-        if (bucketError) {
-          console.error('Error creating bucket:', bucketError);
-          // Continue anyway as the bucket might already exist
-        }
-      }
-      
-      // Upload file to Supabase Storage
-      const { error: uploadError } = await supabase.storage
-        .from('restaurant_images')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: true
-        });
-      
-      if (uploadError) {
-        console.error('Error uploading image:', uploadError);
-        throw uploadError;
-      }
-      
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('restaurant_images')
-        .getPublicUrl(filePath);
-      
-      setImagePreview(publicUrl);
-      setValue("image_url", publicUrl, { shouldDirty: true });
-      
-      toast({
-        title: "Success",
-        description: "Image uploaded successfully",
-      });
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      toast({
-        title: "Error",
-        description: "Failed to upload image. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsUploading(false);
-    }
+  const handleImageUpload = (url: string) => {
+    setImagePreview(url);
+    setValue("image_url", url, { shouldDirty: true });
   };
 
   const removeImage = () => {
@@ -342,47 +255,11 @@ const RestaurantSetup = () => {
                   <span className="text-xs text-gray-500">You can add this later</span>
                 </div>
                 <div className="mt-1">
-                  {imagePreview ? (
-                    <div className="relative w-full aspect-video mb-2 rounded-md overflow-hidden bg-gray-100">
-                      <img 
-                        src={imagePreview} 
-                        alt="Restaurant" 
-                        className="w-full h-full object-cover"
-                      />
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="icon"
-                        className="absolute top-2 right-2 rounded-full"
-                        onClick={removeImage}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="border-2 border-dashed border-gray-300 rounded-md p-4 text-center">
-                      <Input 
-                        id="image" 
-                        type="file" 
-                        accept="image/*"
-                        className="hidden" 
-                        onChange={handleImageUpload}
-                        disabled={isUploading}
-                      />
-                      <label 
-                        htmlFor="image"
-                        className="cursor-pointer flex flex-col items-center justify-center py-4"
-                      >
-                        <Upload className="h-10 w-10 text-gray-400 mb-2" />
-                        <span className="text-sm text-gray-600">
-                          {isUploading ? 'Uploading...' : 'Upload restaurant photo (optional)'}
-                        </span>
-                        <span className="text-xs text-gray-400 mt-1">
-                          JPG, PNG, GIF up to 5MB
-                        </span>
-                      </label>
-                    </div>
-                  )}
+                  <RestaurantImageUpload 
+                    currentImageUrl={imagePreview}
+                    onImageUpload={handleImageUpload}
+                    onImageRemove={removeImage}
+                  />
                 </div>
               </div>
               

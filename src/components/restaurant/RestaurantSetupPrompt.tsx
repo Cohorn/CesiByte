@@ -9,9 +9,11 @@ const RestaurantSetupPrompt: React.FC = () => {
   return (
     <div className="bg-white rounded shadow p-8 text-center">
       <h2 className="text-xl font-semibold mb-4">Restaurant Not Found</h2>
-      <p className="text-gray-500 mb-4">Please set up your restaurant first.</p>
+      <p className="text-gray-500 mb-4">
+        Please set up your restaurant profile to continue.
+      </p>
       <Button onClick={() => navigate('/restaurant/setup')}>
-        Set Up Restaurant
+        Set Up Restaurant Profile
       </Button>
     </div>
   );

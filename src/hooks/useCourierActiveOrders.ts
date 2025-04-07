@@ -1,220 +1,89 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+
+// This is a simplified version for demonstration
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Order, OrderStatus, SimpleUser } from '@/lib/database.types';
-import { useToast } from '@/hooks/use-toast';
-import { useReviews } from '@/hooks/useReviews';
-import { ActiveOrder, RestaurantData } from '@/types/courier';
+import { OrderStatus } from '@/lib/database.types';
 
-export function useCourierActiveOrders(courierId?: string) {
+export interface ActiveOrder {
+  id: string;
+  user_id: string;
+  restaurant_id: string;
+  courier_id: string | null;
+  status: OrderStatus;
+  items: any;
+  total_price: number;
+  delivery_address: string;
+  delivery_lat: number;
+  delivery_lng: number;
+  delivery_pin: string;
+  created_at: string;
+  updated_at: string;
+  // Additional properties from join
+  restaurant_name: string;
+  restaurant_address: string;
+  restaurant_lat: number;
+  restaurant_lng: number;
+}
+
+export function useCourierActiveOrders(courierId: string | null) {
   const [activeOrders, setActiveOrders] = useState<ActiveOrder[]>([]);
-  const [restaurants, setRestaurants] = useState<any[]>([]);
-  const [reviewers, setReviewers] = useState<SimpleUser[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const { toast } = useToast();
-  const initCompletedRef = useRef(false);
-  
-  const reviewsParams = useCallback(() => ({ 
-    courierId: courierId 
-  }), [courierId]);
-  
-  const { 
-    reviews, 
-    isLoading: reviewsLoading, 
-    error: reviewsError,
-    refetch: refetchReviews,
-    averageRating
-  } = useReviews(reviewsParams());
-  
-  useEffect(() => {
-    if (reviewsError) {
-      setError(reviewsError.message);
-    }
-  }, [reviewsError]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
 
-  const fetchActiveOrders = useCallback(async (showLoading = true) => {
-    if (!courierId) {
-      setLoading(false);
-      return false;
-    }
-
+  const fetchActiveOrders = useCallback(async () => {
+    if (!courierId) return [];
+    
+    setLoading(true);
+    setError(null);
+    
     try {
-      if (showLoading && !isRefreshing) {
-        setLoading(true);
-      }
-      
-      setError(null);
-      
-      const { data: ordersData, error: ordersError } = await supabase
+      const { data, error } = await supabase
         .from('orders')
         .select(`
           *,
-          restaurants (
-            name,
-            address,
-            lat,
-            lng
-          )
+          restaurants:restaurant_id(name, address, lat, lng)
         `)
         .eq('courier_id', courierId)
         .in('status', ['picked_up', 'on_the_way']);
-
-      if (ordersError) {
-        console.error("Error fetching active orders:", ordersError);
-        setError("Failed to load active orders");
-        throw ordersError;
-      }
-
-      if (ordersData) {
-        const formattedOrders = ordersData.map(order => {
-          const restaurantData = order.restaurants as unknown as RestaurantData;
-          
-          const parsedItems = typeof order.items === 'string' 
-            ? JSON.parse(order.items as string) 
-            : (Array.isArray(order.items) ? order.items : []);
-            
-          return {
-            ...order,
-            items: parsedItems,
-            restaurant_name: restaurantData?.name || 'Unknown Restaurant',
-            restaurant_address: restaurantData?.address || 'Unknown Address',
-            restaurant_lat: restaurantData?.lat || 0,
-            restaurant_lng: restaurantData?.lng || 0,
-            delivery_pin: order.delivery_pin || '0000'
-          } as ActiveOrder;
-        });
-        setActiveOrders(formattedOrders);
-      }
-
-      const { data: restaurantData, error: restaurantError } = await supabase
-        .from('restaurants')
-        .select('*');
-
-      if (restaurantError) {
-        console.error("Error fetching restaurants:", restaurantError);
-        setError("Failed to load restaurants");
-      } else {
-        setRestaurants(restaurantData || []);
-      }
-
-      if (reviews.length > 0) {
-        const reviewerIds = reviews.map(review => review.user_id);
-        const { data: reviewersData, error: reviewersError } = await supabase
-          .from('users')
-          .select('id, name')
-          .in('id', reviewerIds);
-        
-        if (reviewersError) {
-          console.error("Error fetching reviewers:", reviewersError);
-          setError("Failed to load reviewers");
-        } else if (reviewersData) {
-          setReviewers(reviewersData as SimpleUser[]);
-        }
-      }
       
-      return true;
-    } catch (error) {
-      console.error("Error in useCourierActiveOrders:", error);
-      setError("An unexpected error occurred");
-      return false;
-    } finally {
+      if (error) throw error;
+      
+      // Process to add restaurant data to main object
+      const processedOrders = data.map(order => {
+        // Add delivery_pin if it doesn't exist in the order record
+        const delivery_pin = order.delivery_pin || '0000';
+        
+        return {
+          ...order,
+          delivery_pin,
+          restaurant_name: order.restaurants?.name || 'Unknown Restaurant',
+          restaurant_address: order.restaurants?.address || 'Unknown Address',
+          restaurant_lat: order.restaurants?.lat || 0,
+          restaurant_lng: order.restaurants?.lng || 0,
+        } as ActiveOrder;
+      });
+      
+      setActiveOrders(processedOrders);
       setLoading(false);
-      setIsRefreshing(false);
-      initCompletedRef.current = true;
+      return processedOrders;
+    } catch (err) {
+      console.error('Error fetching active orders:', err);
+      setError(err as Error);
+      setLoading(false);
+      return [];
     }
-  }, [courierId, reviews.length, isRefreshing]);
-
-  const refetch = useCallback(async () => {
-    setIsRefreshing(true);
-    return fetchActiveOrders(false);
-  }, [fetchActiveOrders]);
+  }, [courierId]);
 
   useEffect(() => {
-    if (!courierId) {
-      setLoading(false);
-      return;
+    if (courierId) {
+      fetchActiveOrders();
     }
-
-    let isMounted = true;
-    
-    const loadInitialData = async () => {
-      if (isMounted && !initCompletedRef.current) {
-        await fetchActiveOrders();
-        if (isMounted) {
-          await refetchReviews();
-        }
-      }
-    };
-    
-    loadInitialData();
-    
-    const interval = setInterval(() => {
-      if (document.visibilityState === 'visible' && isMounted && !isRefreshing) {
-        refetch();
-      }
-    }, 60000);
-    
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [courierId, fetchActiveOrders, refetchReviews, refetch, isRefreshing]);
-
-  const updateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
-    try {
-      const { error } = await supabase
-        .from('orders')
-        .update({ status: newStatus })
-        .eq('id', orderId)
-        .eq('courier_id', courierId);
-
-      if (error) {
-        console.error("Error updating order status:", error);
-        toast({
-          title: "Error",
-          description: "Could not update order status",
-          variant: "destructive",
-        });
-        return false;
-      } else {
-        toast({
-          title: "Success",
-          description: `Order status updated to ${newStatus}`,
-        });
-
-        setActiveOrders(prevOrders =>
-          prevOrders.map(order =>
-            order.id === orderId ? { ...order, status: newStatus } : order
-          )
-        );
-        
-        if (newStatus === 'delivered') {
-          await refetch();
-        }
-        
-        return true;
-      }
-    } catch (error) {
-      console.error("Error updating order status:", error);
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred",
-        variant: "destructive",
-      });
-      return false;
-    }
-  };
+  }, [courierId, fetchActiveOrders]);
 
   return {
     activeOrders,
-    restaurants,
-    reviews,
-    reviewers,
-    averageRating,
-    loading: loading || reviewsLoading,
+    loading,
     error,
-    updateOrderStatus,
-    refetch
+    refetch: fetchActiveOrders
   };
 }

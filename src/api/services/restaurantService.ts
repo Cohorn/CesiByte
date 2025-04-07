@@ -19,9 +19,14 @@ export const restaurantApi = {
   getRestaurantById: async (id: string) => {
     console.log(`Fetching restaurant by ID: ${id}`);
     try {
-      const response = await apiClient.get(`/restaurants/${id}`);
-      console.log('Fetched restaurant by ID successfully:', response.data);
-      return response.data;
+      const { data, error } = await supabase
+        .from('restaurants')
+        .select('*')
+        .eq('id', id)
+        .single();
+        
+      if (error) throw error;
+      return data;
     } catch (error) {
       console.error(`Error fetching restaurant by ID ${id}:`, error);
       throw error;
@@ -31,9 +36,14 @@ export const restaurantApi = {
   getRestaurantByUserId: async (userId: string) => {
     console.log(`Fetching restaurant by user ID: ${userId}`);
     try {
-      const response = await apiClient.get(`/restaurants/user/${userId}`);
-      console.log('Fetched restaurant by user ID successfully:', response.data);
-      return response.data;
+      const { data, error } = await supabase
+        .from('restaurants')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+        
+      if (error) throw error;
+      return data;
     } catch (error) {
       console.error(`Error fetching restaurant by user ID ${userId}:`, error);
       throw error;
@@ -49,7 +59,7 @@ export const restaurantApi = {
         throw new Error('User ID is required to create a restaurant');
       }
       
-      // Use supabase directly instead of the backend API
+      // Use supabase directly
       const { data: result, error } = await supabase
         .from('restaurants')
         .insert({
@@ -126,9 +136,13 @@ export const restaurantApi = {
   getMenuItems: async (restaurantId: string) => {
     console.log(`Fetching menu items for restaurant ${restaurantId}`);
     try {
-      const response = await apiClient.get(`/restaurants/${restaurantId}/menu`);
-      console.log('Menu items fetched successfully:', response.data);
-      return response.data;
+      const { data, error } = await supabase
+        .from('menu_items')
+        .select('*')
+        .eq('restaurant_id', restaurantId);
+        
+      if (error) throw error;
+      return data;
     } catch (error) {
       console.error(`Error fetching menu items for restaurant ${restaurantId}:`, error);
       throw error;
@@ -138,9 +152,14 @@ export const restaurantApi = {
   createMenuItem: async (data: Omit<MenuItem, 'id' | 'created_at'>) => {
     console.log('Creating menu item with data:', data);
     try {
-      const response = await apiClient.post('/menu-items', data);
-      console.log('Menu item created successfully:', response.data);
-      return response.data;
+      const { data: result, error } = await supabase
+        .from('menu_items')
+        .insert(data)
+        .select()
+        .single();
+        
+      if (error) throw error;
+      return result;
     } catch (error) {
       console.error('Error creating menu item:', error);
       throw error;
@@ -150,9 +169,15 @@ export const restaurantApi = {
   updateMenuItem: async (id: string, data: Partial<MenuItem>) => {
     console.log(`Updating menu item ${id} with data:`, data);
     try {
-      const response = await apiClient.put(`/menu-items/${id}`, data);
-      console.log('Menu item updated successfully:', response.data);
-      return response.data;
+      const { data: result, error } = await supabase
+        .from('menu_items')
+        .update(data)
+        .eq('id', id)
+        .select()
+        .single();
+        
+      if (error) throw error;
+      return result;
     } catch (error) {
       console.error(`Error updating menu item ${id}:`, error);
       throw error;
@@ -162,12 +187,47 @@ export const restaurantApi = {
   deleteMenuItem: async (id: string) => {
     console.log(`Deleting menu item ${id}`);
     try {
-      const response = await apiClient.delete(`/menu-items/${id}`);
-      console.log('Menu item deleted successfully:', response.data);
-      return response.data;
+      const { error } = await supabase
+        .from('menu_items')
+        .delete()
+        .eq('id', id);
+        
+      if (error) throw error;
+      return true;
     } catch (error) {
       console.error(`Error deleting menu item ${id}:`, error);
       throw error;
+    }
+  },
+  
+  // Storage bucket check and creation
+  ensureStorageBucket: async () => {
+    try {
+      console.log('Checking if restaurant_images bucket exists');
+      const { data: buckets, error } = await supabase
+        .storage
+        .listBuckets();
+        
+      if (error) throw error;
+      
+      const bucketExists = buckets.some(bucket => bucket.name === 'restaurant_images');
+      
+      if (!bucketExists) {
+        console.log('Creating restaurant_images bucket');
+        const { error: createError } = await supabase.storage.createBucket('restaurant_images', {
+          public: true
+        });
+        
+        if (createError) throw createError;
+        console.log('Bucket created successfully');
+      } else {
+        console.log('Bucket already exists');
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error ensuring storage bucket exists:', error);
+      return false;
     }
   }
 };

@@ -1,331 +1,124 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Navigate } from 'react-router-dom';
-import { useAuth } from '@/lib/AuthContext';
-import { supabase } from '@/lib/supabase';
-import NavBar from '@/components/NavBar';
-import { Order, Restaurant, OrderStatus, SimpleUser, OrderItem } from '@/lib/database.types';
-import { formatDistanceToNow } from 'date-fns';
-import { useToast } from '@/hooks/use-toast';
-import { 
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog';
-import { 
-  Tabs, 
-  TabsContent, 
-  TabsList, 
-  TabsTrigger 
-} from "@/components/ui/tabs";
-import CourierReviewForm from '@/components/CourierReviewForm';
-import { useReviews } from '@/hooks/useReviews';
+import React, { useState, useEffect } from 'react';
 import { useOrders } from '@/hooks/useOrders';
-import { Button } from '@/components/ui/button';
-import { CheckCircle, MapPin, KeyRound } from 'lucide-react';
-import { calculateDistance, formatDistance } from '@/lib/distanceUtils';
-import { Card, CardContent } from '@/components/ui/card';
+import { useAuth } from '@/lib/AuthContext';
+import NavBar from '@/components/NavBar';
+import { OrderWithRestaurant } from '@/types/order';
+import { OrderStatus, Restaurant, OrderItem } from '@/lib/database.types';
+import { supabase } from '@/lib/supabase';
 
-interface OrderWithRestaurant extends Order {
-  restaurant: Restaurant;
+interface CustomerOrdersProps {
+  // You can define any props this component might receive here
 }
 
-const CustomerOrders = () => {
+const CustomerOrders: React.FC<CustomerOrdersProps> = () => {
   const { user } = useAuth();
-  const [activeOrders, setActiveOrders] = useState<OrderWithRestaurant[]>([]);
-  const [pastOrders, setPastOrders] = useState<OrderWithRestaurant[]>([]);
-  const [showReviewDialog, setShowReviewDialog] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [courierUsers, setCourierUsers] = useState<SimpleUser[]>([]);
-  const { toast } = useToast();
-  const { submitReview } = useReviews();
-  const { updateOrderStatus } = useOrders();
-
-  const activeStatuses: OrderStatus[] = [
-    'created', 
-    'accepted_by_restaurant', 
-    'preparing', 
-    'ready_for_pickup', 
-    'picked_up', 
-    'on_the_way', 
-    'delivered'
-  ];
-  const pastStatuses: OrderStatus[] = ['completed'];
-
-  const fetchOrders = useCallback(async () => {
-    if (!user) {
-      return;
-    }
-
-    try {
-      const { data: ordersData, error: ordersError } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          restaurants (*)
-        `)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (ordersError) {
-        console.error('Error fetching orders:', ordersError);
-        toast({
-          title: "Error",
-          description: "Failed to load orders",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const courierIds = ordersData
-        ?.map(order => order.courier_id)
-        .filter(Boolean) as string[];
-      
-      if (courierIds && courierIds.length > 0) {
-        const { data: couriersData, error: couriersError } = await supabase
-          .from('users')
-          .select('id, name, lat, lng')
-          .in('id', courierIds);
-        
-        if (couriersError) {
-          console.error('Error fetching couriers:', couriersError);
-        } else {
-          setCourierUsers(couriersData as SimpleUser[]);
-        }
-      }
-
-      if (ordersData) {
-        const formattedOrders = ordersData.map(order => {
-          const parsedItems = typeof order.items === 'string' 
-            ? JSON.parse(order.items as string) 
-            : order.items;
-          
-          return {
-            ...order,
-            items: parsedItems as OrderItem[],
-            restaurant: order.restaurants as Restaurant,
-            status: order.status as OrderStatus,
-            delivery_pin: order.delivery_pin || '0000'
-          } as OrderWithRestaurant;
-        });
-        
-        const active = formattedOrders.filter(order => 
-          activeStatuses.includes(order.status)
-        );
-        
-        const past = formattedOrders.filter(order => 
-          pastStatuses.includes(order.status)
-        );
-        
-        setActiveOrders(active);
-        setPastOrders(past);
-      }
-    } catch (error) {
-      console.error('Error fetching orders:', error);
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred",
-        variant: "destructive",
-      });
-    }
-  }, [user, toast, activeStatuses, pastStatuses]);
+  const { orders, loading, error, refetch } = useOrders(user?.id || '');
+  const [processedOrders, setProcessedOrders] = useState<OrderWithRestaurant[]>([]);
 
   useEffect(() => {
-    fetchOrders();
-  }, [fetchOrders]);
-
-  const handleReviewCourier = (order: Order) => {
-    setSelectedOrder(order);
-    setShowReviewDialog(true);
-  };
-
-  const handleSubmitReview = async (data: { rating: number; comment: string }) => {
-    if (!user || !selectedOrder || !selectedOrder.courier_id) return;
-
-    const reviewData = {
-      user_id: user.id,
-      courier_id: selectedOrder.courier_id,
-      rating: data.rating,
-      comment: data.comment || ''
-    };
-
-    const result = await submitReview(reviewData);
-
-    if (result.success) {
-      setShowReviewDialog(false);
-      toast({
-        title: "Success",
-        description: "Review submitted successfully",
-      });
+    if (orders) {
+      const ordersWithRestaurants = processOrdersWithRestaurants(orders);
+      setProcessedOrders(ordersWithRestaurants);
     }
-  };
+  }, [orders]);
 
-  const handleConfirmDelivery = async (orderId: string) => {
-    const result = await updateOrderStatus(orderId, 'completed');
-    if (result.success) {
-      const confirmedOrder = activeOrders.find(order => order.id === orderId);
-      if (confirmedOrder) {
-        const updatedOrder = { ...confirmedOrder, status: 'completed' as OrderStatus };
-        setActiveOrders(prev => prev.filter(order => order.id !== orderId));
-        setPastOrders(prev => [updatedOrder, ...prev]);
-        
-        toast({
-          title: "Order Confirmed",
-          description: "Your order has been marked as completed",
-        });
-      }
-    }
-  };
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
 
-  const getCourierInfo = (courierId: string | null) => {
-    if (!courierId) return { name: 'Not assigned', distance: 0 };
-    const courier = courierUsers.find(c => c.id === courierId);
-    return {
-      name: courier ? courier.name : 'Unknown courier',
-      lat: courier?.lat,
-      lng: courier?.lng
-    };
-  };
-
-  if (!user) {
-    return <Navigate to="/login" />;
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <p>Loading orders...</p>
+      </div>
+    );
   }
 
-  const renderOrderCard = (order: OrderWithRestaurant, isActive: boolean) => {
-    const courierInfo = getCourierInfo(order.courier_id);
-    
-    const restaurantDistance = calculateDistance(
-      user.lat,
-      user.lng,
-      order.restaurant.lat,
-      order.restaurant.lng
-    );
-    
-    const courierDistance = isActive && courierInfo.lat && courierInfo.lng ? 
-      calculateDistance(user.lat, user.lng, courierInfo.lat, courierInfo.lng) : 0;
-    
+  if (error) {
     return (
-      <div key={order.id} className="border p-4 rounded shadow-sm bg-white mb-4">
-        <h2 className="text-lg font-bold">{order.restaurant.name}</h2>
-        <div className="flex items-center text-sm text-blue-600 mt-1">
-          <MapPin className="h-4 w-4 mr-1" />
-          <span>{formatDistance(restaurantDistance)} from you</span>
-        </div>
-        
-        <div className="mt-3 space-y-1">
-          <p className="text-gray-600">Status: <span className="font-medium">{order.status.replace(/_/g, ' ')}</span></p>
-          <p className="text-gray-600">
-            Courier: <span className="font-medium">{courierInfo.name}</span>
-            {isActive && courierDistance > 0 && (
-              <span className="ml-2 text-sm text-blue-600">
-                ({formatDistance(courierDistance)} from you)
-              </span>
-            )}
-          </p>
-          <p className="text-gray-600">
-            Total: <span className="font-medium">${order.total_price.toFixed(2)}</span>
-          </p>
-          <p className="text-sm text-gray-500">
-            {formatDistanceToNow(new Date(order.created_at), {
-              addSuffix: true,
-            })}
-          </p>
-        </div>
-        
-        {isActive && order.status === 'on_the_way' && order.delivery_pin && (
-          <Card className="mt-3 bg-green-50 border-green-200">
-            <CardContent className="p-3">
-              <div className="flex items-center mb-1">
-                <KeyRound className="h-4 w-4 text-green-600 mr-1" />
-                <p className="text-sm font-medium text-green-800">Delivery PIN</p>
-              </div>
-              <p className="text-lg font-bold tracking-wider">{order.delivery_pin}</p>
-              <p className="text-xs text-green-700 mt-1">
-                Share this PIN with your courier when they arrive
-              </p>
-            </CardContent>
-          </Card>
-        )}
-        
-        <div className="mt-3 flex gap-2">
-          {isActive && order.status === 'delivered' && (
-            <Button
-              size="sm"
-              onClick={() => handleConfirmDelivery(order.id)}
-              className="text-white bg-green-600 hover:bg-green-700"
-            >
-              <CheckCircle className="w-4 h-4 mr-1" />
-              Confirm Received
-            </Button>
-          )}
-          
-          {(!isActive || order.status === 'delivered') && order.courier_id && (
-            <Button
-              variant="outline" 
-              size="sm"
-              onClick={() => handleReviewCourier(order)}
-            >
-              Review Courier
-            </Button>
-          )}
-        </div>
+      <div className="flex justify-center items-center h-screen">
+        <p>Error: {error.message}</p>
       </div>
     );
+  }
+
+  const processOrdersWithRestaurants = (data: any[]): OrderWithRestaurant[] => {
+    return data.map(order => {
+      // Add delivery_pin with default value if it doesn't exist
+      const delivery_pin = order.delivery_pin || '0000';
+      
+      return {
+        id: order.id,
+        user_id: order.user_id,
+        restaurant_id: order.restaurant_id,
+        courier_id: order.courier_id,
+        status: order.status as OrderStatus,
+        items: order.items as OrderItem[],
+        total_price: order.total_price,
+        delivery_address: order.delivery_address,
+        delivery_lat: order.delivery_lat,
+        delivery_lng: order.delivery_lng,
+        created_at: order.created_at,
+        updated_at: order.updated_at,
+        delivery_pin: delivery_pin,
+        restaurant: {
+          id: order.restaurants?.id || '',
+          name: order.restaurants?.name || 'Unknown Restaurant',
+          address: order.restaurants?.address || 'Unknown Address',
+          lat: order.restaurants?.lat || 0,
+          lng: order.restaurants?.lng || 0,
+          user_id: order.restaurants?.user_id || '',
+          created_at: order.restaurants?.created_at || order.created_at,
+          image_url: order.restaurants?.image_url || null
+        } as Restaurant
+      };
+    });
   };
 
+  const groupOrdersByStatus = (orders: OrderWithRestaurant[]) => {
+    return orders.reduce((acc: { [key in OrderStatus]?: OrderWithRestaurant[] }, order) => {
+      if (!acc[order.status]) {
+        acc[order.status] = [];
+      }
+      acc[order.status]?.push(order);
+      return acc;
+    }, {});
+  };
+
+  const groupedOrders = groupOrdersByStatus(processedOrders);
+
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
+    <div className="min-h-screen bg-gray-50">
       <NavBar />
-
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold mb-6">Your Orders</h1>
-
-        <Tabs defaultValue="active" className="w-full">
-          <TabsList className="w-full mb-4">
-            <TabsTrigger value="active" className="flex-1">
-              Active Orders ({activeOrders.length})
-            </TabsTrigger>
-            <TabsTrigger value="past" className="flex-1">
-              Past Orders ({pastOrders.length})
-            </TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="active">
-            {activeOrders.length > 0 ? (
-              <div className="space-y-4">
-                {activeOrders.map(order => renderOrderCard(order, true))}
-              </div>
+      <div className="container mx-auto py-8">
+        <h1 className="text-2xl font-bold mb-4">Your Orders</h1>
+        {Object.entries(groupedOrders).map(([status, orders]) => (
+          <div key={status} className="mb-6">
+            <h2 className="text-xl font-semibold mb-2">{status.replace(/_/g, ' ')}</h2>
+            {orders?.length === 0 ? (
+              <p>No orders with this status.</p>
             ) : (
-              <p className="text-center py-8 text-gray-500">No active orders found.</p>
-            )}
-          </TabsContent>
-          
-          <TabsContent value="past">
-            {pastOrders.length > 0 ? (
-              <div className="space-y-4">
-                {pastOrders.map(order => renderOrderCard(order, false))}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {orders?.map(order => (
+                  <div key={order.id} className="bg-white rounded-md shadow-sm p-4">
+                    <h3 className="font-semibold">{order.restaurant.name}</h3>
+                    <p className="text-gray-500">{order.delivery_address}</p>
+                    <p className="text-sm">Total: ${order.total_price}</p>
+                    <p className="text-sm">Delivery Pin: {order.delivery_pin}</p>
+                    <ul className="mt-2">
+                      {order.items.map(item => (
+                        <li key={item.menu_item_id} className="text-sm">
+                          {item.name} x{item.quantity} - ${item.price * item.quantity}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
               </div>
-            ) : (
-              <p className="text-center py-8 text-gray-500">No past orders found.</p>
             )}
-          </TabsContent>
-        </Tabs>
+          </div>
+        ))}
       </div>
-
-      <Dialog open={showReviewDialog} onOpenChange={setShowReviewDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Review Courier</DialogTitle>
-          </DialogHeader>
-          {selectedOrder && (
-            <CourierReviewForm
-              courierId={selectedOrder.courier_id || ''}
-              orderId={selectedOrder.id}
-              onSubmit={handleSubmitReview}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

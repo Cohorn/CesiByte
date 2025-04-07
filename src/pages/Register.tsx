@@ -6,11 +6,13 @@ import NavBar from '@/components/NavBar';
 import { UserType } from '@/lib/database.types';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { supabase } from '@/lib/supabase';
+import { useRestaurant } from '@/frontend/hooks';
 
 const Register = () => {
   const [searchParams] = useSearchParams();
@@ -26,10 +28,13 @@ const Register = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   
   const { signUp, user, isLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { createRestaurant } = useRestaurant();
 
   // Clear error message when inputs change
   useEffect(() => {
@@ -52,6 +57,112 @@ const Register = () => {
     
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
+  };
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    // Check file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "Error",
+        description: "Image file is too large (maximum 5MB)",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      toast({
+        title: "Error",
+        description: "Invalid file type. Please upload a JPG, PNG, GIF or WEBP image.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setIsUploading(true);
+    
+    try {
+      // Ensure the storage bucket exists
+      await ensureStorageBucket();
+      
+      // Create a unique file name
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2, 15)}-${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+      
+      // Upload file to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('restaurant_images')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true
+        });
+      
+      if (uploadError) {
+        console.error('Error uploading image:', uploadError);
+        throw uploadError;
+      }
+      
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('restaurant_images')
+        .getPublicUrl(filePath);
+      
+      setImagePreview(publicUrl);
+      
+      toast({
+        title: "Success",
+        description: "Image uploaded successfully",
+      });
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      toast({
+        title: "Error",
+        description: "Failed to upload image. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const removeImage = () => {
+    setImagePreview(null);
+  };
+
+  const ensureStorageBucket = async () => {
+    try {
+      console.log('Checking if restaurant_images bucket exists');
+      const { data: buckets, error } = await supabase
+        .storage
+        .listBuckets();
+        
+      if (error) throw error;
+      
+      const bucketExists = buckets.some(bucket => bucket.name === 'restaurant_images');
+      
+      if (!bucketExists) {
+        console.log('Creating restaurant_images bucket');
+        const { error: createError } = await supabase.storage.createBucket('restaurant_images', {
+          public: true
+        });
+        
+        if (createError) throw createError;
+        console.log('Bucket created successfully');
+      } else {
+        console.log('Bucket already exists');
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error ensuring storage bucket exists:', error);
+      return false;
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -105,24 +216,66 @@ const Register = () => {
           variant: "destructive"
         });
       } else {
-        toast({
-          title: "Success",
-          description: "Your account has been created"
-        });
-        
-        // Small delay to ensure the registration is complete before redirect
-        setTimeout(() => {
-          // Redirect based on user type
-          if (userType === 'restaurant') {
-            navigate('/restaurant/setup');
-          } else if (userType === 'employee') {
-            navigate('/employee/dashboard');
-          } else if (userType === 'courier') {
-            navigate('/courier/available');
-          } else {
-            navigate('/');
+        // Auto-create restaurant if type is restaurant
+        if (userType === 'restaurant') {
+          try {
+            // Wait a moment for the auth process to complete
+            setTimeout(async () => {
+              try {
+                // Get current user after sign up
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session?.user) {
+                  const restaurantData = {
+                    name,
+                    address,
+                    lat,
+                    lng,
+                    user_id: session.user.id,
+                    image_url: imagePreview
+                  };
+                  
+                  console.log('Creating restaurant for new user:', restaurantData);
+                  await createRestaurant(restaurantData);
+                  
+                  toast({
+                    title: "Success",
+                    description: "Restaurant account created successfully!",
+                  });
+                  
+                  // Navigate to restaurant menu page
+                  navigate('/restaurant/menu');
+                }
+              } catch (restError) {
+                console.error("Error creating restaurant:", restError);
+                toast({
+                  title: "Warning",
+                  description: "Account created but restaurant setup failed. Please try setting up your restaurant again.",
+                  variant: "destructive"
+                });
+                navigate('/restaurant/setup');
+              }
+            }, 1000);
+          } catch (restError) {
+            console.error("Error in restaurant creation:", restError);
           }
-        }, 500);
+        } else {
+          toast({
+            title: "Success",
+            description: "Your account has been created"
+          });
+          
+          // Small delay to ensure the registration is complete before redirect
+          setTimeout(() => {
+            // Redirect based on user type
+            if (userType === 'employee') {
+              navigate('/employee/dashboard');
+            } else if (userType === 'courier') {
+              navigate('/courier/available');
+            } else {
+              navigate('/');
+            }
+          }, 500);
+        }
       }
     } catch (error: any) {
       console.error("Unexpected registration error:", error);
@@ -294,6 +447,54 @@ const Register = () => {
                     </div>
                   </div>
                 </>
+              )}
+              
+              {/* Restaurant Image Upload */}
+              {userType === 'restaurant' && (
+                <div className="space-y-2">
+                  <Label>Restaurant Cover Image (Optional)</Label>
+                  {imagePreview ? (
+                    <div className="relative w-full aspect-video mb-2 rounded-md overflow-hidden bg-gray-100">
+                      <img 
+                        src={imagePreview} 
+                        alt="Restaurant" 
+                        className="w-full h-full object-cover"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon"
+                        className="absolute top-2 right-2 rounded-full"
+                        onClick={removeImage}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="border-2 border-dashed border-gray-300 rounded-md p-4 text-center">
+                      <Input 
+                        id="image" 
+                        type="file" 
+                        accept="image/*"
+                        className="hidden" 
+                        onChange={handleImageUpload}
+                        disabled={isUploading}
+                      />
+                      <label 
+                        htmlFor="image"
+                        className="cursor-pointer flex flex-col items-center justify-center py-4"
+                      >
+                        <Upload className="h-10 w-10 text-gray-400 mb-2" />
+                        <span className="text-sm text-gray-600">
+                          {isUploading ? 'Uploading...' : 'Upload restaurant photo (optional)'}
+                        </span>
+                        <span className="text-xs text-gray-400 mt-1">
+                          JPG, PNG, GIF up to 5MB
+                        </span>
+                      </label>
+                    </div>
+                  )}
+                </div>
               )}
               
               <Button
