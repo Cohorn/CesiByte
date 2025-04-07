@@ -72,7 +72,7 @@ export const reviewApi = {
       const response = await apiClient.post('/reviews', reviewData);
       
       // Clear cache for related filters
-      this.clearCache({
+      reviewApi.clearCache({
         userId: reviewData.user_id,
         restaurantId: reviewData.restaurant_id,
         courierId: reviewData.courier_id
@@ -90,7 +90,7 @@ export const reviewApi = {
       const response = await apiClient.put(`/reviews/${id}`, reviewData);
       
       // Invalidate all cache since we don't know which filters this affects
-      this.clearCache();
+      reviewApi.clearCache();
       
       return response.data;
     } catch (error) {
@@ -104,7 +104,7 @@ export const reviewApi = {
       const response = await apiClient.delete(`/reviews/${id}`);
       
       // Invalidate all cache since we don't know which filters this affects
-      this.clearCache();
+      reviewApi.clearCache();
       
       return response.data;
     } catch (error) {
