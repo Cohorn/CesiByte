@@ -21,17 +21,14 @@ const Map: React.FC<MapProps> = ({ locations, center, height = '400px' }) => {
   const markersRef = useRef<mapboxgl.Marker[]>([]);
   const [mapInitialized, setMapInitialized] = useState(false);
   const mapboxToken = 'pk.eyJ1IjoiYXplcGllMCIsImEiOiJjbTh3eHYxdnYwMDZlMmxzYjRsYnM5bDcyIn0.vuT0Pi1Q_2QEdwkULIs_vQ';
-  const renderCountRef = useRef(0);
 
   // France's approximate center coordinates
   const FRANCE_CENTER: [number, number] = [2.2137, 46.2276];
 
-  // Initialize map only once, using a true ref pattern to avoid re-creating the map
+  // Initialize map only once
   useEffect(() => {
-    // This effect should run ONLY ONCE
     if (!mapContainer.current || map.current) return;
 
-    console.log('Initializing map', renderCountRef.current++);
     mapboxgl.accessToken = mapboxToken;
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
@@ -43,70 +40,58 @@ const Map: React.FC<MapProps> = ({ locations, center, height = '400px' }) => {
       antialias: true // Enables antialiasing for smoother edges
     });
 
-    // Add navigation control
     map.current.addControl(new mapboxgl.NavigationControl());
 
-    // Mark map as initialized when fully loaded
+    // Mark map as initialized only after it's fully loaded
     map.current.on('load', () => {
-      try {
-        console.log('Map loaded');
-        // Add 3D building layer if style has them
-        const currentMap = map.current;
-        if (currentMap && currentMap.getStyle().layers) {
-          if (currentMap.getStyle().layers.some(layer => layer.id === 'building')) {
-            currentMap.addLayer({
-              'id': '3d-buildings',
-              'source': 'composite',
-              'source-layer': 'building',
-              'filter': ['==', 'extrude', 'true'],
-              'type': 'fill-extrusion',
-              'minzoom': 15,
-              'paint': {
-                'fill-extrusion-color': '#aaa',
-                'fill-extrusion-height': [
-                  'interpolate', ['linear'], ['zoom'],
-                  15, 0,
-                  15.05, ['get', 'height']
-                ],
-                'fill-extrusion-base': [
-                  'interpolate', ['linear'], ['zoom'],
-                  15, 0,
-                  15.05, ['get', 'min_height']
-                ],
-                'fill-extrusion-opacity': 0.6
-              }
-            });
-          }
+      // Add 3D building layer if it exists in the style
+      if (map.current && map.current.getStyle().layers) {
+        // Check if 'building' layer exists before trying to add 3D buildings
+        if (map.current.getStyle().layers.some(layer => layer.id === 'building')) {
+          map.current.addLayer({
+            'id': '3d-buildings',
+            'source': 'composite',
+            'source-layer': 'building',
+            'filter': ['==', 'extrude', 'true'],
+            'type': 'fill-extrusion',
+            'minzoom': 15,
+            'paint': {
+              'fill-extrusion-color': '#aaa',
+              'fill-extrusion-height': [
+                'interpolate', ['linear'], ['zoom'],
+                15, 0,
+                15.05, ['get', 'height']
+              ],
+              'fill-extrusion-base': [
+                'interpolate', ['linear'], ['zoom'],
+                15, 0,
+                15.05, ['get', 'min_height']
+              ],
+              'fill-extrusion-opacity': 0.6
+            }
+          });
         }
-      } catch (error) {
-        console.error('Error adding 3D building layer:', error);
       }
       
       setMapInitialized(true);
     });
 
-    // Proper cleanup function
     return () => {
-      console.log('Cleaning up map');
-      if (markersRef.current.length > 0) {
-        markersRef.current.forEach(marker => marker.remove());
-        markersRef.current = [];
-      }
+      // Clean up markers
+      markersRef.current.forEach(marker => marker.remove());
+      markersRef.current = [];
       
       if (map.current) {
         map.current.remove();
         map.current = null;
       }
     };
-  }, []); // Empty dependency array ensures this runs only once
+  }, []); // Empty dependency array to initialize map only once
 
-  // Update markers separately whenever locations or center changes
-  // Only run when map is initialized and locations/center change
+  // Update markers when locations or center changes and map is initialized
   useEffect(() => {
     if (!map.current || !mapInitialized) return;
-    
-    console.log('Updating markers', locations.length);
-    
+
     // Remove existing markers
     markersRef.current.forEach(marker => marker.remove());
     markersRef.current = [];
@@ -114,8 +99,8 @@ const Map: React.FC<MapProps> = ({ locations, center, height = '400px' }) => {
     // Set up bounds to fit all markers
     const bounds = new mapboxgl.LngLatBounds();
     const markers: mapboxgl.Marker[] = [];
-    
-    // Filter to valid locations only
+
+    // Add new markers only for valid locations
     const validLocations = locations.filter(loc => 
       loc && 
       typeof loc.lat === 'number' && 
@@ -125,83 +110,44 @@ const Map: React.FC<MapProps> = ({ locations, center, height = '400px' }) => {
       loc.lat !== 0 && 
       loc.lng !== 0
     );
-    
-    console.log('Valid locations:', validLocations.length);
-    
-    // Skip if no valid locations
-    if (validLocations.length === 0) {
-      // If center is provided, use it instead
-      if (center && map.current) {
-        try {
-          console.log('Flying to center', center);
-          map.current.flyTo({
-            center: center,
-            zoom: 9,
-            essential: true,
-            duration: 1000 // Smooth transition
-          });
-        } catch (error) {
-          console.error('Error flying to center:', error);
-        }
-      }
-      return;
-    }
-    
-    // Add markers for valid locations
+
+    // Add new markers
     validLocations.forEach(location => {
-      try {
-        const { lat, lng, type, name } = location;
+      const { lat, lng, type, name } = location;
+      
+      const popupContent = document.createElement('div');
+      popupContent.innerText = name;
+
+      const marker = new mapboxgl.Marker({ 
+        color: type === 'restaurant' ? '#F00' : type === 'user' ? '#00F' : '#0F0' 
+      })
+        .setLngLat([lng, lat])
+        .setPopup(new mapboxgl.Popup().setDOMContent(popupContent))
+        .addTo(map.current!);
         
-        const popupContent = document.createElement('div');
-        popupContent.innerText = name;
-        
-        // Different colors for different types
-        const marker = new mapboxgl.Marker({ 
-          color: type === 'restaurant' ? '#F00' : type === 'user' ? '#00F' : '#0F0' 
-        })
-          .setLngLat([lng, lat])
-          .setPopup(new mapboxgl.Popup().setDOMContent(popupContent))
-          .addTo(map.current!);
-          
-        markers.push(marker);
-        bounds.extend([lng, lat]);
-      } catch (error) {
-        console.error('Error adding marker:', error);
-      }
+      markers.push(marker);
+      bounds.extend([lng, lat]);
     });
-    
-    // Store markers for later cleanup
+
+    // Store current markers for later cleanup
     markersRef.current = markers;
-    
-    // Fit map to bounds or center
-    if (validLocations.length > 0 && !bounds.isEmpty() && map.current) {
-      try {
-        console.log('Fitting to bounds');
-        map.current.fitBounds(bounds, { 
-          padding: 50,
-          maxZoom: 15,
-          duration: 1000 // Smooth transition
-        });
-      } catch (error) {
-        console.error('Error fitting map to bounds:', error);
-      }
-    } 
-    // Or use provided center
-    else if (center && map.current) {
-      try {
-        console.log('Flying to center', center);
-        map.current.flyTo({
-          center: center,
-          zoom: 9,
-          essential: true,
-          duration: 1000 // Smooth transition
-        });
-      } catch (error) {
-        console.error('Error flying to center:', error);
-      }
+
+    // Fit map to bounds if we have valid locations
+    if (validLocations.length > 0 && !bounds.isEmpty()) {
+      map.current.fitBounds(bounds, { 
+        padding: 50,
+        maxZoom: 15
+      });
     }
-    
-  }, [locations, center, mapInitialized]); // Dependencies include locations and center
+    // If center is provided, use it instead of fitting to bounds
+    else if (center) {
+      map.current.flyTo({
+        center: center,
+        zoom: 9,
+        essential: true
+      });
+    }
+  }, [locations, center, mapInitialized]);
 
   return (
     <div ref={mapContainer} style={{ width: '100%', height }} />

@@ -33,10 +33,7 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
         .storage
         .listBuckets();
         
-      if (error) {
-        console.error('Error checking buckets:', error);
-        throw error;
-      }
+      if (error) throw error;
       
       const exists = buckets.some(bucket => bucket.name === 'restaurant_images');
       setBucketExists(exists);
@@ -44,70 +41,33 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
       console.log('Bucket exists:', exists);
       
       if (!exists) {
-        try {
-          // Try to create the bucket using SQL via a server function
-          const { error: createError } = await supabase.functions.invoke('create-restaurant-bucket', {
-            method: 'POST',
-          });
-          
-          if (createError) {
-            console.error('Error creating bucket via function:', createError);
-            throw createError;
-          }
-          
-          console.log('Bucket created successfully via function');
-          setBucketExists(true);
-          return true;
-        } catch (createError) {
-          console.error('Failed to create bucket via function:', createError);
-          
-          // Fallback: Call the API service to ensure the bucket exists
-          try {
-            const result = await fetch('/api/ensure-storage-bucket', {
-              method: 'POST',
-            });
-            
-            if (!result.ok) {
-              throw new Error('Failed to create bucket via API');
-            }
-            
-            console.log('Bucket created successfully via API fallback');
-            setBucketExists(true);
-            return true;
-          } catch (apiError) {
-            console.error('Failed to create bucket via API:', apiError);
-            
-            // Last resort: Try using restaurantApi directly
-            try {
-              const { restaurantApi } = await import('@/api/services/restaurantService');
-              const success = await restaurantApi.ensureStorageBucket();
-              
-              if (success) {
-                console.log('Bucket created successfully via restaurantApi');
-                setBucketExists(true);
-                return true;
-              } else {
-                throw new Error('Failed to create bucket via restaurantApi');
-              }
-            } catch (finalError) {
-              console.error('All bucket creation attempts failed:', finalError);
-              toast({
-                title: "Error",
-                description: "Could not create storage bucket. Please try again later.",
-                variant: "destructive"
-              });
-              return false;
-            }
-          }
-        }
+        console.log('Creating restaurant_images bucket');
+        await createBucket();
       }
       
       return exists;
     } catch (error) {
       console.error('Error checking bucket:', error);
+      return false;
+    }
+  };
+
+  const createBucket = async () => {
+    try {
+      const { error } = await supabase.storage.createBucket('restaurant_images', {
+        public: true
+      });
+      
+      if (error) throw error;
+      
+      console.log('Bucket created successfully');
+      setBucketExists(true);
+      return true;
+    } catch (error) {
+      console.error('Error creating bucket:', error);
       toast({
         title: "Error",
-        description: "Failed to check storage bucket. Please try again later.",
+        description: "Could not create storage bucket. Please contact support.",
         variant: "destructive"
       });
       return false;
@@ -144,7 +104,7 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
     try {
       // Ensure the storage bucket exists
       if (!bucketExists) {
-        const created = await checkBucketExists(); // Re-check and create if needed
+        const created = await createBucket();
         if (!created) {
           throw new Error('Unable to create storage bucket');
         }
@@ -155,10 +115,8 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
       const fileName = `${Math.random().toString(36).substring(2, 15)}-${Date.now()}.${fileExt}`;
       const filePath = `${fileName}`;
       
-      console.log('Uploading file to path:', filePath);
-      
       // Upload file to Supabase Storage
-      const { data, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('restaurant_images')
         .upload(filePath, file, {
           cacheControl: '3600',
@@ -170,14 +128,10 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
         throw uploadError;
       }
       
-      console.log('Upload successful:', data);
-      
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('restaurant_images')
         .getPublicUrl(filePath);
-      
-      console.log('Public URL:', publicUrl);
       
       onImageUpload(publicUrl);
       
@@ -185,11 +139,11 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
         title: "Success",
         description: "Image uploaded successfully",
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error uploading image:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to upload image. Please try again.",
+        description: "Failed to upload image. Please try again.",
         variant: "destructive",
       });
     } finally {
