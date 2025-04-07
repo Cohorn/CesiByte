@@ -2,20 +2,29 @@
 import React from 'react';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 interface LoadingStateProps {
   message?: string;
   error?: string | null;
   onRetry?: () => void;
+  className?: string;
+  isRefreshing?: boolean;
 }
 
 const LoadingState: React.FC<LoadingStateProps> = ({ 
   message = 'Loading data...',
   error = null,
-  onRetry
+  onRetry,
+  className,
+  isRefreshing = false
 }) => {
   return (
-    <div className="text-center py-8 bg-white rounded shadow flex flex-col items-center justify-center">
+    <div className={cn(
+      "text-center py-8 bg-white rounded shadow flex flex-col items-center justify-center",
+      isRefreshing && "opacity-70",
+      className
+    )}>
       {error ? (
         <>
           <p className="text-red-500 mb-2">{error}</p>

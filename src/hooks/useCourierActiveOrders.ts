@@ -15,7 +15,7 @@ export function useCourierActiveOrders(courierId?: string) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { toast } = useToast();
   
-  // Fix: Use isLoading instead of loading and don't pass onError in ReviewFilters
+  // Use isLoading instead of loading and correctly handle the error
   const { 
     reviews, 
     isLoading: reviewsLoading, 
@@ -33,15 +33,15 @@ export function useCourierActiveOrders(courierId?: string) {
   const fetchActiveOrders = useCallback(async (showLoading = true) => {
     if (!courierId) {
       setLoading(false);
-      return;
+      return false;
     }
 
     try {
-      if (showLoading) {
-        if (!isRefreshing) {
-          setLoading(true);
-        }
+      // Only update loading state if we're not refreshing and if showLoading is true
+      if (showLoading && !isRefreshing) {
+        setLoading(true);
       }
+      
       setError(null);
       
       // Fetch orders assigned to the current courier with restaurant details
@@ -142,7 +142,7 @@ export function useCourierActiveOrders(courierId?: string) {
       if (isMounted) {
         await fetchActiveOrders();
         if (isMounted) {
-          refetchReviews();
+          await refetchReviews();
         }
       }
     };

@@ -14,6 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import CourierRatingDisplay from '@/components/courier/CourierRatingDisplay';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const CourierActiveOrders = () => {
   const { user } = useAuth();
@@ -46,8 +47,12 @@ const CourierActiveOrders = () => {
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold">Courier Dashboard</h1>
-          {averageRating !== null && (
-            <CourierRatingDisplay rating={averageRating} />
+          {loading ? (
+            <Skeleton className="h-8 w-24" />
+          ) : (
+            averageRating !== null && (
+              <CourierRatingDisplay rating={averageRating} />
+            )
           )}
         </div>
 
@@ -80,7 +85,7 @@ const CourierActiveOrders = () => {
               </Alert>
             )}
 
-            {loading ? (
+            {loading && activeOrders.length === 0 ? (
               <LoadingState message="Loading your active orders..." />
             ) : activeOrders.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -126,7 +131,7 @@ const CourierActiveOrders = () => {
           <TabsContent value="reviews">
             <h2 className="text-xl font-semibold mb-4">Your Reviews</h2>
             
-            {loading ? (
+            {loading && reviews.length === 0 ? (
               <LoadingState message="Loading your reviews..." />
             ) : error ? (
               <Alert variant="destructive" className="mb-4">
