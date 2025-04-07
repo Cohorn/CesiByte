@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { orderApi } from '@/api/services/orderService';
 import { Order, OrderStatus } from '@/lib/database.types';
-import { useAuth } from '@/frontend/hooks/useAuth';
+import { useAuth } from '@/lib/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { mqttClient } from '@/lib/mqtt-client';
 
@@ -87,8 +87,12 @@ export const useOrders = (options: OrdersOptions = {}) => {
         description: `Order status has been updated to ${status.replace(/_/g, ' ')}`,
       });
 
-      // Fetch latest orders after update to ensure we have the latest data
-      fetchOrders(true);
+      // Update local state without refetching
+      setOrders(prevOrders => 
+        prevOrders.map(order => 
+          order.id === orderId ? { ...order, status, updated_at: new Date().toISOString() } : order
+        )
+      );
       
       return { success: true, data: result };
     } catch (err) {
@@ -103,7 +107,7 @@ export const useOrders = (options: OrdersOptions = {}) => {
       
       return { success: false, error: err };
     }
-  }, [fetchOrders, toast]);
+  }, [toast]);
 
   // Initial fetch - better dependency tracking
   useEffect(() => {
@@ -193,15 +197,27 @@ export const useOrders = (options: OrdersOptions = {}) => {
       }
       
       if (isRelevant) {
-        // Refresh orders to get the latest data
-        fetchOrders(true);
+        // Update local state without refetching
+        setOrders(prevOrders => {
+          const orderExists = prevOrders.some(order => order.id === updatedOrder.id);
+          
+          if (orderExists) {
+            // Update existing order
+            return prevOrders.map(order => 
+              order.id === updatedOrder.id ? updatedOrder : order
+            );
+          } else {
+            // Add new order
+            return [updatedOrder, ...prevOrders];
+          }
+        });
       }
     });
 
     return () => {
       unsubscribe();
     };
-  }, [options.restaurantId, options.userId, options.courierId, options.status, fetchOrders]);
+  }, [options.restaurantId, options.userId, options.courierId, options.status]);
 
   return {
     orders,

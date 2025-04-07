@@ -1,66 +1,18 @@
+
 import { apiClient } from '../client';
 import { Order, OrderStatus } from '@/lib/database.types';
 import { mqttClient } from '@/lib/mqtt-client';
-
-// Cache for orders data
-const ordersCache = {
-  byId: new Map<string, { data: Order; timestamp: number }>(),
-  byUser: new Map<string, { data: Order[]; timestamp: number }>(),
-  byRestaurant: new Map<string, { data: Order[]; timestamp: number }>(),
-  byCourier: new Map<string, { data: Order[]; timestamp: number }>(),
-  byStatus: new Map<string, { data: Order[]; timestamp: number }>(),
-};
-
-// Cache TTL in milliseconds (30 seconds for development, adjust as needed)
-const CACHE_TTL = 30 * 1000;
-
-// WebSocket subscribers tracking
-const subscribers = new Set<(order: Order) => void>();
-
-// Process order items to ensure they're in the correct format
-const processOrderItems = (order) => {
-  if (!order) return order;
-  
-  try {
-    let parsedItems = [];
-    
-    if (typeof order.items === 'string') {
-      parsedItems = JSON.parse(order.items);
-    } else if (Array.isArray(order.items)) {
-      parsedItems = order.items;
-    } else if (order.items && typeof order.items === 'object') {
-      // If it's already a JSON object but not an array
-      parsedItems = [order.items];
-    }
-    
-    return {
-      ...order,
-      items: parsedItems
-    };
-  } catch (e) {
-    console.error(`Error processing items for order ${order?.id}:`, e);
-    return order;
-  }
-};
-
-// Process a batch of orders
-const processOrders = (orders) => {
-  if (!orders) return [];
-  return orders.map(processOrderItems);
-};
+import { orderCacheService } from './orderCache';
+import { processOrderItems, processOrders } from './orderDataProcessor';
+import { orderMQTTService } from './orderMQTT';
 
 export const orderApi = {
   getOrderById: async (id: string) => {
     console.log(`Fetching order by ID: ${id}`);
     
     // Check cache first
-    const cachedOrder = ordersCache.byId.get(id);
-    const now = Date.now();
-    
-    if (cachedOrder && (now - cachedOrder.timestamp < CACHE_TTL)) {
-      console.log(`Using cached order data for ID: ${id}`);
-      return cachedOrder.data;
-    }
+    const cachedOrder = orderCacheService.getCached('byId', id);
+    if (cachedOrder) return cachedOrder;
     
     try {
       const response = await apiClient.get(`/orders/${id}`);
@@ -69,7 +21,7 @@ export const orderApi = {
       const processedOrder = processOrderItems(response.data);
       
       // Update cache
-      ordersCache.byId.set(id, { data: processedOrder, timestamp: now });
+      orderCacheService.setCache('byId', id, processedOrder);
       
       return processedOrder;
     } catch (error) {
@@ -82,13 +34,8 @@ export const orderApi = {
     console.log(`Fetching orders for user: ${userId}`);
     
     // Check cache first
-    const cachedOrders = ordersCache.byUser.get(userId);
-    const now = Date.now();
-    
-    if (cachedOrders && (now - cachedOrders.timestamp < CACHE_TTL)) {
-      console.log(`Using cached orders data for user: ${userId}`);
-      return cachedOrders.data;
-    }
+    const cachedOrders = orderCacheService.getCached('byUser', userId);
+    if (cachedOrders) return cachedOrders;
     
     try {
       const response = await apiClient.get(`/orders/user/${userId}`);
@@ -97,7 +44,7 @@ export const orderApi = {
       const processedOrders = processOrders(response.data);
       
       // Update cache
-      ordersCache.byUser.set(userId, { data: processedOrders, timestamp: now });
+      orderCacheService.setCache('byUser', userId, processedOrders);
       
       return processedOrders;
     } catch (error) {
@@ -111,13 +58,8 @@ export const orderApi = {
     
     // Check cache first if not forcing refresh
     if (!forceRefresh) {
-      const cachedOrders = ordersCache.byRestaurant.get(restaurantId);
-      const now = Date.now();
-      
-      if (cachedOrders && (now - cachedOrders.timestamp < CACHE_TTL)) {
-        console.log(`Using cached orders data for restaurant: ${restaurantId}`);
-        return cachedOrders.data;
-      }
+      const cachedOrders = orderCacheService.getCached('byRestaurant', restaurantId);
+      if (cachedOrders) return cachedOrders;
     }
     
     try {
@@ -131,10 +73,7 @@ export const orderApi = {
       const processedOrders = processOrders(response.data);
       
       // Update cache
-      ordersCache.byRestaurant.set(restaurantId, { 
-        data: processedOrders, 
-        timestamp: Date.now() 
-      });
+      orderCacheService.setCache('byRestaurant', restaurantId, processedOrders);
       
       return processedOrders;
     } catch (error) {
@@ -148,13 +87,8 @@ export const orderApi = {
     console.log(`Fetching orders for courier: ${courierId}`);
     
     // Check cache first
-    const cachedOrders = ordersCache.byCourier.get(courierId);
-    const now = Date.now();
-    
-    if (cachedOrders && (now - cachedOrders.timestamp < CACHE_TTL)) {
-      console.log(`Using cached orders data for courier: ${courierId}`);
-      return cachedOrders.data;
-    }
+    const cachedOrders = orderCacheService.getCached('byCourier', courierId);
+    if (cachedOrders) return cachedOrders;
     
     try {
       const response = await apiClient.get(`/orders/courier/${courierId}`);
@@ -163,7 +97,7 @@ export const orderApi = {
       const processedOrders = processOrders(response.data);
       
       // Update cache
-      ordersCache.byCourier.set(courierId, { data: processedOrders, timestamp: now });
+      orderCacheService.setCache('byCourier', courierId, processedOrders);
       
       return processedOrders;
     } catch (error) {
@@ -177,13 +111,8 @@ export const orderApi = {
     console.log(`Fetching orders with status: ${statusParam}`);
     
     // Check cache first
-    const cachedOrders = ordersCache.byStatus.get(statusParam);
-    const now = Date.now();
-    
-    if (cachedOrders && (now - cachedOrders.timestamp < CACHE_TTL)) {
-      console.log(`Using cached orders data for status: ${statusParam}`);
-      return cachedOrders.data;
-    }
+    const cachedOrders = orderCacheService.getCached('byStatus', statusParam);
+    if (cachedOrders) return cachedOrders;
     
     try {
       const response = await apiClient.get(`/orders/status/${statusParam}`);
@@ -192,7 +121,7 @@ export const orderApi = {
       const processedOrders = processOrders(response.data);
       
       // Update cache
-      ordersCache.byStatus.set(statusParam, { data: processedOrders, timestamp: now });
+      orderCacheService.setCache('byStatus', statusParam, processedOrders);
       
       return processedOrders;
     } catch (error) {
@@ -208,16 +137,17 @@ export const orderApi = {
       console.log('Order creation response:', response.data);
       
       // Clear relevant caches to ensure fresh data on next fetch
-      ordersCache.byUser.delete(orderData.user_id);
-      ordersCache.byRestaurant.delete(orderData.restaurant_id);
+      orderCacheService.clearCache('byUser', orderData.user_id);
+      orderCacheService.clearCache('byRestaurant', orderData.restaurant_id);
       
       // Notify over MQTT
-      if (mqttClient) {
-        mqttClient.publish(`foodapp/restaurants/${orderData.restaurant_id}/orders`, JSON.stringify(response.data));
-      }
+      orderMQTTService.publishOrderEvent(
+        `foodapp/restaurants/${orderData.restaurant_id}/orders`, 
+        response.data
+      );
       
       // Notify subscribers
-      subscribers.forEach(callback => callback(response.data));
+      orderMQTTService.notifySubscribers(response.data);
       
       return response.data;
     } catch (error) {
@@ -235,26 +165,27 @@ export const orderApi = {
       const updatedOrder = processOrderItems(response.data);
       
       // Clear caches to ensure fresh data
-      orderApi.clearCache();
+      orderCacheService.clearCache();
       
       // Notify over MQTT
-      if (mqttClient) {
-        const topic = `foodapp/orders/${orderId}/status`;
-        mqttClient.publish(topic, JSON.stringify({
+      orderMQTTService.publishOrderEvent(
+        `foodapp/orders/${orderId}/status`, 
+        {
           orderId,
           status,
           timestamp: new Date().toISOString()
-        }));
-        
-        if (updatedOrder.restaurant_id) {
-          mqttClient.publish(`foodapp/restaurants/${updatedOrder.restaurant_id}/orders/updated`, 
-            JSON.stringify(updatedOrder)
-          );
         }
+      );
+      
+      if (updatedOrder.restaurant_id) {
+        orderMQTTService.publishOrderEvent(
+          `foodapp/restaurants/${updatedOrder.restaurant_id}/orders/updated`, 
+          updatedOrder
+        );
       }
       
       // Notify subscribers
-      subscribers.forEach(callback => callback(updatedOrder));
+      orderMQTTService.notifySubscribers(updatedOrder);
       
       return updatedOrder;
     } catch (error) {
@@ -272,18 +203,19 @@ export const orderApi = {
       const updatedOrder = processOrderItems(response.data);
       
       // Clear caches to ensure fresh data
-      orderApi.clearCache();
+      orderCacheService.clearCache();
       
       // Notify over MQTT
-      if (mqttClient) {
-        mqttClient.publish(`foodapp/couriers/${courierId}/assignments`, JSON.stringify({
+      orderMQTTService.publishOrderEvent(
+        `foodapp/couriers/${courierId}/assignments`, 
+        {
           orderId,
           timestamp: new Date().toISOString()
-        }));
-      }
+        }
+      );
       
       // Notify subscribers
-      subscribers.forEach(callback => callback(updatedOrder));
+      orderMQTTService.notifySubscribers(updatedOrder);
       
       return updatedOrder;
     } catch (error) {
@@ -292,41 +224,9 @@ export const orderApi = {
     }
   },
 
-  // Clear all caches or specific caches
-  clearCache: (type?: 'byId' | 'byUser' | 'byRestaurant' | 'byCourier' | 'byStatus', key?: string) => {
-    if (!type) {
-      Object.values(ordersCache).forEach(cache => {
-        if (cache instanceof Map) {
-          cache.clear();
-        }
-      });
-      console.log('All order caches cleared');
-      return;
-    }
-    
-    if (key && ordersCache[type].has(key)) {
-      ordersCache[type].delete(key);
-      console.log(`Cache cleared for ${type} with key ${key}`);
-    } else if (!key) {
-      if (ordersCache[type] instanceof Map) {
-        (ordersCache[type] as Map<string, any>).clear();
-      }
-      console.log(`All ${type} caches cleared`);
-    }
-  },
-
-  subscribeToOrderUpdates: (callback: (updatedOrder: Order) => void) => {
-    // Add the callback to subscribers
-    subscribers.add(callback);
-    
-    // Also subscribe via MQTT for real-time updates
-    if (mqttClient) {
-      mqttClient.subscribe('foodapp/orders/events/#');
-    }
-    
-    // Return an unsubscribe function
-    return () => {
-      subscribers.delete(callback);
-    };
-  }
+  // Expose cache clearing functionality
+  clearCache: orderCacheService.clearCache,
+  
+  // Expose subscription functionality
+  subscribeToOrderUpdates: orderMQTTService.subscribeToOrderUpdates
 };

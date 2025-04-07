@@ -1,6 +1,4 @@
 
-import { useEffect, useCallback, useState } from 'react';
-
 // MQTT client for the frontend
 // This is a simplified implementation that uses the WebSocket proxy in the API gateway
 
@@ -12,15 +10,12 @@ class MQTTClient {
   private messageQueue: Array<{topic: string, message: any}> = [];
   private connectionAttempts = 0;
   private maxReconnectDelay = 30000; // Maximum delay is 30 seconds
-  private connecting = false;
 
   // Connect to the MQTT WebSocket proxy
   connect() {
-    if (this.connecting || (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING))) {
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
       return;
     }
-
-    this.connecting = true;
     
     // Use API gateway WebSocket endpoint for MQTT
     const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/mqtt`;
@@ -33,7 +28,6 @@ class MQTTClient {
       this.ws.onopen = () => {
         console.log('Connected to MQTT WebSocket proxy');
         this.connected = true;
-        this.connecting = false;
         this.connectionAttempts = 0;
         
         // Resubscribe to all previously subscribed topics
@@ -50,18 +44,14 @@ class MQTTClient {
       this.ws.onclose = () => {
         console.log('Disconnected from MQTT WebSocket proxy');
         this.connected = false;
-        this.connecting = false;
-        
         this.scheduleReconnect();
       };
       
       this.ws.onerror = (error) => {
         console.error('WebSocket error:', error);
-        this.connecting = false;
       };
     } catch (error) {
       console.error('Error creating WebSocket:', error);
-      this.connecting = false;
       this.scheduleReconnect();
     }
   }
@@ -83,6 +73,10 @@ class MQTTClient {
         this.connect();
       }, delay);
     }
+  }
+
+  isConnected(): boolean {
+    return this.connected;
   }
 
   private processMessageQueue() {
@@ -119,14 +113,26 @@ class MQTTClient {
   private notifySubscribers(topic: string, messageData: any) {
     const handlers = this.subscriptions.get(topic);
     if (handlers) {
-      handlers.forEach(handler => handler(messageData));
+      handlers.forEach(handler => {
+        try {
+          handler(messageData);
+        } catch (error) {
+          console.error(`Error in subscriber callback for topic ${topic}:`, error);
+        }
+      });
     }
   }
 
   private notifyWildcardSubscribers(topic: string, messageData: any) {
     for (const [subscribedTopic, topicHandlers] of this.subscriptions.entries()) {
       if (subscribedTopic.includes('#') && this.matchTopic(topic, subscribedTopic)) {
-        topicHandlers.forEach(handler => handler(messageData));
+        topicHandlers.forEach(handler => {
+          try {
+            handler(messageData);
+          } catch (error) {
+            console.error(`Error in wildcard subscriber callback for topic ${topic}:`, error);
+          }
+        });
       }
     }
   }
@@ -143,6 +149,10 @@ class MQTTClient {
     for (let i = 0; i < subParts.length; i++) {
       if (subParts[i] === '#') {
         return true; // Any remaining path matches
+      }
+      
+      if (i >= actualParts.length) {
+        return false;
       }
       
       if (subParts[i] !== '+' && subParts[i] !== actualParts[i]) {
@@ -240,11 +250,6 @@ class MQTTClient {
     }
     
     this.connected = false;
-  }
-
-  // Check if currently connected
-  isConnected() {
-    return this.connected;
   }
 }
 

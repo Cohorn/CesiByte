@@ -4,17 +4,18 @@ import { useAuth } from '@/lib/AuthContext';
 import NavBar from '@/components/NavBar';
 import { useOrders } from '@/hooks/useOrders';
 import { useRestaurant } from '@/hooks/useRestaurant';
-import { format } from 'date-fns';
-import { Button } from '@/components/ui/button';
-import { RefreshCw, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { useNavigate } from 'react-router-dom';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Order, OrderStatus } from '@/lib/database.types';
 import { useRestaurantOrdersMQTT } from '@/hooks/useMQTT';
-import { isCurrentOrder } from '@/utils/orderUtils';
-import OrdersList from '@/components/OrdersList';
+
+// Import refactored components
+import RestaurantHeader from '@/components/restaurant/RestaurantHeader';
+import RestaurantAlerts from '@/components/restaurant/RestaurantAlerts';
+import RestaurantSetupPrompt from '@/components/restaurant/RestaurantSetupPrompt';
+import NoOrdersPrompt from '@/components/restaurant/NoOrdersPrompt';
+import LoadingState from '@/components/restaurant/LoadingState';
+import OrderTabs from '@/components/restaurant/OrderTabs';
 
 const RestaurantOrders = () => {
   const { user } = useAuth();
@@ -54,22 +55,7 @@ const RestaurantOrders = () => {
     }
   }, [newOrder, refetch, toast]);
 
-  // Maintain local orders state to handle updates without refetching
-  const [localOrders, setLocalOrders] = useState<Order[]>([]);
-
-  // Update local orders when API orders change
-  useEffect(() => {
-    if (orders && orders.length > 0) {
-      console.log("Setting local orders from API orders:", orders);
-      setLocalOrders(orders);
-    }
-  }, [orders]);
-
   const isLoading = restaurantLoading || ordersLoading;
-
-  // Filter orders into current and past
-  const currentOrders = localOrders.filter(order => isCurrentOrder(order.status));
-  const pastOrders = localOrders.filter(order => !isCurrentOrder(order.status));
 
   // Fetch restaurant data if user is logged in and is a restaurant owner
   useEffect(() => {
@@ -152,17 +138,6 @@ const RestaurantOrders = () => {
   const handleUpdateOrderStatus = async (orderId: string, status: OrderStatus) => {
     try {
       const result = await updateOrderStatus(orderId, status);
-      
-      if (result.success) {
-        setLocalOrders(prevOrders => 
-          prevOrders.map(order => 
-            order.id === orderId 
-              ? { ...order, status, updated_at: new Date().toISOString() }
-              : order
-          )
-        );
-      }
-      
       return result;
     } catch (error) {
       console.error("Error in handleUpdateOrderStatus:", error);
@@ -183,91 +158,30 @@ const RestaurantOrders = () => {
     <div className="min-h-screen bg-gray-50">
       <NavBar />
       <div className="container mx-auto py-8">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Restaurant Orders</h1>
-          <Button 
-            onClick={handleRefresh} 
-            variant="outline" 
-            size="sm"
-            disabled={isRefreshing || !restaurant || !canRefresh()}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-        </div>
+        <RestaurantHeader 
+          title="Restaurant Orders" 
+          onRefresh={handleRefresh}
+          isRefreshing={isRefreshing}
+          canRefresh={!!restaurant && canRefresh()}
+        />
         
-        {restaurantError && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Restaurant Error</AlertTitle>
-            <AlertDescription>
-              {restaurantError instanceof Error 
-                ? restaurantError.message 
-                : "Could not load restaurant data"}
-            </AlertDescription>
-          </Alert>
-        )}
-        
-        {ordersError && restaurant && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Orders Error</AlertTitle>
-            <AlertDescription>
-              {ordersError instanceof Error 
-                ? ordersError.message 
-                : "Could not load orders data"}
-            </AlertDescription>
-          </Alert>
-        )}
+        <RestaurantAlerts 
+          restaurantError={restaurantError} 
+          ordersError={ordersError}
+          restaurantExists={!!restaurant}
+        />
         
         {isLoading ? (
-          <div className="text-center py-8 bg-white rounded shadow">
-            <p className="text-gray-500">Loading data...</p>
-          </div>
+          <LoadingState />
         ) : !restaurant ? (
-          <div className="bg-white rounded shadow p-8 text-center">
-            <h2 className="text-xl font-semibold mb-4">Restaurant Not Found</h2>
-            <p className="text-gray-500 mb-4">Please set up your restaurant first.</p>
-            <Button onClick={() => navigate('/restaurant/setup')}>
-              Set Up Restaurant
-            </Button>
-          </div>
-        ) : localOrders.length === 0 ? (
-          <div className="bg-white rounded shadow p-8 text-center">
-            <p className="text-gray-500 mb-4">No orders yet.</p>
-            <Button variant="outline" onClick={handleRefresh}>
-              Check for new orders
-            </Button>
-          </div>
+          <RestaurantSetupPrompt />
+        ) : orders.length === 0 ? (
+          <NoOrdersPrompt onRefresh={handleRefresh} />
         ) : (
-          <Tabs defaultValue="current" className="w-full">
-            <TabsList className="mb-4">
-              <TabsTrigger value="current">
-                Current Orders ({currentOrders.length})
-              </TabsTrigger>
-              <TabsTrigger value="past">
-                Past Orders ({pastOrders.length})
-              </TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="current">
-              <OrdersList 
-                orders={currentOrders} 
-                onUpdateStatus={handleUpdateOrderStatus}
-                isCurrentOrders={true}
-                emptyMessage="No current orders."
-              />
-            </TabsContent>
-            
-            <TabsContent value="past">
-              <OrdersList 
-                orders={pastOrders} 
-                onUpdateStatus={handleUpdateOrderStatus}
-                isCurrentOrders={false}
-                emptyMessage="No past orders."
-              />
-            </TabsContent>
-          </Tabs>
+          <OrderTabs 
+            orders={orders} 
+            onUpdateStatus={handleUpdateOrderStatus}
+          />
         )}
       </div>
     </div>

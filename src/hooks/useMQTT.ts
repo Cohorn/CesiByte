@@ -6,6 +6,16 @@ import { mqttClient } from '@/lib/mqtt-client';
 export function useMQTT<T = any>(topic: string) {
   const [messages, setMessages] = useState<T[]>([]);
   const [lastMessage, setLastMessage] = useState<T | null>(null);
+  const [isConnected, setIsConnected] = useState<boolean>(false);
+  
+  // Check connection status periodically
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setIsConnected(mqttClient.isConnected());
+    }, 2000);
+    
+    return () => clearInterval(intervalId);
+  }, []);
   
   const publish = useCallback((message: any) => {
     mqttClient.publish(topic, message);
@@ -29,7 +39,8 @@ export function useMQTT<T = any>(topic: string) {
   return {
     messages,
     lastMessage,
-    publish
+    publish,
+    isConnected
   };
 }
 
@@ -62,6 +73,16 @@ export function useOrderMQTT(orderId?: string) {
 // Hook for restaurant orders via MQTT
 export function useRestaurantOrdersMQTT(restaurantId?: string) {
   const [newOrder, setNewOrder] = useState<any | null>(null);
+  const [isConnected, setIsConnected] = useState<boolean>(false);
+  
+  // Check connection status periodically
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setIsConnected(mqttClient.isConnected());
+    }, 2000);
+    
+    return () => clearInterval(intervalId);
+  }, []);
   
   useEffect(() => {
     if (!restaurantId) {
@@ -86,7 +107,7 @@ export function useRestaurantOrdersMQTT(restaurantId?: string) {
     };
   }, [restaurantId]);
   
-  return { newOrder };
+  return { newOrder, isConnected };
 }
 
 // Hook for courier assignments via MQTT
