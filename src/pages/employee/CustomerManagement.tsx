@@ -1,19 +1,36 @@
 
 import React, { useState } from 'react';
+import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import NavBar from '@/components/NavBar';
 import { userApi } from '@/api/services/userService';
 import { User } from '@/lib/database.types';
-import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { 
+  Table, TableBody, TableCell, TableHead, 
+  TableHeader, TableRow 
+} from '@/components/ui/table';
+import { 
+  Card, CardContent, CardDescription, CardHeader, CardTitle 
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { ArrowLeft, Search, Trash, UserCog, Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import UserManagementLayout from '@/components/employee/UserManagementLayout';
-import UserTable from '@/components/employee/UserTable';
 
 const CustomerManagement = () => {
+  const { user } = useAuth();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   
+  // Redirect if not logged in or not an employee
+  if (!user) {
+    return <Navigate to="/employee/login" />;
+  } else if (user.user_type !== 'employee') {
+    return <Navigate to="/employee/dashboard" />;
+  }
+
   // Fetch all customers
   const { data: customers, isLoading, error, refetch } = useQuery({
     queryKey: ['customers'],
@@ -53,35 +70,108 @@ const CustomerManagement = () => {
   );
 
   return (
-    <UserManagementLayout
-      title="Customer Management"
-      description="Manage customer accounts"
-      backLink="/employee/dashboard"
-      backLinkText="Back to Dashboard"
-      searchPlaceholder="Search customers..."
-      searchTerm={searchTerm}
-      onSearchChange={setSearchTerm}
-      isLoading={isLoading}
-      error={error}
-    >
-      {isLoading ? (
-        <div className="flex justify-center py-8">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      <NavBar />
+      
+      <div className="container mx-auto px-4 py-8">
+        <div className="mb-6">
+          <Button variant="ghost" size="sm" asChild className="mb-4">
+            <Link to="/employee/dashboard">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Dashboard
+            </Link>
+          </Button>
+          <h1 className="text-2xl font-bold">Customer Management</h1>
+          <p className="text-gray-500">Manage customer accounts</p>
         </div>
-      ) : error ? (
-        <div className="text-center py-8 text-red-500">
-          Failed to load customers. Please try again.
-        </div>
-      ) : (
-        <UserTable
-          users={filteredCustomers}
-          userType="customer"
-          isDeleting={isDeleting}
-          onDeleteUser={handleDeleteUser}
-          noUsersMessage={searchTerm ? "No customers found matching your search." : "No customers found."}
-        />
-      )}
-    </UserManagementLayout>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Customers</CardTitle>
+            <CardDescription>
+              View and manage all customer accounts
+            </CardDescription>
+            <div className="relative mt-4">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search customers..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+              </div>
+            ) : error ? (
+              <div className="text-center py-8 text-red-500">
+                Failed to load customers. Please try again.
+              </div>
+            ) : (
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Address</TableHead>
+                      <TableHead className="w-24">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredCustomers?.length ? (
+                      filteredCustomers.map((customer: User) => (
+                        <TableRow key={customer.id}>
+                          <TableCell>{customer.name}</TableCell>
+                          <TableCell>{customer.email}</TableCell>
+                          <TableCell>{customer.address}</TableCell>
+                          <TableCell>
+                            <div className="flex space-x-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                asChild
+                              >
+                                <Link to={`/employee/customers/${customer.id}`}>
+                                  <UserCog className="h-4 w-4" />
+                                  <span className="sr-only">Edit</span>
+                                </Link>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDeleteUser(customer.id)}
+                                disabled={isDeleting === customer.id}
+                              >
+                                {isDeleting === customer.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash className="h-4 w-4 text-red-500" />
+                                )}
+                                <span className="sr-only">Delete</span>
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-8 text-gray-500">
+                          {searchTerm ? "No customers found matching your search." : "No customers found."}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 };
 

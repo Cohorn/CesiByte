@@ -6,13 +6,10 @@ import NavBar from '@/components/NavBar';
 import { OrderWithRestaurant } from '@/types/order';
 import { OrderStatus, Restaurant, OrderItem } from '@/lib/database.types';
 import { Card } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Navigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import OrdersList from '@/components/OrdersList';
-import { isCurrentOrder } from '@/utils/orderUtils';
 
 // Define the function first before using it in useEffect
 const processOrdersWithRestaurants = (data: any[]): OrderWithRestaurant[] => {
@@ -50,7 +47,7 @@ const processOrdersWithRestaurants = (data: any[]): OrderWithRestaurant[] => {
 
 const CustomerOrders: React.FC = () => {
   const { user, isLoading: authLoading } = useAuth();
-  const { orders, isLoading, error, refetch, updateOrderStatus } = useOrders({
+  const { orders, isLoading, error, refetch } = useOrders({
     userId: user?.id
   });
   const [processedOrders, setProcessedOrders] = useState<OrderWithRestaurant[]>([]);
@@ -83,6 +80,16 @@ const CustomerOrders: React.FC = () => {
       }
     }
   }, [error]);
+
+  const groupOrdersByStatus = (orders: OrderWithRestaurant[]) => {
+    return orders.reduce((acc: { [key in OrderStatus]?: OrderWithRestaurant[] }, order) => {
+      if (!acc[order.status]) {
+        acc[order.status] = [];
+      }
+      acc[order.status]?.push(order);
+      return acc;
+    }, {});
+  };
 
   // Redirect to login if not authenticated or auth error
   if ((!authLoading && !user) || authError) {
@@ -125,15 +132,21 @@ const CustomerOrders: React.FC = () => {
               </div>
             </AlertDescription>
           </Alert>
+          <Card className="p-8 text-center bg-white">
+            <p className="text-red-500">Failed to load your orders</p>
+            <Button 
+              onClick={() => refetch()} 
+              className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              Try Again
+            </Button>
+          </Card>
         </div>
       </div>
     );
   }
 
-  // Separate current and past orders
-  const currentOrders = processedOrders.filter(order => isCurrentOrder(order.status));
-  const pastOrders = processedOrders.filter(order => !isCurrentOrder(order.status));
-
+  const groupedOrders = groupOrdersByStatus(processedOrders);
   const hasOrders = processedOrders.length > 0;
 
   return (
@@ -148,35 +161,32 @@ const CustomerOrders: React.FC = () => {
             <p className="text-gray-500">Start ordering from your favorite restaurants!</p>
           </Card>
         ) : (
-          <Tabs defaultValue="current" className="w-full">
-            <TabsList className="mb-4">
-              <TabsTrigger value="current">
-                Current Orders ({currentOrders.length})
-              </TabsTrigger>
-              <TabsTrigger value="past">
-                Past Orders ({pastOrders.length})
-              </TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="current">
-              <OrdersList 
-                orders={currentOrders} 
-                onUpdateStatus={updateOrderStatus}
-                isCurrentOrders={true}
-                emptyMessage="You have no ongoing orders."
-              />
-            </TabsContent>
-            
-            <TabsContent value="past">
-              <OrdersList 
-                orders={pastOrders} 
-                onUpdateStatus={updateOrderStatus}
-                isCurrentOrders={false}
-                emptyMessage="You have no completed orders yet."
-                enableReviews={true}
-              />
-            </TabsContent>
-          </Tabs>
+          Object.entries(groupedOrders).map(([status, orders]) => (
+            <div key={status} className="mb-6">
+              <h2 className="text-xl font-semibold mb-2">{status.replace(/_/g, ' ')}</h2>
+              {!orders || orders.length === 0 ? (
+                <p>No orders with this status.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {orders?.map(order => (
+                    <div key={order.id} className="bg-white rounded-md shadow-sm p-4">
+                      <h3 className="font-semibold">{order.restaurant.name}</h3>
+                      <p className="text-gray-500">{order.delivery_address}</p>
+                      <p className="text-sm">Total: ${order.total_price.toFixed(2)}</p>
+                      <p className="text-sm">Delivery Pin: {order.delivery_pin}</p>
+                      <ul className="mt-2">
+                        {order.items.map((item, index) => (
+                          <li key={`${item.menu_item_id || 'item'}-${index}`} className="text-sm">
+                            {item.name} x{item.quantity} - ${(item.price * item.quantity).toFixed(2)}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))
         )}
       </div>
     </div>
