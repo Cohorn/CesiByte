@@ -5,6 +5,7 @@ import { OrderStatus } from '@/lib/database.types';
 import { useToast } from '@/hooks/use-toast';
 import { AlertTriangle } from 'lucide-react';
 import { useOrderMQTT } from '@/hooks/useMQTT';
+import { getEffectiveOrderStatus } from '@/utils/orderTimeUtils';
 
 interface OrderStatusUpdateProps {
   orderId: string;
@@ -32,7 +33,7 @@ const getNextStatus = (currentStatus: OrderStatus): OrderStatus | null => {
 
 // Check if the status is a "current" order status
 export const isCurrentOrder = (status: OrderStatus): boolean => {
-  return status !== 'completed' && status !== 'delivered';
+  return status !== 'completed' && status !== 'delivered' && status !== 'canceled';
 };
 
 const OrderStatusUpdate: React.FC<OrderStatusUpdateProps> = ({
@@ -61,6 +62,25 @@ const OrderStatusUpdate: React.FC<OrderStatusUpdateProps> = ({
       setLocalStatus(currentStatus);
     }
   }, [currentStatus, localStatus]);
+
+  // Get the effective status considering auto-cancel rules
+  const effectiveStatus = getEffectiveOrderStatus({ 
+    id: orderId, 
+    status: localStatus, 
+    created_at: new Date().toISOString() 
+  } as any);
+
+  // If the order is auto-canceled, don't show any update options
+  if (effectiveStatus === 'canceled') {
+    return (
+      <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+        <div className="flex items-center text-red-800">
+          <AlertTriangle className="h-4 w-4 mr-2" />
+          <span className="text-sm">Order automatically canceled due to timeout</span>
+        </div>
+      </div>
+    );
+  }
 
   // If the order is already at "ready_for_pickup" or beyond, don't show any update options
   if (

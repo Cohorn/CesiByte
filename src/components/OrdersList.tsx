@@ -1,8 +1,9 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Order, OrderStatus } from '@/lib/database.types';
 import OrderListItem from '@/components/OrderListItem';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { getEffectiveOrderStatus } from '@/utils/orderTimeUtils';
 
 interface OrdersListProps {
   orders: Order[];
@@ -20,8 +21,30 @@ const OrdersList: React.FC<OrdersListProps> = ({
   enableReviews = false
 }) => {
   const isMobile = useIsMobile();
+  const [displayOrders, setDisplayOrders] = useState<Order[]>(orders);
   
-  if (orders.length === 0) {
+  // Apply effective status filtering
+  useEffect(() => {
+    // For "current orders" tab, we should filter out orders that would be auto-canceled
+    if (isCurrentOrders) {
+      const filtered = orders.filter(order => {
+        const effectiveStatus = getEffectiveOrderStatus(order);
+        // Current orders shouldn't show effectively canceled orders
+        return effectiveStatus !== 'canceled';
+      });
+      setDisplayOrders(filtered);
+    } else {
+      // For past orders, we should include auto-canceled orders
+      const filtered = orders.filter(order => {
+        const effectiveStatus = getEffectiveOrderStatus(order);
+        // Past orders should include both completed/delivered and canceled
+        return ['delivered', 'completed', 'canceled'].includes(effectiveStatus);
+      });
+      setDisplayOrders(filtered);
+    }
+  }, [orders, isCurrentOrders]);
+  
+  if (displayOrders.length === 0) {
     return (
       <div className="bg-white rounded shadow p-4 md:p-8 text-center">
         <p className="text-gray-500">{emptyMessage}</p>
@@ -31,13 +54,13 @@ const OrdersList: React.FC<OrdersListProps> = ({
   
   return (
     <div className={`space-y-3 md:space-y-4 ${isMobile ? 'max-w-full' : ''}`}>
-      {orders.map(order => (
+      {displayOrders.map(order => (
         <OrderListItem 
           key={order.id} 
           order={order} 
           onUpdateStatus={onUpdateStatus}
           isCurrentOrder={isCurrentOrders}
-          enableReview={enableReviews && order.courier_id !== null && order.status === 'delivered'}
+          enableReview={enableReviews && order.courier_id !== null && getEffectiveOrderStatus(order) === 'delivered'}
         />
       ))}
     </div>
