@@ -6,14 +6,13 @@ import NavBar from '@/components/NavBar';
 import { OrderWithRestaurant } from '@/types/order';
 import { OrderStatus, Restaurant, OrderItem } from '@/lib/database.types';
 import { supabase } from '@/lib/supabase';
+import { Card } from '@/components/ui/card';
 
-interface CustomerOrdersProps {
-  // You can define any props this component might receive here
-}
-
-const CustomerOrders: React.FC<CustomerOrdersProps> = () => {
+const CustomerOrders: React.FC = () => {
   const { user } = useAuth();
-  const { orders, isLoading, error, refetch } = useOrders(user?.id || '');
+  const { orders, isLoading, error, refetch } = useOrders({
+    userId: user?.id
+  });
   const [processedOrders, setProcessedOrders] = useState<OrderWithRestaurant[]>([]);
 
   useEffect(() => {
@@ -87,38 +86,47 @@ const CustomerOrders: React.FC<CustomerOrdersProps> = () => {
   };
 
   const groupedOrders = groupOrdersByStatus(processedOrders);
+  const hasOrders = processedOrders.length > 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
       <NavBar />
       <div className="container mx-auto py-8">
         <h1 className="text-2xl font-bold mb-4">Your Orders</h1>
-        {Object.entries(groupedOrders).map(([status, orders]) => (
-          <div key={status} className="mb-6">
-            <h2 className="text-xl font-semibold mb-2">{status.replace(/_/g, ' ')}</h2>
-            {orders?.length === 0 ? (
-              <p>No orders with this status.</p>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {orders?.map(order => (
-                  <div key={order.id} className="bg-white rounded-md shadow-sm p-4">
-                    <h3 className="font-semibold">{order.restaurant.name}</h3>
-                    <p className="text-gray-500">{order.delivery_address}</p>
-                    <p className="text-sm">Total: ${order.total_price}</p>
-                    <p className="text-sm">Delivery Pin: {order.delivery_pin}</p>
-                    <ul className="mt-2">
-                      {order.items.map(item => (
-                        <li key={item.menu_item_id} className="text-sm">
-                          {item.name} x{item.quantity} - ${item.price * item.quantity}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
+        
+        {!hasOrders ? (
+          <Card className="p-8 text-center bg-white">
+            <p className="text-gray-500 mb-2">You don't have any orders yet.</p>
+            <p className="text-gray-500">Start ordering from your favorite restaurants!</p>
+          </Card>
+        ) : (
+          Object.entries(groupedOrders).map(([status, orders]) => (
+            <div key={status} className="mb-6">
+              <h2 className="text-xl font-semibold mb-2">{status.replace(/_/g, ' ')}</h2>
+              {orders?.length === 0 ? (
+                <p>No orders with this status.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {orders?.map(order => (
+                    <div key={order.id} className="bg-white rounded-md shadow-sm p-4">
+                      <h3 className="font-semibold">{order.restaurant.name}</h3>
+                      <p className="text-gray-500">{order.delivery_address}</p>
+                      <p className="text-sm">Total: ${order.total_price}</p>
+                      <p className="text-sm">Delivery Pin: {order.delivery_pin}</p>
+                      <ul className="mt-2">
+                        {order.items.map(item => (
+                          <li key={item.menu_item_id} className="text-sm">
+                            {item.name} x{item.quantity} - ${item.price * item.quantity}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
