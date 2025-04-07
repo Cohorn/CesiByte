@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
@@ -37,24 +38,24 @@ const CourierActiveOrders = () => {
   const { verifyDeliveryPin } = useOrders({ courierId: user?.id });
 
   const handleVerifyPin = useCallback(async (orderId: string, pin: string) => {
+    console.log(`Verifying PIN for order ${orderId} with value ${pin}`);
+    
     try {
-      console.log(`Verifying PIN for order ${orderId} with value ${pin}`);
-      
       const result = await verifyDeliveryPin(orderId, pin);
       console.log('PIN verification result:', result);
       
-      if (result.success) {
-        refetch();
-        return { success: true, message: "Delivery confirmed" };
-      } else {
-        return { success: false, message: result.message || "Invalid PIN" };
-      }
+      return {
+        success: result.success,
+        message: result.message
+      };
     } catch (err) {
-      const error = err as Error;
-      console.error("Error verifying PIN:", error);
-      return { success: false, message: "Error: " + error.message };
+      console.error("Error in handleVerifyPin:", err);
+      return { 
+        success: false, 
+        message: "Verification failed. Please try again." 
+      };
     }
-  }, [verifyDeliveryPin, refetch]);
+  }, [verifyDeliveryPin]);
 
   if (!user || user.user_type !== 'courier') {
     return <Navigate to="/" />;
