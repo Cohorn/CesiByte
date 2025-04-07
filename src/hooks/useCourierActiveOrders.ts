@@ -78,8 +78,7 @@ export function useCourierActiveOrders(courierId: string | null) {
       const processedOrders = data.map(order => {
         return {
           ...order,
-          // Explicitly add delivery_pin with a default value if not present
-          delivery_pin: order.delivery_pin || '0000', // Default pin if not present
+          // Handle delivery_pin as optional
           restaurant_name: order.restaurants?.name || 'Unknown Restaurant',
           restaurant_address: order.restaurants?.address || 'Unknown Address',
           restaurant_lat: order.restaurants?.lat || 0,

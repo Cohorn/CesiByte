@@ -1,3 +1,4 @@
+
 import { apiClient } from '../client';
 import { Restaurant, MenuItem } from '@/lib/database.types';
 import { supabase } from '@/lib/supabase';
@@ -52,6 +53,9 @@ export const restaurantApi = {
   createRestaurant: async (data: Omit<Restaurant, 'id' | 'created_at'>) => {
     console.log('Creating restaurant with data:', data);
     try {
+      // Ensure storage bucket exists before creating restaurant
+      await restaurantApi.ensureStorageBucket();
+      
       if (!data.user_id) {
         console.error('Error: user_id is required to create a restaurant');
         throw new Error('User ID is required to create a restaurant');
@@ -197,6 +201,8 @@ export const restaurantApi = {
   ensureStorageBucket: async () => {
     try {
       console.log('Checking if restaurant_images bucket exists');
+      
+      // First, check for bucket existence
       const { data: buckets, error } = await supabase
         .storage
         .listBuckets();
@@ -208,33 +214,64 @@ export const restaurantApi = {
       
       const bucketExists = buckets.some(bucket => bucket.name === 'restaurant_images');
       
-      if (!bucketExists) {
-        console.log('Creating restaurant_images bucket');
-        const { error: createError } = await supabase.storage.createBucket('restaurant_images', {
-          public: true
-        });
-        
-        if (createError) {
-          console.error('Error creating bucket:', createError);
-          throw createError;
-        }
-        
-        try {
-          const { error: policyError } = await supabase.storage.from('restaurant_images')
-            .createSignedUrl('dummy-policy-check.txt', 60);
-          
-          if (policyError && !policyError.message.includes('not found')) {
-            console.error('Error setting bucket policy:', policyError);
-          }
-        } catch (policyError) {
-          console.error('Error setting bucket policy:', policyError);
-        }
-        
-        console.log('Bucket created successfully');
-      } else {
-        console.log('Bucket already exists');
+      if (bucketExists) {
+        console.log('Restaurant_images bucket already exists');
+        return true;
       }
       
+      console.log('Restaurant_images bucket does not exist, creating it...');
+      
+      // If bucket doesn't exist, try the SQL function first
+      try {
+        const { data: checkData } = await supabase.rpc('check_bucket_access');
+        console.log('Bucket access check:', checkData);
+        
+        if (!checkData?.bucket_exists) {
+          console.log('Running SQL method to create bucket from supabase/init.sql');
+          
+          // Attempt to create bucket directly through storage API
+          const { error: createError } = await supabase.storage.createBucket('restaurant_images', {
+            public: true
+          });
+          
+          if (createError) {
+            console.error('Error creating bucket through Storage API:', createError);
+            throw createError;
+          }
+          
+          // Set up policies for the bucket
+          try {
+            // Create policies manually if the init.sql didn't run
+            const { error: policyError } = await supabase.storage.from('restaurant_images')
+              .createSignedUrl('dummy.txt', 60);
+              
+            if (policyError && !policyError.message.includes('not found')) {
+              console.error('Error checking bucket policy:', policyError);
+            }
+          } catch (policyError) {
+            console.error('Error setting bucket policy:', policyError);
+          }
+        }
+      } catch (sqlError) {
+        console.error('Error with SQL bucket creation:', sqlError);
+        
+        // Last attempt: direct bucket creation through Storage API
+        try {
+          const { error: createError } = await supabase.storage.createBucket('restaurant_images', {
+            public: true
+          });
+          
+          if (createError) {
+            console.error('Final attempt - Error creating bucket:', createError);
+            throw createError;
+          }
+        } catch (finalError) {
+          console.error('All bucket creation attempts failed:', finalError);
+          return false;
+        }
+      }
+      
+      console.log('Bucket created successfully');
       return true;
     } catch (error) {
       console.error('Error ensuring storage bucket exists:', error);
