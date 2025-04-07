@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface LoadingStateProps {
   message?: string;
@@ -19,12 +20,13 @@ const LoadingState: React.FC<LoadingStateProps> = ({
         <>
           <p className="text-red-500 mb-2">{error}</p>
           {onRetry && (
-            <button 
-              className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 transition-colors"
+            <Button 
+              variant="outline"
+              className="mt-2 px-4 py-2"
               onClick={onRetry}
             >
               Try Again
-            </button>
+            </Button>
           )}
         </>
       ) : (

@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import NavBar from '@/components/NavBar';
@@ -10,17 +10,29 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ActiveOrderCard from '@/components/courier/ActiveOrderCard';
 import CourierMapLocations from '@/components/courier/CourierMapLocations';
 import { useCourierActiveOrders } from '@/hooks/useCourierActiveOrders';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import CourierRatingDisplay from '@/components/courier/CourierRatingDisplay';
 
 const CourierActiveOrders = () => {
   const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<string>('active');
   const { 
     activeOrders, 
     restaurants, 
     reviews, 
     reviewers, 
     loading, 
-    updateOrderStatus 
+    error,
+    updateOrderStatus,
+    refetch
   } = useCourierActiveOrders(user?.id);
+
+  // Calculate average rating
+  const averageRating = reviews.length > 0 
+    ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length 
+    : null;
 
   // Redirect if user is not a courier
   if (!user || user.user_type !== 'courier') {
@@ -32,14 +44,41 @@ const CourierActiveOrders = () => {
       <NavBar />
 
       <div className="container mx-auto px-4 py-8">
-        <Tabs defaultValue="active">
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-2xl font-bold">Courier Dashboard</h1>
+          {averageRating !== null && (
+            <CourierRatingDisplay rating={averageRating} />
+          )}
+        </div>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-4">
             <TabsTrigger value="active">Active Orders</TabsTrigger>
             <TabsTrigger value="reviews">Your Reviews</TabsTrigger>
           </TabsList>
           
           <TabsContent value="active">
-            <h1 className="text-2xl font-bold mb-4">Active Orders</h1>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">Active Orders</h2>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => refetch()}
+                disabled={loading}
+                className="flex items-center gap-1"
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            </div>
+
+            {error && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
             {loading ? (
               <LoadingState message="Loading your active orders..." />
@@ -75,19 +114,34 @@ const CourierActiveOrders = () => {
                 </div>
               </div>
             ) : (
-              <p>No active orders</p>
+              <div className="bg-white shadow rounded-lg p-6 text-center">
+                <p className="text-gray-500 mb-4">You don't have any active orders at the moment.</p>
+                <Button variant="outline" onClick={() => refetch()}>
+                  Check for new assignments
+                </Button>
+              </div>
             )}
           </TabsContent>
           
           <TabsContent value="reviews">
-            <h1 className="text-2xl font-bold mb-4">Your Reviews</h1>
+            <h2 className="text-xl font-semibold mb-4">Your Reviews</h2>
             
             {loading ? (
               <LoadingState message="Loading your reviews..." />
-            ) : (
+            ) : error ? (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : reviews.length > 0 ? (
               <div className="mb-6">
                 <ReviewStats reviews={reviews} />
                 <ReviewList reviews={reviews} reviewers={reviewers} />
+              </div>
+            ) : (
+              <div className="bg-white shadow rounded-lg p-6 text-center">
+                <p className="text-gray-500">You haven't received any reviews yet.</p>
               </div>
             )}
           </TabsContent>
