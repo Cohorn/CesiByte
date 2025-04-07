@@ -42,6 +42,7 @@ import {
   SidebarProvider,
   SidebarTrigger
 } from '@/components/ui/sidebar';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const DEFAULT_MENU_ITEM_IMAGE = 'https://placehold.co/600x400/orange/white?text=Menu+Item';
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -67,8 +68,8 @@ const RestaurantMenu = () => {
 
   const navigate = useNavigate();
   const { toast } = useToast();
-
   const { user } = useAuth();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     const fetchRestaurantId = async () => {
@@ -332,12 +333,10 @@ const RestaurantMenu = () => {
     setEditDialogOpen(true);
   };
 
-  // Redirect if user is not logged in or is not a restaurant
   if (!user || user.user_type !== 'restaurant') {
     return <Navigate to="/" />;
   }
 
-  // Menu sidebar options - modified to only include Menu Items
   const menuOptions = [
     { title: 'Menu Items', icon: Menu, current: true },
   ];
@@ -348,40 +347,42 @@ const RestaurantMenu = () => {
         <NavBar />
         
         <div className="flex flex-1 w-full">
-          <Sidebar side="left" variant="floating" collapsible="icon">
-            <SidebarContent>
-              <SidebarGroup>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    {menuOptions.map((item) => (
-                      <SidebarMenuItem key={item.title}>
-                        <SidebarMenuButton tooltip={item.title} isActive={item.current}>
-                          <item.icon className="h-4 w-4 mr-2" />
-                          <span>{item.title}</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            </SidebarContent>
-          </Sidebar>
+          {!isMobile && (
+            <Sidebar side="left" variant="floating" collapsible="icon">
+              <SidebarContent>
+                <SidebarGroup>
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      {menuOptions.map((item) => (
+                        <SidebarMenuItem key={item.title}>
+                          <SidebarMenuButton tooltip={item.title} isActive={item.current}>
+                            <item.icon className="h-4 w-4 mr-2" />
+                            <span>{item.title}</span>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      ))}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+              </SidebarContent>
+            </Sidebar>
+          )}
 
-          <main className="flex-1 p-4 md:p-6 lg:p-8">
-            <div className="container mx-auto">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+          <main className="flex-1 p-2 sm:p-4 md:p-6 lg:p-8">
+            <div className="container mx-auto max-w-full">
+              <div className="flex flex-col mb-4 gap-2 sm:gap-4">
                 <div>
-                  <h1 className="text-2xl font-bold">Restaurant Menu</h1>
-                  <p className="text-muted-foreground">Manage your menu items</p>
+                  <h1 className="text-xl sm:text-2xl font-bold">Restaurant Menu</h1>
+                  <p className="text-sm sm:text-base text-muted-foreground">Manage your menu items</p>
                 </div>
-                <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <Dialog>
                   <DialogTrigger asChild>
-                    <Button variant="default">
+                    <Button variant="default" className="self-start">
                       <Plus className="mr-2 h-4 w-4" />
                       Add Menu Item
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="sm:max-w-[500px]">
+                  <DialogContent className="sm:max-w-[500px] w-[95vw] max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                       <DialogTitle>Add Menu Item</DialogTitle>
                       <DialogDescription>
@@ -389,30 +390,30 @@ const RestaurantMenu = () => {
                       </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="name" className="text-right">
+                      <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-4'} items-center gap-2 sm:gap-4`}>
+                        <Label htmlFor="name" className={isMobile ? '' : 'text-right'}>
                           Name
                         </Label>
-                        <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" />
+                        <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className={isMobile ? 'w-full' : 'col-span-3'} />
                       </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="description" className="text-right">
+                      <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-4'} items-center gap-2 sm:gap-4`}>
+                        <Label htmlFor="description" className={isMobile ? '' : 'text-right'}>
                           Description
                         </Label>
-                        <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} className="col-span-3" />
+                        <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} className={isMobile ? 'w-full' : 'col-span-3'} />
                       </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="price" className="text-right">
+                      <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-4'} items-center gap-2 sm:gap-4`}>
+                        <Label htmlFor="price" className={isMobile ? '' : 'text-right'}>
                           Price
                         </Label>
-                        <Input type="number" id="price" value={price} onChange={(e) => setPrice(parseFloat(e.target.value))} className="col-span-3" />
+                        <Input type="number" id="price" value={price} onChange={(e) => setPrice(parseFloat(e.target.value))} className={isMobile ? 'w-full' : 'col-span-3'} />
                       </div>
                       
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label className="text-right">
+                      <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-4'} items-center gap-2 sm:gap-4`}>
+                        <Label className={isMobile ? '' : 'text-right'}>
                           Image
                         </Label>
-                        <div className="col-span-3">
+                        <div className={isMobile ? 'w-full' : 'col-span-3'}>
                           {imagePreview ? (
                             <div className="relative w-full h-40 mb-2">
                               <img 
@@ -448,7 +449,7 @@ const RestaurantMenu = () => {
                                 className="hidden"
                                 accept="image/*"
                               />
-                              <div className="- mt-1">
+                              <div>
                                 <Label htmlFor="image-url" className="text-sm text-muted-foreground">
                                   Or enter an image URL
                                 </Label>
@@ -465,17 +466,17 @@ const RestaurantMenu = () => {
                         </div>
                       </div>
                       
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="available" className="text-right">
+                      <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-4'} items-center gap-2 sm:gap-4`}>
+                        <Label htmlFor="available" className={isMobile ? '' : 'text-right'}>
                           Available
                         </Label>
-                        <div className="col-span-3">
+                        <div className={isMobile ? 'w-full' : 'col-span-3'}>
                           <Switch id="available" checked={available} onCheckedChange={(checked) => setAvailable(checked)} />
                         </div>
                       </div>
                     </div>
-                    <DialogFooter>
-                      <Button onClick={addMenuItem} disabled={isAdding || isUploading}>
+                    <DialogFooter className="flex-col sm:flex-row gap-2">
+                      <Button onClick={addMenuItem} disabled={isAdding || isUploading} className="w-full sm:w-auto">
                         {isAdding ? 'Adding...' : isUploading ? 'Uploading Image...' : 'Add Menu Item'}
                       </Button>
                     </DialogFooter>
@@ -484,87 +485,136 @@ const RestaurantMenu = () => {
               </div>
 
               <div className="overflow-x-auto rounded-lg border border-border shadow-sm">
-                <Table>
-                  <TableCaption>A list of your menu items.</TableCaption>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[100px]">Image</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead className="hidden md:table-cell">Description</TableHead>
-                      <TableHead>Price</TableHead>
-                      <TableHead className="hidden sm:table-cell">Available</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {menuItems.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell className="font-medium">
-                          {item.image_url ? (
-                            <img 
-                              src={item.image_url} 
-                              alt={item.name} 
-                              className="w-16 h-16 object-cover rounded" 
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src = DEFAULT_MENU_ITEM_IMAGE;
-                              }}
-                            />
-                          ) : (
-                            <div className="w-16 h-16 bg-gray-100 flex items-center justify-center rounded">
-                              <ImageIcon className="h-6 w-6 text-gray-400" />
+                {isMobile ? (
+                  <div className="p-2 divide-y divide-border">
+                    {menuItems.length === 0 ? (
+                      <div className="p-4 text-center">
+                        <p className="text-gray-500">No menu items found. Add your first menu item to get started.</p>
+                      </div>
+                    ) : (
+                      menuItems.map((item) => (
+                        <div key={item.id} className="py-4 flex flex-col">
+                          <div className="flex items-center gap-3">
+                            {item.image_url ? (
+                              <img 
+                                src={item.image_url} 
+                                alt={item.name} 
+                                className="w-16 h-16 object-cover rounded" 
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = DEFAULT_MENU_ITEM_IMAGE;
+                                }}
+                              />
+                            ) : (
+                              <div className="w-16 h-16 bg-gray-100 flex items-center justify-center rounded">
+                                <ImageIcon className="h-6 w-6 text-gray-400" />
+                              </div>
+                            )}
+                            <div className="flex-1">
+                              <p className="font-medium">{item.name}</p>
+                              <p className="text-sm text-muted-foreground line-clamp-2">{item.description}</p>
+                              <p className="text-sm font-semibold mt-1">${item.price.toFixed(2)}</p>
+                              <p className="text-xs text-muted-foreground">{item.available ? 'Available' : 'Not available'}</p>
                             </div>
-                          )}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          <div>
-                            <p>{item.name}</p>
-                            <p className="md:hidden text-xs text-muted-foreground line-clamp-2">{item.description}</p>
                           </div>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell max-w-[250px]">
-                          <p className="truncate">{item.description}</p>
-                        </TableCell>
-                        <TableCell>${item.price.toFixed(2)}</TableCell>
-                        <TableCell className="hidden sm:table-cell">{item.available ? 'Yes' : 'No'}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
-                              <Edit className="h-4 w-4" />
-                              <span className="sr-only">Edit</span>
+                          <div className="flex justify-end gap-2 mt-2">
+                            <Button variant="ghost" size="sm" onClick={() => handleEdit(item)}>
+                              <Edit className="h-4 w-4 mr-1" />
+                              Edit
                             </Button>
-                            <Button variant="destructive" size="icon" onClick={() => deleteMenuItem(item.id)}>
-                              <Trash className="h-4 w-4" />
-                              <span className="sr-only">Delete</span>
+                            <Button variant="destructive" size="sm" onClick={() => deleteMenuItem(item.id)}>
+                              <Trash className="h-4 w-4 mr-1" />
+                              Delete
                             </Button>
                           </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {menuItems.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={6} className="h-24 text-center">
-                          No menu items found. Add your first menu item to get started.
-                        </TableCell>
-                      </TableRow>
+                        </div>
+                      ))
                     )}
-                  </TableBody>
-                  <TableFooter>
-                    <TableRow>
-                      <TableCell colSpan={6}>
-                        {menuItems.length} Total items
-                      </TableCell>
-                    </TableRow>
-                  </TableFooter>
-                </Table>
+                    <div className="pt-3 px-2 text-sm">
+                      {menuItems.length} Total items
+                    </div>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableCaption>A list of your menu items.</TableCaption>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[100px]">Image</TableHead>
+                        <TableHead>Name</TableHead>
+                        <TableHead className="hidden md:table-cell">Description</TableHead>
+                        <TableHead>Price</TableHead>
+                        <TableHead className="hidden sm:table-cell">Available</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {menuItems.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell className="font-medium">
+                            {item.image_url ? (
+                              <img 
+                                src={item.image_url} 
+                                alt={item.name} 
+                                className="w-16 h-16 object-cover rounded" 
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = DEFAULT_MENU_ITEM_IMAGE;
+                                }}
+                              />
+                            ) : (
+                              <div className="w-16 h-16 bg-gray-100 flex items-center justify-center rounded">
+                                <ImageIcon className="h-6 w-6 text-gray-400" />
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            <div>
+                              <p>{item.name}</p>
+                              <p className="md:hidden text-xs text-muted-foreground line-clamp-2">{item.description}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell max-w-[250px]">
+                            <p className="truncate">{item.description}</p>
+                          </TableCell>
+                          <TableCell>${item.price.toFixed(2)}</TableCell>
+                          <TableCell className="hidden sm:table-cell">{item.available ? 'Yes' : 'No'}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
+                                <Edit className="h-4 w-4" />
+                                <span className="sr-only">Edit</span>
+                              </Button>
+                              <Button variant="destructive" size="icon" onClick={() => deleteMenuItem(item.id)}>
+                                <Trash className="h-4 w-4" />
+                                <span className="sr-only">Delete</span>
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {menuItems.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={6} className="h-24 text-center">
+                            No menu items found. Add your first menu item to get started.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                    <TableFooter>
+                      <TableRow>
+                        <TableCell colSpan={6}>
+                          {menuItems.length} Total items
+                        </TableCell>
+                      </TableRow>
+                    </TableFooter>
+                  </Table>
+                )}
               </div>
             </div>
           </main>
         </div>
       </div>
 
-      {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Menu Item</DialogTitle>
             <DialogDescription>
@@ -572,30 +622,30 @@ const RestaurantMenu = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="edit-name" className="text-right">
+            <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-4'} items-center gap-2 sm:gap-4`}>
+              <Label htmlFor="edit-name" className={isMobile ? '' : 'text-right'}>
                 Name
               </Label>
-              <Input id="edit-name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" />
+              <Input id="edit-name" value={name} onChange={(e) => setName(e.target.value)} className={isMobile ? 'w-full' : 'col-span-3'} />
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="edit-description" className="text-right">
+            <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-4'} items-center gap-2 sm:gap-4`}>
+              <Label htmlFor="edit-description" className={isMobile ? '' : 'text-right'}>
                 Description
               </Label>
-              <Textarea id="edit-description" value={description} onChange={(e) => setDescription(e.target.value)} className="col-span-3" />
+              <Textarea id="edit-description" value={description} onChange={(e) => setDescription(e.target.value)} className={isMobile ? 'w-full' : 'col-span-3'} />
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="edit-price" className="text-right">
+            <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-4'} items-center gap-2 sm:gap-4`}>
+              <Label htmlFor="edit-price" className={isMobile ? '' : 'text-right'}>
                 Price
               </Label>
-              <Input type="number" id="edit-price" value={price} onChange={(e) => setPrice(parseFloat(e.target.value))} className="col-span-3" />
+              <Input type="number" id="edit-price" value={price} onChange={(e) => setPrice(parseFloat(e.target.value))} className={isMobile ? 'w-full' : 'col-span-3'} />
             </div>
             
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">
+            <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-4'} items-center gap-2 sm:gap-4`}>
+              <Label className={isMobile ? '' : 'text-right'}>
                 Image
               </Label>
-              <div className="col-span-3">
+              <div className={isMobile ? 'w-full' : 'col-span-3'}>
                 {imagePreview ? (
                   <div className="relative w-full h-40 mb-2">
                     <img 
@@ -648,17 +698,17 @@ const RestaurantMenu = () => {
               </div>
             </div>
                         
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="edit-available" className="text-right">
+            <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-4'} items-center gap-2 sm:gap-4`}>
+              <Label htmlFor="edit-available" className={isMobile ? '' : 'text-right'}>
                 Available
               </Label>
-              <div className="col-span-3">
+              <div className={isMobile ? 'w-full' : 'col-span-3'}>
                 <Switch id="edit-available" checked={available} onCheckedChange={(checked) => setAvailable(checked)} />
               </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button onClick={updateMenuItem} disabled={isEditing || isUploading}>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button onClick={updateMenuItem} disabled={isEditing || isUploading} className="w-full sm:w-auto">
               {isEditing ? 'Updating...' : isUploading ? 'Uploading Image...' : 'Update Menu Item'}
             </Button>
           </DialogFooter>
