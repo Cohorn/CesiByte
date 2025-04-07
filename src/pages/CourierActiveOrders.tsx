@@ -96,7 +96,7 @@ const CourierActiveOrders = () => {
               <Alert variant="destructive" className="mb-4">
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>{error.message}</AlertDescription>
               </Alert>
             )}
 
@@ -129,8 +129,8 @@ const CourierActiveOrders = () => {
                 <div className="md:col-span-1">
                   <CourierMapLocations 
                     activeOrders={activeOrders}
-                    restaurants={restaurants}
-                    userLocation={{ lat: user.lat, lng: user.lng }}
+                    restaurants={restaurants || []}
+                    userLocation={{ lat: user.lat || 0, lng: user.lng || 0 }}
                   />
                 </div>
               </div>
@@ -153,12 +153,12 @@ const CourierActiveOrders = () => {
               <Alert variant="destructive" className="mb-4">
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>{error.message}</AlertDescription>
               </Alert>
-            ) : reviews.length > 0 ? (
+            ) : reviews && reviews.length > 0 ? (
               <div className="mb-6">
                 <ReviewStats reviews={reviews} />
-                <ReviewList reviews={reviews} reviewers={reviewers} />
+                <ReviewList reviews={reviews} reviewers={reviewers || []} />
               </div>
             ) : (
               <div className="bg-white shadow rounded-lg p-6 text-center">

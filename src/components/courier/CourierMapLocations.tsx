@@ -2,7 +2,6 @@
 import React, { useMemo } from 'react';
 import Map from '@/components/Map';
 import { MapLocationType } from '@/lib/database.types';
-import { ActiveOrder } from '@/types/courier';
 
 interface CourierMapLocationsProps {
   activeOrders: any[];
@@ -16,43 +15,60 @@ const CourierMapLocations: React.FC<CourierMapLocationsProps> = ({
   userLocation
 }) => {
   const mapLocations = useMemo(() => {
-    return activeOrders.flatMap(order => {
-      const locations = [];
-      
-      // Add restaurant location if available
-      const restaurant = restaurants.find(r => r.id === order.restaurant_id);
-      if (restaurant) {
-        locations.push({ 
-          id: `restaurant-${restaurant.id}`,
-          lat: restaurant.lat,
-          lng: restaurant.lng,
-          type: 'restaurant' as MapLocationType,
-          name: restaurant.name
-        });
-      }
-      
-      // Add delivery location
-      locations.push({
-        id: `delivery-${order.id}`,
-        lat: order.delivery_lat,
-        lng: order.delivery_lng,
-        type: 'user' as MapLocationType,
-        name: 'Delivery Location'
+    const locations = [];
+    
+    // Only process if we have orders
+    if (activeOrders && activeOrders.length > 0) {
+      activeOrders.forEach(order => {
+        // Add restaurant location if available
+        if (order.restaurant_id) {
+          // Use restaurant data from either the restaurants array or the order itself
+          const restaurantFromArray = restaurants?.find(r => r.id === order.restaurant_id);
+          
+          // Prefer data from restaurants array if available
+          const restaurantLat = restaurantFromArray?.lat || order.restaurant_lat;
+          const restaurantLng = restaurantFromArray?.lng || order.restaurant_lng;
+          const restaurantName = restaurantFromArray?.name || order.restaurant_name || 'Restaurant';
+          
+          // Only add if coordinates are valid
+          if (restaurantLat && restaurantLng && !isNaN(restaurantLat) && !isNaN(restaurantLng)) {
+            locations.push({ 
+              id: `restaurant-${order.restaurant_id}`,
+              lat: restaurantLat,
+              lng: restaurantLng,
+              type: 'restaurant' as MapLocationType,
+              name: restaurantName
+            });
+          }
+        }
+        
+        // Add delivery location if coordinates are valid
+        if (order.delivery_lat && order.delivery_lng && 
+            !isNaN(order.delivery_lat) && !isNaN(order.delivery_lng)) {
+          locations.push({
+            id: `delivery-${order.id}`,
+            lat: order.delivery_lat,
+            lng: order.delivery_lng,
+            type: 'user' as MapLocationType,
+            name: 'Delivery Location'
+          });
+        }
       });
-      
-      // Add courier location
-      if (userLocation) {
-        locations.push({
-          id: 'courier',
-          lat: userLocation.lat,
-          lng: userLocation.lng,
-          type: 'courier' as MapLocationType,
-          name: 'Your Location'
-        });
-      }
-      
-      return locations;
-    });
+    }
+    
+    // Add courier location if valid
+    if (userLocation && userLocation.lat && userLocation.lng && 
+        !isNaN(userLocation.lat) && !isNaN(userLocation.lng)) {
+      locations.push({
+        id: 'courier',
+        lat: userLocation.lat,
+        lng: userLocation.lng,
+        type: 'courier' as MapLocationType,
+        name: 'Your Location'
+      });
+    }
+    
+    return locations;
   }, [activeOrders, restaurants, userLocation]);
 
   return (

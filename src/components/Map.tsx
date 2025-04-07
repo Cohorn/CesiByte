@@ -42,11 +42,12 @@ const Map: React.FC<MapProps> = ({ locations, center, height = '400px' }) => {
 
     map.current.addControl(new mapboxgl.NavigationControl());
 
-    // Add 3D building layer if it exists in the style
-    map.current.on('style.load', () => {
-      if (map.current?.getStyle().layers) {
-        // Add 3D buildings if the style supports it
-        if (map.current.getStyle().layers?.find(layer => layer.id === 'building')) {
+    // Mark map as initialized only after it's fully loaded
+    map.current.on('load', () => {
+      // Add 3D building layer if it exists in the style
+      if (map.current && map.current.getStyle().layers) {
+        // Check if 'building' layer exists before trying to add 3D buildings
+        if (map.current.getStyle().layers.some(layer => layer.id === 'building')) {
           map.current.addLayer({
             'id': '3d-buildings',
             'source': 'composite',
@@ -87,7 +88,7 @@ const Map: React.FC<MapProps> = ({ locations, center, height = '400px' }) => {
     };
   }, []); // Empty dependency array to initialize map only once
 
-  // Update markers when locations or center changes
+  // Update markers when locations or center changes and map is initialized
   useEffect(() => {
     if (!map.current || !mapInitialized) return;
 
@@ -99,15 +100,20 @@ const Map: React.FC<MapProps> = ({ locations, center, height = '400px' }) => {
     const bounds = new mapboxgl.LngLatBounds();
     const markers: mapboxgl.Marker[] = [];
 
+    // Add new markers only for valid locations
+    const validLocations = locations.filter(loc => 
+      loc && 
+      typeof loc.lat === 'number' && 
+      typeof loc.lng === 'number' && 
+      !isNaN(loc.lat) && 
+      !isNaN(loc.lng) && 
+      loc.lat !== 0 && 
+      loc.lng !== 0
+    );
+
     // Add new markers
-    locations.forEach(location => {
+    validLocations.forEach(location => {
       const { lat, lng, type, name } = location;
-      
-      // Skip invalid coordinates
-      if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) {
-        console.warn(`Skipping invalid location: ${name} at ${lat},${lng}`);
-        return;
-      }
       
       const popupContent = document.createElement('div');
       popupContent.innerText = name;
@@ -127,7 +133,7 @@ const Map: React.FC<MapProps> = ({ locations, center, height = '400px' }) => {
     markersRef.current = markers;
 
     // Fit map to bounds if we have valid locations
-    if (locations.length > 0 && !bounds.isEmpty()) {
+    if (validLocations.length > 0 && !bounds.isEmpty()) {
       map.current.fitBounds(bounds, { 
         padding: 50,
         maxZoom: 15
