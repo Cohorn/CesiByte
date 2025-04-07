@@ -337,11 +337,9 @@ const RestaurantMenu = () => {
     return <Navigate to="/" />;
   }
 
-  // Menu sidebar options
+  // Menu sidebar options - modified to only include Menu Items
   const menuOptions = [
     { title: 'Menu Items', icon: Menu, current: true },
-    { title: 'Categories', icon: Menu, current: false },
-    { title: 'Special Offers', icon: Menu, current: false },
   ];
 
   return (
