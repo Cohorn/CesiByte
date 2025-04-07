@@ -1,184 +1,142 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { Button } from './ui/button';
-import { Utensils, ShoppingBag, Truck, User, LogOut, Menu, X } from 'lucide-react';
-import SitemapBackButton from './SitemapBackButton';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { cn } from '@/lib/utils';
+import NotificationsPanel from './notifications/NotificationsPanel';
+import { useNotifications } from '@/hooks/useNotifications';
 
 const NavBar: React.FC = () => {
-  const { user, signOut } = useAuth();
+  const { user, logout } = useAuth();
   const location = useLocation();
-  const isMobile = useIsMobile();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  
+  const { 
+    notifications, 
+    dismissNotification, 
+    dismissAllNotifications, 
+    markAllAsRead 
+  } = useNotifications();
+
+  // Function to check if a nav link is active
   const isActive = (path: string) => {
     return location.pathname === path;
   };
 
-  // Check if user is an employee
-  const isEmployee = user?.user_type === 'employee';
-  const showSitemapButton = isEmployee && location.pathname !== '/employee/sitemap';
-
-  const toggleMobileMenu = () => setMobileMenuOpen(!mobileMenuOpen);
-
-  // Define navigation items based on user type
-  const getNavItems = () => {
-    if (!user) {
-      return (
-        <>
-          <Button asChild variant="ghost" size="sm" className="nav-link">
-            <Link to="/login">Login</Link>
-          </Button>
-          <Button asChild variant="default" size="sm">
-            <Link to="/register">Register</Link>
-          </Button>
-        </>
-      );
-    }
-    
-    const navItems = {
-      customer: [
-        {
-          path: '/restaurants',
-          icon: <ShoppingBag className="mr-1 h-4 w-4" />,
-          label: 'Restaurants',
-        },
-        {
-          path: '/orders',
-          icon: <Utensils className="mr-1 h-4 w-4" />,
-          label: 'My Orders',
-        },
-      ],
-      restaurant: [
-        {
-          path: '/restaurant/menu',
-          icon: <Utensils className="mr-1 h-4 w-4" />,
-          label: 'Menu',
-        },
-        {
-          path: '/restaurant/orders',
-          icon: <ShoppingBag className="mr-1 h-4 w-4" />,
-          label: 'Orders',
-        },
-      ],
-      courier: [
-        {
-          path: '/courier/available',
-          icon: <ShoppingBag className="mr-1 h-4 w-4" />,
-          label: 'Available',
-        },
-        {
-          path: '/courier/active',
-          icon: <Truck className="mr-1 h-4 w-4" />,
-          label: 'Active',
-        },
-      ],
-      employee: [
-        {
-          path: '/employee/dashboard',
-          icon: <User className="mr-1 h-4 w-4" />,
-          label: 'Dashboard',
-        },
-      ],
-    };
-    
-    // Get navigation items based on user type
-    const userNavItems = navItems[user.user_type] || [];
-    
-    // Add profile link
-    const profilePath = isEmployee ? '/employee/profile' : '/profile';
-    
-    return (
-      <>
-        {userNavItems.map((item) => (
-          <Button 
-            key={item.path}
-            asChild 
-            variant={isActive(item.path) ? "default" : "ghost"} 
-            size="sm" 
-            className={cn(
-              isActive(item.path) ? "nav-link-active" : "nav-link",
-              isMobile && mobileMenuOpen ? "w-full justify-start" : ""
-            )}
-          >
-            <Link to={item.path}>
-              {item.icon}
-              <span className={isMobile ? "inline" : "hidden md:inline"}>{item.label}</span>
-            </Link>
-          </Button>
-        ))}
-        
-        <Button 
-          asChild 
-          variant={isActive(profilePath) ? "default" : "ghost"} 
-          size="sm"
-          className={cn(
-            isActive(profilePath) ? "nav-link-active" : "nav-link",
-            isMobile && mobileMenuOpen ? "w-full justify-start" : ""
-          )}
-        >
-          <Link to={profilePath}>
-            <User className="mr-1 h-4 w-4" />
-            <span className={isMobile ? "inline" : "hidden md:inline"}>Profile</span>
-          </Link>
-        </Button>
-        
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className={cn(
-            "nav-link",
-            isMobile && mobileMenuOpen ? "w-full justify-start" : ""
-          )}
-          onClick={() => signOut()}
-        >
-          <LogOut className="mr-1 h-4 w-4" />
-          <span className={isMobile ? "inline" : "hidden md:inline"}>Logout</span>
-        </Button>
-      </>
-    );
-  };
-
   return (
-    <nav className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        <div className="flex items-center space-x-2 md:space-x-4">
-          <Link to="/" className="flex items-center space-x-2">
-            <div className="flex items-center">
-              <span className="inline-block bg-yellow-300 text-black font-bold rounded-l-md px-2 py-1">C</span>
-              <span className="font-bold text-xl">esiByte</span>
-            </div>
-            <span className="text-xs text-muted-foreground italic hidden sm:inline-block">Food for thought, Engineer's favourite</span>
-          </Link>
-          {!isMobile && showSitemapButton && <SitemapBackButton />}
-        </div>
-        
-        {isMobile ? (
-          <>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={toggleMobileMenu}
-              className="z-50"
+    <nav className="bg-white shadow-md">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between h-16">
+          <div className="flex items-center">
+            <Link to="/" className="text-xl font-bold text-gray-800">
+              Food Delivery
+            </Link>
+          </div>
+
+          <div className="flex items-center space-x-4">
+            {/* Common navigation links */}
+            <Link
+              to="/"
+              className={`text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium ${
+                isActive('/') ? 'bg-gray-100' : ''
+              }`}
             >
-              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </Button>
+              Home
+            </Link>
+
+            {/* User type specific navigation */}
+            {user && user.user_type === 'customer' && (
+              <>
+                <Link
+                  to="/restaurants"
+                  className={`text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium ${
+                    isActive('/restaurants') ? 'bg-gray-100' : ''
+                  }`}
+                >
+                  Restaurants
+                </Link>
+                <Link
+                  to="/my-orders"
+                  className={`text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium ${
+                    isActive('/my-orders') ? 'bg-gray-100' : ''
+                  }`}
+                >
+                  My Orders
+                </Link>
+              </>
+            )}
+
+            {user && user.user_type === 'restaurant' && (
+              <Link
+                to="/restaurant-dashboard"
+                className={`text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium ${
+                  isActive('/restaurant-dashboard') ? 'bg-gray-100' : ''
+                }`}
+              >
+                Dashboard
+              </Link>
+            )}
             
-            {mobileMenuOpen && (
-              <div className="fixed inset-0 top-16 z-40 bg-background p-4 flex flex-col space-y-4 animate-fade-in">
-                {getNavItems()}
-                {showSitemapButton && <SitemapBackButton className="w-full justify-start" />}
+            {user && user.user_type === 'courier' && (
+              <Link
+                to="/courier-dashboard"
+                className={`text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium ${
+                  isActive('/courier-dashboard') ? 'bg-gray-100' : ''
+                }`}
+              >
+                Dashboard
+              </Link>
+            )}
+            
+            {user && user.user_type === 'employee' && (
+              <Link
+                to="/admin-dashboard"
+                className={`text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium ${
+                  isActive('/admin-dashboard') ? 'bg-gray-100' : ''
+                }`}
+              >
+                Admin
+              </Link>
+            )}
+
+            {/* Notifications icon */}
+            {user && (
+              <NotificationsPanel
+                notifications={notifications}
+                onDismiss={dismissNotification}
+                onDismissAll={dismissAllNotifications}
+                onMarkAllAsRead={markAllAsRead}
+              />
+            )}
+
+            {/* Authentication */}
+            {user ? (
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-600">
+                  {user.name || user.email}
+                </span>
+                <button
+                  onClick={logout}
+                  className="text-red-600 hover:text-red-900 px-3 py-2 rounded-md text-sm font-medium"
+                >
+                  Logout
+                </button>
+              </div>
+            ) : (
+              <div className="flex space-x-2">
+                <Link
+                  to="/login"
+                  className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                >
+                  Login
+                </Link>
+                <Link
+                  to="/register"
+                  className="bg-blue-600 text-white hover:bg-blue-700 px-3 py-2 rounded-md text-sm font-medium"
+                >
+                  Register
+                </Link>
               </div>
             )}
-          </>
-        ) : (
-          <div className="flex items-center space-x-1 md:space-x-2">
-            {getNavItems()}
           </div>
-        )}
+        </div>
       </div>
     </nav>
   );

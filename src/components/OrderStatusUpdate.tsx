@@ -7,6 +7,7 @@ import { AlertTriangle } from 'lucide-react';
 import { useOrderMQTT } from '@/hooks/useMQTT';
 import { getEffectiveOrderStatus } from '@/utils/orderTimeUtils';
 import { useAuth } from '@/lib/AuthContext';
+import { orderMQTTService } from '@/api/services/orderMQTT';
 
 interface OrderStatusUpdateProps {
   orderId: string;
@@ -180,6 +181,32 @@ const OrderStatusUpdate: React.FC<OrderStatusUpdateProps> = ({
           title: "Status Updated",
           description: `Order status updated to ${newStatus.replace(/_/g, ' ')}`,
         });
+
+        // Publish notification via MQTT
+        orderMQTTService.publishOrderEvent(`foodapp/orders/${orderId}/status`, {
+          orderId,
+          status: newStatus,
+          timestamp: new Date().toISOString()
+        });
+
+        // If this is a restaurant accepting an order, also publish to restaurant topic
+        if (newStatus === 'accepted_by_restaurant' && restaurantId) {
+          orderMQTTService.publishOrderEvent(`foodapp/restaurants/${restaurantId}/status_updates`, {
+            orderId,
+            status: newStatus,
+            timestamp: new Date().toISOString()
+          });
+        }
+
+        // If this is an order ready for pickup, notify couriers
+        if (newStatus === 'ready_for_pickup') {
+          orderMQTTService.publishOrderEvent('foodapp/couriers/available_orders', {
+            orderId,
+            restaurantId,
+            status: newStatus,
+            timestamp: new Date().toISOString()
+          });
+        }
       }
     } catch (error) {
       console.error('Error updating status:', error);
