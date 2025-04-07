@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { orderApi } from '@/api/services/orderService';
 import { Order, OrderStatus } from '@/lib/database.types';
 import { useAuth } from '@/lib/AuthContext';
@@ -19,48 +19,28 @@ export const useOrders = (options: OrdersOptions = {}) => {
   const [hasFetched, setHasFetched] = useState<boolean>(false);
   const { user } = useAuth();
   const { toast } = useToast();
-  const isMounted = useRef(true);
 
-  useEffect(() => {
-    isMounted.current = true;
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
-
+  // Determine which API method to use based on the options
   const fetchOrders = useCallback(async (forceRefresh: boolean = false) => {
-    if (!options.restaurantId && !options.userId && !options.courierId && !options.status && !user) {
-      console.log('No user or specific ID provided for fetching orders');
-      if (isMounted.current) {
-        setIsLoading(false);
-      }
+    // Skip fetching if we don't have the necessary IDs or user is not authenticated
+    if ((!options.restaurantId && !options.userId && !options.courierId && !options.status && !user) || !localStorage.getItem('auth_token')) {
+      console.log('No user, auth token, or specific ID provided for fetching orders');
+      setIsLoading(false);
       return [];
     }
 
-    const token = localStorage.getItem('auth_token');
-    if (!token) {
-      console.log('No auth token available, skipping order fetch');
-      if (isMounted.current) {
-        setIsLoading(false);
-        setError(new Error('Authentication required'));
-      }
-      return [];
-    }
-
-    if (isMounted.current) {
-      setIsLoading(true);
-      setError(null);
-    }
+    setIsLoading(true);
+    setError(null);
 
     try {
       let fetchedOrders: Order[] = [];
 
-      if (options.restaurantId) {
-        console.log(`Fetching orders for restaurant ID: ${options.restaurantId}, force: ${forceRefresh}`);
-        fetchedOrders = await orderApi.getOrdersByRestaurant(options.restaurantId, forceRefresh);
-      } else if (options.userId) {
+      if (options.userId) {
         console.log(`Fetching orders for user ID: ${options.userId}`);
         fetchedOrders = await orderApi.getOrdersByUser(options.userId);
+      } else if (options.restaurantId) {
+        console.log(`Fetching orders for restaurant ID: ${options.restaurantId}, force: ${forceRefresh}`);
+        fetchedOrders = await orderApi.getOrdersByRestaurant(options.restaurantId, forceRefresh);
       } else if (options.courierId) {
         console.log(`Fetching orders for courier ID: ${options.courierId}`);
         fetchedOrders = await orderApi.getOrdersByCourier(options.courierId);
@@ -68,32 +48,29 @@ export const useOrders = (options: OrdersOptions = {}) => {
         console.log(`Fetching orders by status: ${options.status}`);
         fetchedOrders = await orderApi.getOrdersByStatus(options.status);
       } else if (user) {
+        // Default to current user's orders if no specific option is provided
         console.log(`Fetching orders for current user: ${user.id}`);
         fetchedOrders = await orderApi.getOrdersByUser(user.id);
       }
 
       console.log(`Fetched ${fetchedOrders?.length || 0} orders`);
       
-      if (isMounted.current) {
-        setOrders(fetchedOrders || []);
-        setHasFetched(true);
-        setIsLoading(false);
-      }
+      // Update state with fetched orders
+      setOrders(fetchedOrders || []);
+      setHasFetched(true);
+      setIsLoading(false);
       return fetchedOrders || [];
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error fetching orders:", err);
+      setError(err instanceof Error ? err : new Error(err.message || 'Failed to fetch orders'));
       
-      if (isMounted.current) {
-        setError(err instanceof Error ? err : new Error('Failed to fetch orders'));
-        
-        toast({
-          title: "Error",
-          description: "Could not fetch orders",
-          variant: "destructive"
-        });
-        
-        setIsLoading(false);
-      }
+      toast({
+        title: "Error",
+        description: "Could not fetch orders",
+        variant: "destructive"
+      });
+      
+      setIsLoading(false);
       return [];
     }
   }, [options.userId, options.restaurantId, options.courierId, options.status, user, toast]);
@@ -102,23 +79,20 @@ export const useOrders = (options: OrdersOptions = {}) => {
     try {
       const result = await orderApi.updateOrderStatus(orderId, status);
       
+      // Success handling
       toast({
         title: "Status Updated",
         description: `Order status has been updated to ${status.replace(/_/g, ' ')}`,
       });
 
-      if (isMounted.current) {
-        setOrders(prevOrders => 
-          prevOrders.map(order => 
-            order.id === orderId ? { ...order, status, updated_at: new Date().toISOString() } : order
-          )
-        );
-      }
+      // Fetch latest orders after update
+      fetchOrders(true);
       
       return { success: true, data: result };
     } catch (err) {
       console.error("Error updating order status:", err);
       
+      // Error handling
       toast({
         title: "Update Failed",
         description: "Could not update the order status",
@@ -127,68 +101,68 @@ export const useOrders = (options: OrdersOptions = {}) => {
       
       return { success: false, error: err };
     }
-  }, [toast]);
+  }, [fetchOrders, toast]);
 
   const assignCourier = useCallback(async (orderId: string, courierId: string) => {
     try {
       const result = await orderApi.assignCourier(orderId, courierId);
       
-      toast({
-        title: "Courier Assigned",
-        description: `Courier ${courierId} has been assigned to order ${orderId}`,
-      });
-
-      if (isMounted.current) {
-        setOrders(prevOrders => 
-          prevOrders.map(order => 
-            order.id === orderId ? { ...order, courier_id: courierId } : order
-          )
-        );
-      }
+      // Fetch latest orders after assignment
+      fetchOrders(true);
       
       return { success: true, data: result };
     } catch (err) {
       console.error("Error assigning courier:", err);
-      
-      toast({
-        title: "Assignment Failed",
-        description: "Could not assign the courier",
-        variant: "destructive"
-      });
-      
       return { success: false, error: err };
     }
-  }, [toast]);
+  }, [fetchOrders]);
 
+  // Add the verify delivery pin function
   const verifyDeliveryPin = useCallback(async (orderId: string, pin: string) => {
     try {
       console.log(`Sending verification request for order ${orderId} with PIN ${pin}`);
       const result = await orderApi.verifyDeliveryPin(orderId, pin);
       
-      console.log('PIN verification API response:', result);
-      
-      if (result.success && isMounted.current) {
-        setOrders(prevOrders => 
-          prevOrders.map(order => 
-            order.id === orderId ? { ...order, status: 'delivered' } : order
-          )
-        );
+      if (result.success) {
+        toast({
+          title: "Delivery Confirmed",
+          description: "PIN verified successfully. Delivery completed!"
+        });
+        
+        // Fetch latest orders
+        fetchOrders(true);
+      } else {
+        toast({
+          title: "Verification Failed",
+          description: result.message || "Invalid PIN provided",
+          variant: "destructive"
+        });
       }
       
       return result;
-    } catch (err) {
-      console.error("Error in verifyDeliveryPin:", err);
+    } catch (err: any) {
+      console.error("Error verifying delivery PIN:", err);
+      
+      toast({
+        title: "Verification Error",
+        description: "An error occurred during PIN verification",
+        variant: "destructive"
+      });
+      
       return { 
         success: false, 
-        message: err instanceof Error ? err.message : "Error processing your request" 
+        message: err.message || "Verification failed" 
       };
     }
-  }, []);
+  }, [fetchOrders, toast]);
 
+  // Initial fetch - with proper dependency tracking
   useEffect(() => {
+    // Only fetch if we have some relevant ID to fetch by and user is authenticated
     const hasRelevantId = options.restaurantId || options.courierId || options.userId || user?.id;
+    const isAuthenticated = !!localStorage.getItem('auth_token');
     
-    if (!hasFetched && hasRelevantId) {
+    if (!hasFetched && hasRelevantId && isAuthenticated) {
       console.log('useOrders hook - initial fetch with options:', options);
       fetchOrders()
         .then(result => {
@@ -207,48 +181,33 @@ export const useOrders = (options: OrdersOptions = {}) => {
     hasFetched
   ]);
 
+  // Subscribe to real-time updates
   useEffect(() => {
     console.log('Setting up real-time order updates subscription');
     
+    // Set up MQTT subscriptions
     if (mqttClient && (options.restaurantId || options.userId || options.courierId)) {
-      const topics = [];
-      
       if (options.restaurantId) {
-        const topic = `foodapp/restaurants/${options.restaurantId}/orders/#`;
-        topics.push(topic);
-        console.log(`Subscribing to restaurant orders: ${topic}`);
-        mqttClient.subscribe(topic);
+        console.log(`Subscribing to restaurant orders: ${options.restaurantId}`);
+        mqttClient.subscribe(`foodapp/restaurants/${options.restaurantId}/orders/#`);
       }
       
       if (options.userId) {
-        const topic = `foodapp/users/${options.userId}/orders/#`;
-        topics.push(topic);
-        console.log(`Subscribing to user orders: ${topic}`);
-        mqttClient.subscribe(topic);
+        console.log(`Subscribing to user orders: ${options.userId}`);
+        mqttClient.subscribe(`foodapp/users/${options.userId}/orders/#`);
       }
       
       if (options.courierId) {
-        const topic = `foodapp/couriers/${options.courierId}/assignments`;
-        topics.push(topic);
-        console.log(`Subscribing to courier assignments: ${topic}`);
-        mqttClient.subscribe(topic);
+        console.log(`Subscribing to courier assignments: ${options.courierId}`);
+        mqttClient.subscribe(`foodapp/couriers/${options.courierId}/assignments`);
       }
-      
-      const updateTopic = 'foodapp/orders/events/updated';
-      topics.push(updateTopic);
-      mqttClient.subscribe(updateTopic);
-      
-      return () => {
-        topics.forEach(topic => {
-          console.log(`Unsubscribing from: ${topic}`);
-          mqttClient.unsubscribe(topic);
-        });
-      };
     }
     
+    // Subscribe to order updates via the orderApi
     const unsubscribe = orderApi.subscribeToOrderUpdates((updatedOrder) => {
       console.log('Received order update:', updatedOrder);
       
+      // Check if this update is relevant to our current filter
       let isRelevant = false;
       
       if (options.restaurantId && updatedOrder.restaurant_id === options.restaurantId) {
@@ -265,21 +224,40 @@ export const useOrders = (options: OrdersOptions = {}) => {
       }
       
       if (isRelevant) {
-        setOrders(prevOrders => {
-          const orderExists = prevOrders.some(order => order.id === updatedOrder.id);
+        setOrders(currentOrders => {
+          // Check if we already have this order
+          const orderIndex = currentOrders.findIndex(order => order.id === updatedOrder.id);
           
-          if (orderExists) {
-            return prevOrders.map(order => 
-              order.id === updatedOrder.id ? updatedOrder : order
-            );
+          if (orderIndex >= 0) {
+            // Update existing order
+            const newOrders = [...currentOrders];
+            newOrders[orderIndex] = updatedOrder;
+            return newOrders;
           } else {
-            return [updatedOrder, ...prevOrders];
+            // Add new order
+            return [updatedOrder, ...currentOrders];
           }
         });
       }
     });
 
     return () => {
+      // Clean up MQTT subscriptions
+      if (mqttClient) {
+        if (options.restaurantId) {
+          mqttClient.unsubscribe(`foodapp/restaurants/${options.restaurantId}/orders/#`);
+        }
+        
+        if (options.userId) {
+          mqttClient.unsubscribe(`foodapp/users/${options.userId}/orders/#`);
+        }
+        
+        if (options.courierId) {
+          mqttClient.unsubscribe(`foodapp/couriers/${options.courierId}/assignments`);
+        }
+      }
+      
+      // Unsubscribe from order updates
       unsubscribe();
     };
   }, [options.restaurantId, options.userId, options.courierId, options.status]);

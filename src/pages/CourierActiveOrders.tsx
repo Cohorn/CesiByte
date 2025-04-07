@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
@@ -41,57 +40,25 @@ const CourierActiveOrders = () => {
     try {
       console.log(`Verifying PIN for order ${orderId} with value ${pin}`);
       
-      // Simple timeout to prevent hanging if the API doesn't respond
-      const timeoutDuration = 15000;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
-      
-      // Call the API to verify the PIN
       const result = await verifyDeliveryPin(orderId, pin);
-      clearTimeout(timeoutId);
-      
       console.log('PIN verification result:', result);
       
       if (result.success) {
-        toast({
-          title: "Delivery Confirmed",
-          description: "PIN verified successfully. Delivery completed!"
-        });
-        
         refetch();
         return { success: true, message: "Delivery confirmed" };
       } else {
-        const errorMessage = result.message || "Invalid PIN";
-        console.error("PIN verification failed:", errorMessage);
-        
-        toast({
-          title: "Verification Failed",
-          description: errorMessage,
-          variant: "destructive"
-        });
-        
-        return { success: false, message: errorMessage };
+        return { success: false, message: result.message || "Invalid PIN" };
       }
     } catch (err) {
       const error = err as Error;
       console.error("Error verifying PIN:", error);
-      
-      toast({
-        title: "Error",
-        description: "Unable to connect to verification service. Please try again.",
-        variant: "destructive"
-      });
-      
-      return { success: false, message: "Connection error: " + error.message };
+      return { success: false, message: "Error: " + error.message };
     }
-  }, [verifyDeliveryPin, refetch, toast]);
+  }, [verifyDeliveryPin, refetch]);
 
-  // Early return if user is not a courier
   if (!user || user.user_type !== 'courier') {
     return <Navigate to="/" />;
   }
-
-  const isInitialLoading = loading && (activeOrders.length === 0 && reviews.length === 0);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -138,7 +105,7 @@ const CourierActiveOrders = () => {
               </Alert>
             )}
 
-            {isInitialLoading ? (
+            {loading && activeOrders.length === 0 && reviews.length === 0 ? (
               <LoadingState message="Loading your active orders..." />
             ) : activeOrders.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -185,7 +152,7 @@ const CourierActiveOrders = () => {
           <TabsContent value="reviews">
             <h2 className="text-xl font-semibold mb-4">Your Reviews</h2>
             
-            {isInitialLoading ? (
+            {loading && activeOrders.length === 0 && reviews.length === 0 ? (
               <LoadingState message="Loading your reviews..." />
             ) : error ? (
               <Alert variant="destructive" className="mb-4">

@@ -241,7 +241,7 @@ export const orderApi = {
     try {
       console.log(`Verifying delivery PIN for order ${orderId} with pin ${pin}`);
       
-      // Fixed endpoint path - this was previously causing a 404 error
+      // Fixed endpoint path - this was causing the 404 error
       const response = await apiClient.post(`/orders/${orderId}/verify-pin`, { pin });
       console.log('PIN verification API response:', response.data);
       
@@ -251,34 +251,9 @@ export const orderApi = {
         // Clear caches to ensure fresh data
         orderCacheService.clearCache();
         
-        // Notify over MQTT and subscribers if order data is available
-        const updatedOrder = response.data.order ? processOrderItems(response.data.order) : null;
-        
-        if (updatedOrder) {
-          // Publish events to MQTT topics
-          orderMQTTService.publishOrderEvent(
-            `foodapp/orders/${orderId}/status`, 
-            {
-              orderId,
-              status: 'delivered',
-              timestamp: new Date().toISOString()
-            }
-          );
-          
-          if (updatedOrder.restaurant_id) {
-            orderMQTTService.publishOrderEvent(
-              `foodapp/restaurants/${updatedOrder.restaurant_id}/orders/updated`, 
-              updatedOrder
-            );
-          }
-          
-          // Notify subscribers
-          orderMQTTService.notifySubscribers(updatedOrder);
-        }
-        
         return {
           success: true,
-          order: updatedOrder
+          order: response.data.order
         };
       } else {
         console.error('PIN verification failed:', response.data.message);
@@ -290,24 +265,20 @@ export const orderApi = {
     } catch (error: any) {
       console.error('Error verifying delivery PIN:', error);
       
-      // Extract error message from response
-      const errorMessage = 
-        error.response?.data?.error || 
-        error.response?.data?.message || 
-        error.message || 
-        'Error processing your request';
-      
-      console.log('Detailed error info:', {
+      // Enhanced error logging for debugging
+      const errorDetails = {
         status: error.response?.status,
         statusText: error.response?.statusText,
         url: error.config?.url,
         method: error.config?.method,
         responseData: error.response?.data
-      });
+      };
+      console.log('Detailed error info:', errorDetails);
       
+      // Return a standardized error response
       return {
         success: false,
-        message: errorMessage
+        message: error.response?.data?.message || error.message || 'Error processing your request'
       };
     }
   },

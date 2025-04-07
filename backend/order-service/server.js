@@ -382,8 +382,8 @@ app.post('/', authenticateJWT, async (req, res) => {
   }
 });
 
-// New route to verify delivery PIN
-app.post('/orders/:orderId/verify-pin', authenticateJWT, async (req, res) => {
+// New route to verify delivery PIN - Ensure this is properly defined
+app.post('/:orderId/verify-pin', authenticateJWT, async (req, res) => {
   try {
     const { orderId } = req.params;
     const { pin } = req.body;

@@ -28,6 +28,7 @@ const DeliveryPinInput: React.FC<DeliveryPinInputProps> = ({
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [attempts, setAttempts] = useState(0);
   
   // Reset state when dialog opens
   useEffect(() => {
@@ -36,6 +37,7 @@ const DeliveryPinInput: React.FC<DeliveryPinInputProps> = ({
       setError(null);
       setIsVerifying(false);
       setSuccess(false);
+      setAttempts(0);
     }
   }, [isOpen]);
 
@@ -58,11 +60,13 @@ const DeliveryPinInput: React.FC<DeliveryPinInputProps> = ({
           onClose();
         }, 1500);
       } else {
+        setAttempts(prev => prev + 1);
         setError(result.message || 'Invalid PIN. Please try again.');
       }
     } catch (err: any) {
       console.error('Error during pin verification:', err);
-      setError(err.message || 'Failed to verify PIN. Please try again.');
+      setError('Failed to verify PIN. Please try again.');
+      setAttempts(prev => prev + 1);
     } finally {
       setIsVerifying(false);
     }
@@ -103,6 +107,10 @@ const DeliveryPinInput: React.FC<DeliveryPinInputProps> = ({
           
           {error && (
             <p className="text-sm text-red-500">{error}</p>
+          )}
+          
+          {attempts > 0 && !success && !error && (
+            <p className="text-sm text-amber-500">Attempt {attempts}: Please try again</p>
           )}
           
           {success && (
