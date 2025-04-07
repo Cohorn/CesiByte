@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useRef } from 'react';
+
+import React, { useState, useCallback } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import NavBar from '@/components/NavBar';
@@ -51,7 +52,17 @@ const CourierActiveOrders = () => {
       setPinVerificationState({ orderId, isVerifying: true });
       console.log(`Verifying PIN for order ${orderId} with value ${pin}`);
       
-      const result = await verifyDeliveryPin(orderId, pin);
+      // Added timeout protection
+      const timeoutPromise = new Promise<{ success: false, message: string }>((_, reject) => 
+        setTimeout(() => reject(new Error('Verification request timed out')), 15000)
+      );
+      
+      // Race the verification against the timeout
+      const result = await Promise.race([
+        verifyDeliveryPin(orderId, pin),
+        timeoutPromise
+      ]);
+      
       console.log('PIN verification result:', result);
       
       if (result.success) {
@@ -83,12 +94,12 @@ const CourierActiveOrders = () => {
       
       toast({
         title: "Error",
-        description: "An unexpected error occurred. Please try again.",
+        description: "Unable to connect to verification service. Please try again.",
         variant: "destructive"
       });
       
       setPinVerificationState({ orderId: null, isVerifying: false });
-      return { success: false, message: "An unexpected error occurred" };
+      return { success: false, message: "Connection error: " + error.message };
     }
   }, [verifyDeliveryPin, refetch, toast, pinVerificationState.isVerifying]);
 

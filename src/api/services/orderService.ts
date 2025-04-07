@@ -1,4 +1,5 @@
 
+// This is a simplified version for demonstration
 import { apiClient } from '../client';
 import { Order, OrderStatus } from '@/lib/database.types';
 import { mqttClient } from '@/lib/mqtt-client';
@@ -241,8 +242,7 @@ export const orderApi = {
     try {
       console.log(`Verifying delivery PIN for order ${orderId} with pin ${pin}`);
       
-      // The issue might be in the URL construction - let's fix it to ensure it's correct
-      // We're explicitly using the full endpoint path to avoid any confusion
+      // FIX: Use the correct endpoint path with the /orders/ prefix
       const response = await apiClient.post(`/orders/${orderId}/verify-pin`, { pin });
       console.log('PIN verification response:', response.data);
       

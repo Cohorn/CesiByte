@@ -27,6 +27,7 @@ const DeliveryPinInput: React.FC<DeliveryPinInputProps> = ({
   const [pin, setPin] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [attemptCount, setAttemptCount] = useState(0);
   
   // Reset pin and error when dialog opens
   useEffect(() => {
@@ -34,6 +35,7 @@ const DeliveryPinInput: React.FC<DeliveryPinInputProps> = ({
       setPin('');
       setError(null);
       setIsVerifying(false);
+      setAttemptCount(0);
     }
   }, [isOpen]);
 
@@ -58,7 +60,13 @@ const DeliveryPinInput: React.FC<DeliveryPinInputProps> = ({
           onClose();
         }, 1000);
       } else {
+        setAttemptCount(prev => prev + 1);
         setError(result.message || 'Invalid PIN. Please try again.');
+        
+        // If there have been several failed attempts, give a more helpful message
+        if (attemptCount >= 2) {
+          setError((result.message || 'Invalid PIN') + '. Please double-check the PIN with the customer.');
+        }
       }
     } catch (err) {
       console.error('Error during pin verification:', err);
@@ -72,10 +80,17 @@ const DeliveryPinInput: React.FC<DeliveryPinInputProps> = ({
     setPin('');
     setError(null);
   };
+  
+  const handleDialogClose = () => {
+    // Prevent accidental closing if verification is in progress
+    if (!isVerifying) {
+      onClose();
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
-      if (!open) onClose();
+      if (!open) handleDialogClose();
     }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
