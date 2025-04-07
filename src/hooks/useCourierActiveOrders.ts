@@ -88,6 +88,7 @@ export function useCourierActiveOrders(courierId?: string) {
             restaurant_address: restaurantData?.address || 'Unknown Address',
             restaurant_lat: restaurantData?.lat || 0,
             restaurant_lng: restaurantData?.lng || 0,
+            delivery_pin: order.delivery_pin || '' // Ensure delivery_pin is included
           } as ActiveOrder;
         });
         setActiveOrders(formattedOrders);

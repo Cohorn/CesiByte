@@ -110,7 +110,8 @@ const CustomerOrders = () => {
               ...order,
               items: parsedItems as OrderItem[],
               restaurant: order.restaurants as Restaurant,
-              status: order.status as OrderStatus
+              status: order.status as OrderStatus,
+              delivery_pin: order.delivery_pin || '' // Ensure delivery_pin is included
             } as OrderWithRestaurant;
           });
           
