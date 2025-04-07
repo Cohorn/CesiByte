@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Upload, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { restaurantApi } from '@/api/services/restaurantService';
 
 interface RestaurantImageUploadProps {
   currentImageUrl?: string | null;
@@ -18,61 +19,19 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
   onImageRemove
 }) => {
   const [isUploading, setIsUploading] = useState(false);
-  const [bucketExists, setBucketExists] = useState(false);
+  const [bucketReady, setBucketReady] = useState(false);
   const { toast } = useToast();
 
   // Check if the bucket exists on component mount
   useEffect(() => {
-    checkBucketExists();
+    const checkBucket = async () => {
+      const exists = await restaurantApi.ensureStorageBucket();
+      setBucketReady(exists);
+      console.log('Bucket ready status:', exists);
+    };
+    
+    checkBucket();
   }, []);
-
-  const checkBucketExists = async () => {
-    try {
-      console.log('Checking if restaurant_images bucket exists');
-      const { data: buckets, error } = await supabase
-        .storage
-        .listBuckets();
-        
-      if (error) throw error;
-      
-      const exists = buckets.some(bucket => bucket.name === 'restaurant_images');
-      setBucketExists(exists);
-      
-      console.log('Bucket exists:', exists);
-      
-      if (!exists) {
-        console.log('Creating restaurant_images bucket');
-        await createBucket();
-      }
-      
-      return exists;
-    } catch (error) {
-      console.error('Error checking bucket:', error);
-      return false;
-    }
-  };
-
-  const createBucket = async () => {
-    try {
-      const { error } = await supabase.storage.createBucket('restaurant_images', {
-        public: true
-      });
-      
-      if (error) throw error;
-      
-      console.log('Bucket created successfully');
-      setBucketExists(true);
-      return true;
-    } catch (error) {
-      console.error('Error creating bucket:', error);
-      toast({
-        title: "Error",
-        description: "Could not create storage bucket. Please contact support.",
-        variant: "destructive"
-      });
-      return false;
-    }
-  };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -102,12 +61,13 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
     setIsUploading(true);
     
     try {
-      // Ensure the storage bucket exists
-      if (!bucketExists) {
-        const created = await createBucket();
+      // Ensure the storage bucket exists if it's not ready yet
+      if (!bucketReady) {
+        const created = await restaurantApi.ensureStorageBucket();
         if (!created) {
           throw new Error('Unable to create storage bucket');
         }
+        setBucketReady(true);
       }
       
       // Create a unique file name
@@ -115,8 +75,10 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
       const fileName = `${Math.random().toString(36).substring(2, 15)}-${Date.now()}.${fileExt}`;
       const filePath = `${fileName}`;
       
+      console.log('Uploading file to path:', filePath);
+      
       // Upload file to Supabase Storage
-      const { error: uploadError } = await supabase.storage
+      const { data, error: uploadError } = await supabase.storage
         .from('restaurant_images')
         .upload(filePath, file, {
           cacheControl: '3600',
@@ -133,6 +95,7 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
         .from('restaurant_images')
         .getPublicUrl(filePath);
       
+      console.log('Image uploaded successfully, public URL:', publicUrl);
       onImageUpload(publicUrl);
       
       toast({
@@ -148,6 +111,8 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
       });
     } finally {
       setIsUploading(false);
+      // Reset the file input
+      event.target.value = '';
     }
   };
 

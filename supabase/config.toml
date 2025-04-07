@@ -1,2 +1,24 @@
 
+# A string used as a project reference and to name resources.
 project_id = "ukrukdqjvvsvfvmqzxdv"
+
+[api]
+# Port to use for the API URL.
+port = 54321
+# Schemas to expose in your API. Tables, views and stored procedures in this schema will get API
+# endpoints. public and storage are always included.
+schemas = ["public", "storage"]
+
+[db]
+# Port to use for the local database URL.
+port = 54322
+# The database major version to use. This has to be the same as your remote database's. Run `SHOW
+# server_version;` on the remote database to check.
+major_version = 15
+
+[functions.create_storage_policy]
+verify_jwt = true
+
+[studio]
+# Port to use for Supabase Studio.
+port = 54323

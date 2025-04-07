@@ -204,26 +204,46 @@ export const restaurantApi = {
   ensureStorageBucket: async () => {
     try {
       console.log('Checking if restaurant_images bucket exists');
+      
+      // First try to check if the bucket exists
       const { data: buckets, error } = await supabase
         .storage
         .listBuckets();
         
-      if (error) throw error;
+      if (error) {
+        console.error('Error listing buckets:', error);
+        return false;
+      }
       
       const bucketExists = buckets.some(bucket => bucket.name === 'restaurant_images');
+      console.log('Bucket exists check result:', bucketExists);
       
       if (!bucketExists) {
-        console.log('Creating restaurant_images bucket');
+        console.log('Restaurant_images bucket not found, creating it...');
         const { error: createError } = await supabase.storage.createBucket('restaurant_images', {
           public: true
         });
         
-        if (createError) throw createError;
+        if (createError) {
+          console.error('Error creating bucket:', createError);
+          return false;
+        }
+        
         console.log('Bucket created successfully');
-      } else {
-        console.log('Bucket already exists');
+        
+        // Create public access policies
+        try {
+          await supabase.rpc('create_storage_public_policy', { bucket_name: 'restaurant_images' });
+          console.log('Public access policies created successfully');
+        } catch (policyError) {
+          console.error('Error creating access policies:', policyError);
+          // Continue even if policy creation fails, as the bucket might work anyway
+        }
+        
+        return true;
       }
       
+      console.log('Bucket already exists, no need to create');
       return true;
     } catch (error) {
       console.error('Error ensuring storage bucket exists:', error);
