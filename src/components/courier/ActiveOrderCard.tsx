@@ -1,10 +1,11 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
-import { MapPin } from 'lucide-react';
+import { MapPin, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { calculateDistance, formatDistance } from '@/lib/distanceUtils';
 import { OrderStatus } from '@/lib/database.types';
+import DeliveryPinInput from './DeliveryPinInput';
 
 interface ActiveOrderProps {
   id: string;
@@ -20,6 +21,7 @@ interface ActiveOrderProps {
   userLat: number;
   userLng: number;
   onStatusUpdate: (orderId: string, newStatus: OrderStatus) => void;
+  onVerifyPin: (orderId: string, pin: string) => Promise<{ success: boolean, message?: string }>;
 }
 
 const ActiveOrderCard: React.FC<ActiveOrderProps> = ({
@@ -35,8 +37,11 @@ const ActiveOrderCard: React.FC<ActiveOrderProps> = ({
   createdAt,
   userLat,
   userLng,
-  onStatusUpdate
+  onStatusUpdate,
+  onVerifyPin
 }) => {
+  const [isPinDialogOpen, setIsPinDialogOpen] = useState(false);
+  
   // Calculate distances
   const restaurantDistance = calculateDistance(
     userLat, 
@@ -51,6 +56,14 @@ const ActiveOrderCard: React.FC<ActiveOrderProps> = ({
     deliveryLat, 
     deliveryLng
   );
+  
+  const handleMarkOnTheWay = () => {
+    onStatusUpdate(id, 'on_the_way');
+  };
+  
+  const handleCompleteDelivery = () => {
+    setIsPinDialogOpen(true);
+  };
   
   return (
     <div className="border p-4 rounded mb-4">
@@ -80,16 +93,24 @@ const ActiveOrderCard: React.FC<ActiveOrderProps> = ({
 
       <div className="mt-4 flex justify-between">
         {status === 'picked_up' && (
-          <Button onClick={() => onStatusUpdate(id, 'on_the_way')}>
+          <Button onClick={handleMarkOnTheWay}>
             Mark as On the Way
           </Button>
         )}
         {status === 'on_the_way' && (
-          <Button onClick={() => onStatusUpdate(id, 'delivered')}>
-            Mark as Delivered
+          <Button onClick={handleCompleteDelivery}>
+            <KeyRound className="mr-2 h-4 w-4" />
+            Enter Delivery PIN
           </Button>
         )}
       </div>
+      
+      <DeliveryPinInput
+        orderId={id}
+        isOpen={isPinDialogOpen}
+        onClose={() => setIsPinDialogOpen(false)}
+        onVerify={onVerifyPin}
+      />
     </div>
   );
 };

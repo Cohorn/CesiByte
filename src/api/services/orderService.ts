@@ -1,10 +1,14 @@
-
 import { apiClient } from '../client';
 import { Order, OrderStatus } from '@/lib/database.types';
 import { mqttClient } from '@/lib/mqtt-client';
 import { orderCacheService } from './orderCache';
 import { processOrderItems, processOrders } from './orderDataProcessor';
 import { orderMQTTService } from './orderMQTT';
+
+// Helper to generate a random PIN
+const generatePin = (): string => {
+  return Math.floor(1000 + Math.random() * 9000).toString();
+};
 
 export const orderApi = {
   getOrderById: async (id: string) => {
@@ -130,10 +134,18 @@ export const orderApi = {
     }
   },
 
-  createOrder: async (orderData: Omit<Order, 'id' | 'created_at' | 'updated_at' | 'status'>) => {
+  createOrder: async (orderData: Omit<Order, 'id' | 'created_at' | 'updated_at' | 'status' | 'delivery_pin'>) => {
     try {
       console.log('Creating new order with data:', JSON.stringify(orderData));
-      const response = await apiClient.post('/orders', orderData);
+      
+      // Generate a 4-digit PIN for delivery confirmation
+      const deliveryPin = generatePin();
+      
+      const response = await apiClient.post('/orders', {
+        ...orderData,
+        delivery_pin: deliveryPin
+      });
+      
       console.log('Order creation response:', response.data);
       
       // Clear relevant caches to ensure fresh data on next fetch
@@ -221,6 +233,59 @@ export const orderApi = {
     } catch (error) {
       console.error('Error assigning courier:', error);
       throw error;
+    }
+  },
+
+  verifyDeliveryPin: async (orderId: string, pin: string) => {
+    try {
+      console.log(`Verifying delivery PIN for order ${orderId}`);
+      const response = await apiClient.post(`/orders/${orderId}/verify-pin`, { pin });
+      
+      if (response.data.success) {
+        console.log('PIN verified successfully, order marked as delivered');
+        
+        // Clear caches to ensure fresh data
+        orderCacheService.clearCache();
+        
+        // Notify over MQTT
+        const updatedOrder = processOrderItems(response.data.order);
+        
+        orderMQTTService.publishOrderEvent(
+          `foodapp/orders/${orderId}/status`, 
+          {
+            orderId,
+            status: 'delivered',
+            timestamp: new Date().toISOString()
+          }
+        );
+        
+        if (updatedOrder.restaurant_id) {
+          orderMQTTService.publishOrderEvent(
+            `foodapp/restaurants/${updatedOrder.restaurant_id}/orders/updated`, 
+            updatedOrder
+          );
+        }
+        
+        // Notify subscribers
+        orderMQTTService.notifySubscribers(updatedOrder);
+        
+        return {
+          success: true,
+          order: updatedOrder
+        };
+      } else {
+        console.error('PIN verification failed:', response.data.message);
+        return {
+          success: false,
+          message: response.data.message || 'Invalid PIN'
+        };
+      }
+    } catch (error) {
+      console.error('Error verifying delivery PIN:', error);
+      return {
+        success: false,
+        message: 'Error processing your request'
+      };
     }
   },
 

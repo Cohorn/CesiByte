@@ -109,6 +109,49 @@ export const useOrders = (options: OrdersOptions = {}) => {
     }
   }, [toast]);
 
+  // Add the verifyDeliveryPin function
+  const verifyDeliveryPin = useCallback(async (orderId: string, pin: string) => {
+    try {
+      const result = await orderApi.verifyDeliveryPin(orderId, pin);
+      
+      if (result.success) {
+        toast({
+          title: "Delivery Confirmed",
+          description: "Delivery PIN verified successfully"
+        });
+        
+        // Update local state without refetching
+        if (result.order) {
+          setOrders(prevOrders => 
+            prevOrders.map(order => 
+              order.id === orderId ? result.order : order
+            )
+          );
+        }
+        
+        return { success: true, data: result.order };
+      } else {
+        toast({
+          title: "Verification Failed",
+          description: result.message || "Invalid PIN",
+          variant: "destructive"
+        });
+        
+        return { success: false, message: result.message };
+      }
+    } catch (err) {
+      console.error("Error verifying delivery PIN:", err);
+      
+      toast({
+        title: "Verification Failed",
+        description: "Could not verify the delivery PIN",
+        variant: "destructive"
+      });
+      
+      return { success: false, error: err };
+    }
+  }, [toast]);
+
   // Initial fetch - better dependency tracking
   useEffect(() => {
     // Only fetch if we have some relevant ID to fetch by
@@ -224,6 +267,7 @@ export const useOrders = (options: OrdersOptions = {}) => {
     isLoading,
     error,
     refetch: fetchOrders,
-    updateOrderStatus
+    updateOrderStatus,
+    verifyDeliveryPin
   };
 };

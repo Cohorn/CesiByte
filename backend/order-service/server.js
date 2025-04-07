@@ -316,6 +316,11 @@ app.get('/status/:status', authenticateJWT, async (req, res) => {
   }
 });
 
+// Generate a random 4-digit PIN
+const generatePin = () => {
+  return Math.floor(1000 + Math.random() * 9000).toString();
+};
+
 // Modified route to create an order with MQTT
 app.post('/', authenticateJWT, async (req, res) => {
   try {
@@ -324,10 +329,17 @@ app.post('/', authenticateJWT, async (req, res) => {
     
     console.log('Creating new order with data:', JSON.stringify(orderDetails));
     
-    // Create the order
+    // Generate a 4-digit PIN for delivery confirmation
+    const deliveryPin = generatePin();
+    
+    // Create the order with the PIN
     const { data: order, error: orderError } = await supabase
       .from('orders')
-      .insert({ ...orderDetails, status: 'pending' })
+      .insert({ 
+        ...orderDetails, 
+        status: 'pending',
+        delivery_pin: deliveryPin 
+      })
       .select()
       .single();
       
@@ -367,6 +379,112 @@ app.post('/', authenticateJWT, async (req, res) => {
   } catch (error) {
     console.error('Error creating order:', error);
     res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+});
+
+// New route to verify delivery PIN
+app.post('/:orderId/verify-pin', authenticateJWT, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { pin } = req.body;
+    
+    console.log(`Verifying delivery PIN for order ${orderId}`);
+    
+    if (!pin) {
+      return res.status(400).json({
+        success: false,
+        message: 'PIN is required'
+      });
+    }
+    
+    // Fetch the order to verify the PIN
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', orderId)
+      .single();
+      
+    if (orderError || !order) {
+      console.error('Error fetching order:', orderError);
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+    
+    // Verify the PIN
+    if (order.delivery_pin !== pin) {
+      console.log(`PIN verification failed for order ${orderId}. Expected: ${order.delivery_pin}, Received: ${pin}`);
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid PIN'
+      });
+    }
+    
+    // Update the order status to 'delivered'
+    const { data: updatedOrder, error: updateError } = await supabase
+      .from('orders')
+      .update({
+        status: 'delivered',
+        updated_at: new Date()
+      })
+      .eq('id', orderId)
+      .select()
+      .single();
+      
+    if (updateError) {
+      console.error('Error updating order status:', updateError);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to update order status'
+      });
+    }
+    
+    // Publish order status update to MQTT
+    console.log(`Publishing delivery confirmation for order ${orderId}`);
+    mqttClient.publish('foodapp/orders/events/status_updated', JSON.stringify({
+      order: updatedOrder,
+      previousStatus: order.status,
+      newStatus: 'delivered',
+      timestamp: new Date().toISOString()
+    }));
+    
+    // Order-specific topic
+    mqttClient.publish(`foodapp/orders/${orderId}/status`, JSON.stringify({
+      status: 'delivered',
+      timestamp: new Date().toISOString()
+    }));
+    
+    // User-specific topic if user_id exists
+    if (updatedOrder.user_id) {
+      mqttClient.publish(`foodapp/users/${updatedOrder.user_id}/orders/${orderId}/status`, JSON.stringify({
+        status: 'delivered',
+        timestamp: new Date().toISOString()
+      }));
+    }
+    
+    // Notify Socket.IO clients
+    io.to(orderId).emit('order_updated', updatedOrder);
+    if (updatedOrder.user_id) {
+      io.to(updatedOrder.user_id).emit('order_updated', updatedOrder);
+    }
+    if (updatedOrder.courier_id) {
+      io.to(updatedOrder.courier_id).emit('order_updated', updatedOrder);
+    }
+    
+    // Return success
+    res.status(200).json({
+      success: true,
+      message: 'Delivery confirmed successfully',
+      order: updatedOrder
+    });
+  } catch (error) {
+    console.error('Error verifying delivery PIN:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      details: error.message
+    });
   }
 });
 

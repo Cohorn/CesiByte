@@ -23,8 +23,9 @@ import CourierReviewForm from '@/components/CourierReviewForm';
 import { useReviews } from '@/hooks/useReviews';
 import { useOrders } from '@/hooks/useOrders';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, MapPin } from 'lucide-react';
+import { CheckCircle, MapPin, KeyRound } from 'lucide-react';
 import { calculateDistance, formatDistance } from '@/lib/distanceUtils';
+import { Card, CardContent } from '@/components/ui/card';
 
 interface OrderWithRestaurant extends Order {
   restaurant: Restaurant;
@@ -222,7 +223,7 @@ const CustomerOrders = () => {
         </div>
         
         <div className="mt-3 space-y-1">
-          <p className="text-gray-600">Status: <span className="font-medium">{order.status}</span></p>
+          <p className="text-gray-600">Status: <span className="font-medium">{order.status.replace(/_/g, ' ')}</span></p>
           <p className="text-gray-600">
             Courier: <span className="font-medium">{courierInfo.name}</span>
             {isActive && courierDistance > 0 && (
@@ -240,6 +241,22 @@ const CustomerOrders = () => {
             })}
           </p>
         </div>
+        
+        {/* Delivery PIN Display */}
+        {isActive && order.status === 'on_the_way' && order.delivery_pin && (
+          <Card className="mt-3 bg-green-50 border-green-200">
+            <CardContent className="p-3">
+              <div className="flex items-center mb-1">
+                <KeyRound className="h-4 w-4 text-green-600 mr-1" />
+                <p className="text-sm font-medium text-green-800">Delivery PIN</p>
+              </div>
+              <p className="text-lg font-bold tracking-wider">{order.delivery_pin}</p>
+              <p className="text-xs text-green-700 mt-1">
+                Share this PIN with your courier when they arrive
+              </p>
+            </CardContent>
+          </Card>
+        )}
         
         <div className="mt-3 flex gap-2">
           {isActive && order.status === 'delivered' && (

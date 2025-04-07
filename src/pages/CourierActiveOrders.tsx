@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import NavBar from '@/components/NavBar';
@@ -15,6 +15,7 @@ import { AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import CourierRatingDisplay from '@/components/courier/CourierRatingDisplay';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useOrders } from '@/hooks/useOrders';
 
 const CourierActiveOrders = () => {
   const { user } = useAuth();
@@ -30,6 +31,21 @@ const CourierActiveOrders = () => {
     updateOrderStatus,
     refetch
   } = useCourierActiveOrders(user?.id);
+  
+  // Get the verifyDeliveryPin function from useOrders hook
+  const { verifyDeliveryPin } = useOrders({ courierId: user?.id });
+
+  // Callback for PIN verification
+  const handleVerifyPin = useCallback(async (orderId: string, pin: string) => {
+    const result = await verifyDeliveryPin(orderId, pin);
+    
+    if (result.success) {
+      // If PIN is verified, refetch orders to update the UI
+      refetch();
+    }
+    
+    return result;
+  }, [verifyDeliveryPin, refetch]);
 
   // Redirect if user is not a courier
   if (!user || user.user_type !== 'courier') {
@@ -105,6 +121,7 @@ const CourierActiveOrders = () => {
                       userLat={user?.lat || 0}
                       userLng={user?.lng || 0}
                       onStatusUpdate={updateOrderStatus}
+                      onVerifyPin={handleVerifyPin}
                     />
                   ))}
                 </div>
