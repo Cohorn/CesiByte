@@ -1,4 +1,3 @@
-
 import { apiClient } from '../client';
 import { Restaurant, MenuItem } from '@/lib/database.types';
 import { supabase } from '@/lib/supabase';
@@ -132,7 +131,6 @@ export const restaurantApi = {
     }
   },
 
-  // Menu items
   getMenuItems: async (restaurantId: string) => {
     console.log(`Fetching menu items for restaurant ${restaurantId}`);
     try {
@@ -200,7 +198,6 @@ export const restaurantApi = {
     }
   },
   
-  // Storage bucket check and creation
   ensureStorageBucket: async () => {
     try {
       console.log('Checking if restaurant_images bucket exists');
@@ -233,7 +230,37 @@ export const restaurantApi = {
         
         // Create public access policies
         try {
-          await supabase.rpc('create_storage_public_policy', { bucket_name: 'restaurant_images' });
+          await supabase.rpc('execute_sql', { 
+            sql_query: `
+              -- Allow public READ access
+              CREATE POLICY IF NOT EXISTS "Public Access for restaurant_images" 
+              ON storage.objects 
+              FOR SELECT 
+              TO public 
+              USING (bucket_id = 'restaurant_images');
+              
+              -- Allow authenticated users to upload
+              CREATE POLICY IF NOT EXISTS "Upload Access for restaurant_images" 
+              ON storage.objects 
+              FOR INSERT 
+              TO authenticated 
+              WITH CHECK (bucket_id = 'restaurant_images');
+              
+              -- Allow authenticated users to update their own objects
+              CREATE POLICY IF NOT EXISTS "Update Access for restaurant_images" 
+              ON storage.objects 
+              FOR UPDATE 
+              TO authenticated 
+              USING (bucket_id = 'restaurant_images');
+              
+              -- Allow authenticated users to delete their own objects
+              CREATE POLICY IF NOT EXISTS "Delete Access for restaurant_images" 
+              ON storage.objects 
+              FOR DELETE 
+              TO authenticated 
+              USING (bucket_id = 'restaurant_images');
+            `
+          });
           console.log('Public access policies created successfully');
         } catch (policyError) {
           console.error('Error creating access policies:', policyError);

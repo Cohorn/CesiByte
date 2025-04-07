@@ -1,4 +1,3 @@
-
 // This is a simplified version for demonstration
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -15,7 +14,7 @@ export interface ActiveOrder {
   delivery_address: string;
   delivery_lat: number;
   delivery_lng: number;
-  delivery_pin: string;
+  delivery_pin?: string; // Make this optional since it might not exist in all orders
   created_at: string;
   updated_at: string;
   // Additional properties from join
@@ -77,12 +76,11 @@ export function useCourierActiveOrders(courierId: string | null) {
       
       // Process to add restaurant data to main object
       const processedOrders = data.map(order => {
-        // Explicitly add delivery_pin with a default value if not present
-        const delivery_pin = order.delivery_pin || '0000'; // Default pin if not present
-        
+        // Create a new object with all order properties and additional needed properties
         return {
           ...order,
-          delivery_pin,
+          // Default delivery_pin if not present
+          delivery_pin: '0000', 
           restaurant_name: order.restaurants?.name || 'Unknown Restaurant',
           restaurant_address: order.restaurants?.address || 'Unknown Address',
           restaurant_lat: order.restaurants?.lat || 0,
