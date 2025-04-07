@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { orderApi } from '@/api/services/orderService';
 import { Order, OrderStatus } from '@/lib/database.types';
@@ -112,14 +111,11 @@ export const useOrders = (options: OrdersOptions = {}) => {
   // Add the verifyDeliveryPin function
   const verifyDeliveryPin = useCallback(async (orderId: string, pin: string) => {
     try {
+      console.log(`Attempting to verify PIN for order ${orderId}`);
       const result = await orderApi.verifyDeliveryPin(orderId, pin);
       
       if (result.success) {
-        toast({
-          title: "Delivery Confirmed",
-          description: "Delivery PIN verified successfully"
-        });
-        
+        console.log('PIN verification succeeded');
         // Update local state without refetching
         if (result.order) {
           setOrders(prevOrders => 
@@ -131,26 +127,14 @@ export const useOrders = (options: OrdersOptions = {}) => {
         
         return { success: true, data: result.order };
       } else {
-        toast({
-          title: "Verification Failed",
-          description: result.message || "Invalid PIN",
-          variant: "destructive"
-        });
-        
+        console.log('PIN verification failed:', result.message);
         return { success: false, message: result.message };
       }
     } catch (err) {
       console.error("Error verifying delivery PIN:", err);
-      
-      toast({
-        title: "Verification Failed",
-        description: "Could not verify the delivery PIN",
-        variant: "destructive"
-      });
-      
-      return { success: false, error: err };
+      return { success: false, message: "Error processing your request" };
     }
-  }, [toast]);
+  }, []);
 
   // Initial fetch - better dependency tracking
   useEffect(() => {

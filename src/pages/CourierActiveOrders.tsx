@@ -16,10 +16,13 @@ import { Button } from '@/components/ui/button';
 import CourierRatingDisplay from '@/components/courier/CourierRatingDisplay';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useOrders } from '@/hooks/useOrders';
+import { useToast } from '@/hooks/use-toast';
 
 const CourierActiveOrders = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<string>('active');
+  const { toast } = useToast();
+  
   const { 
     activeOrders, 
     restaurants, 
@@ -37,15 +40,37 @@ const CourierActiveOrders = () => {
 
   // Callback for PIN verification
   const handleVerifyPin = useCallback(async (orderId: string, pin: string) => {
-    const result = await verifyDeliveryPin(orderId, pin);
-    
-    if (result.success) {
-      // If PIN is verified, refetch orders to update the UI
-      refetch();
+    try {
+      const result = await verifyDeliveryPin(orderId, pin);
+      
+      if (result.success) {
+        toast({
+          title: "Delivery Confirmed",
+          description: "PIN verified successfully. Delivery completed!"
+        });
+        
+        // If PIN is verified, refetch orders to update the UI
+        refetch();
+      } else {
+        toast({
+          title: "Verification Failed",
+          description: result.message || "Invalid PIN",
+          variant: "destructive"
+        });
+      }
+      
+      return result;
+    } catch (err) {
+      console.error("Error verifying PIN:", err);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive"
+      });
+      
+      return { success: false, message: "An unexpected error occurred" };
     }
-    
-    return result;
-  }, [verifyDeliveryPin, refetch]);
+  }, [verifyDeliveryPin, refetch, toast]);
 
   // Redirect if user is not a courier
   if (!user || user.user_type !== 'courier') {

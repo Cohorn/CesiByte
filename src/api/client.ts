@@ -1,131 +1,70 @@
 
 import axios from 'axios';
-import { supabase } from '@/lib/supabase';
 
-// Create an API client instance
+// Base URL configuration - prioritize environment variable, but fall back to localhost
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:7500';
+
+console.log(`API client using base URL: ${API_BASE_URL}`);
+
 export const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:7500',
+  baseURL: API_BASE_URL,
+  timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
+    'Accept': 'application/json',
   },
-  // Add timeout to prevent hanging requests
-  timeout: 10000,
+  // Allow absolute URLs when sending requests - important for certain server configurations
+  allowAbsoluteUrls: true
 });
 
-// Track last request times to implement rate limiting
-const lastRequestTimes = new Map<string, number>();
-const MIN_REQUEST_INTERVAL = 5000; // 5 seconds minimum between identical requests
-
-// Log API request for debugging
-apiClient.interceptors.request.use(async (config) => {
-  const requestKey = `${config.method?.toUpperCase()}:${config.url}`;
-  const now = Date.now();
-  const lastRequestTime = lastRequestTimes.get(requestKey);
-  
-  // Implement rate limiting for identical requests
-  if (lastRequestTime && (now - lastRequestTime < MIN_REQUEST_INTERVAL)) {
-    console.log(`Rate limiting request ${requestKey} (last request ${now - lastRequestTime}ms ago)`);
-    return Promise.reject({
-      isRateLimited: true,
-      message: 'Too many requests, please try again later',
-    });
-  }
-  
-  console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`);
-  lastRequestTimes.set(requestKey, now);
-  return config;
-});
-
-// Add auth token to API requests
+// Request interceptor for adding auth token
 apiClient.interceptors.request.use(
-  async (config) => {
-    try {
-      // Try to get session from Supabase
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
-      
-      if (token) {
-        console.log('Adding auth token to request');
-        config.headers['Authorization'] = `Bearer ${token}`;
-      } else {
-        // Try to get token from localStorage as fallback
-        const localToken = localStorage.getItem('auth_token');
-        if (localToken) {
-          console.log('Using local auth token for request');
-          config.headers['Authorization'] = `Bearer ${localToken}`;
-        } else {
-          console.log('No auth token found');
-        }
-      }
-      
-      return config;
-    } catch (error) {
-      console.error('Error getting auth token:', error);
-      
-      // Try to get token from localStorage as fallback if Supabase fails
-      try {
-        const localToken = localStorage.getItem('auth_token');
-        if (localToken) {
-          console.log('Using local auth token after Supabase error');
-          config.headers['Authorization'] = `Bearer ${localToken}`;
-        }
-      } catch (e) {
-        console.error('Error accessing localStorage:', e);
-      }
-      
-      return config;
+  (config) => {
+    // Check if we have an auth token in local storage
+    const token = localStorage.getItem('authToken');
+    
+    if (token) {
+      console.log('Using local auth token for request');
+      config.headers.Authorization = `Bearer ${token}`;
+    } else {
+      console.log('No auth token available for request');
     }
+    
+    // Log the request for debugging
+    console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`, 
+      config.params ? `Params: ${JSON.stringify(config.params)}` : '');
+    
+    return config;
   },
   (error) => {
+    console.error('Request interceptor error:', error);
     return Promise.reject(error);
   }
 );
 
-// Log API responses for debugging and handle rate limiting
+// Response interceptor for handling errors
 apiClient.interceptors.response.use(
   (response) => {
-    console.log(`API Response from ${response.config.url}:`, response.status);
+    // Log successful responses for debugging
+    console.log(`API Response: ${response.status} from ${response.config.url}`);
     return response;
   },
   (error) => {
-    if (error.isRateLimited) {
-      console.log('Request was rate limited:', error.message);
-      return Promise.reject(error);
-    }
-    
+    // Handle response errors
     if (error.response) {
-      console.error(
-        `API Error ${error.response.status} from ${error.config?.url}:`, 
-        error.response.data
-      );
-      
-      // Print more detailed request information to help debugging
-      console.error('Request details:', {
-        url: error.config?.url,
-        method: error.config?.method,
-        baseURL: error.config?.baseURL,
-        headers: error.config?.headers,
-        params: error.config?.params,
-        data: error.config?.data ? JSON.stringify(error.config.data).substring(0, 200) : 'No data'
-      });
-      
-      // Check if error is due to authentication
-      if (error.response.status === 401) {
-        console.error('Authentication error - user might need to log in again');
-      }
+      // Server responded with an error status code
+      console.error(`API Error ${error.response.status} from ${error.config.url}:`, error.response.data);
+      console.error('Request details:', error.config);
     } else if (error.request) {
-      console.error(`API No Response from ${error.config?.url}:`, error.request);
-      console.error('Request that failed:', {
-        method: error.config?.method,
-        url: error.config?.url,
-        headers: error.config?.headers,
-        baseURL: error.config?.baseURL,
-        timeout: error.config?.timeout
-      });
+      // Request was made but no response received
+      console.error('API No Response Error:', error.request);
     } else {
-      console.error(`API Request Error: ${error.message}`);
+      // Something else happened
+      console.error('API Request Setup Error:', error.message);
     }
     
     return Promise.reject(error);
   }
 );
+
+export default apiClient;

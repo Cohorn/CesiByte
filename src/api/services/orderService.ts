@@ -1,3 +1,4 @@
+
 import { apiClient } from '../client';
 import { Order, OrderStatus } from '@/lib/database.types';
 import { mqttClient } from '@/lib/mqtt-client';
@@ -239,7 +240,8 @@ export const orderApi = {
   verifyDeliveryPin: async (orderId: string, pin: string) => {
     try {
       console.log(`Verifying delivery PIN for order ${orderId}`);
-      const response = await apiClient.post(`/orders/${orderId}/verify-pin`, { pin });
+      // Fix: The API endpoint should be properly constructed
+      const response = await apiClient.post(`/order-service/orders/${orderId}/verify-pin`, { pin });
       
       if (response.data.success) {
         console.log('PIN verified successfully, order marked as delivered');
