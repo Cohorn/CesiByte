@@ -38,6 +38,7 @@ export const authApi = {
       
       if (response.data.token) {
         console.log('Storing auth token in localStorage');
+        // Store the token with the correct key name
         localStorage.setItem('auth_token', response.data.token);
       } else {
         console.warn('No token received in login response');
@@ -69,6 +70,7 @@ export const authApi = {
       
       if (response.data.token) {
         console.log('Storing auth token in localStorage');
+        // Store the token with the correct key name
         localStorage.setItem('auth_token', response.data.token);
       } else {
         console.warn('No token received in registration response');

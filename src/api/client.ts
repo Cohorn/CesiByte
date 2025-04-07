@@ -20,8 +20,8 @@ export const apiClient = axios.create({
 // Request interceptor for adding auth token
 apiClient.interceptors.request.use(
   (config) => {
-    // Check if we have an auth token in local storage
-    const token = localStorage.getItem('authToken');
+    // Check if we have an auth token in local storage - use the correct key name
+    const token = localStorage.getItem('auth_token');
     
     if (token) {
       console.log('Using local auth token for request');

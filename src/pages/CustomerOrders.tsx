@@ -6,6 +6,10 @@ import NavBar from '@/components/NavBar';
 import { OrderWithRestaurant } from '@/types/order';
 import { OrderStatus, Restaurant, OrderItem } from '@/lib/database.types';
 import { Card } from '@/components/ui/card';
+import { Navigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 // Define the function first before using it in useEffect
 const processOrdersWithRestaurants = (data: any[]): OrderWithRestaurant[] => {
@@ -42,11 +46,12 @@ const processOrdersWithRestaurants = (data: any[]): OrderWithRestaurant[] => {
 };
 
 const CustomerOrders: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { orders, isLoading, error, refetch } = useOrders({
     userId: user?.id
   });
   const [processedOrders, setProcessedOrders] = useState<OrderWithRestaurant[]>([]);
+  const [authError, setAuthError] = useState<boolean>(false);
 
   useEffect(() => {
     if (orders) {
@@ -59,9 +64,20 @@ const CustomerOrders: React.FC = () => {
   }, [orders]);
 
   useEffect(() => {
-    // Fetch orders when component mounts
-    refetch();
-  }, [refetch]);
+    // Only fetch orders if user is authenticated
+    if (user && user.id) {
+      refetch();
+    }
+  }, [refetch, user]);
+
+  // Check for authentication errors (401)
+  useEffect(() => {
+    if (error && error.message && 
+        (error.message.includes('401') || 
+         (error.response && error.response.status === 401))) {
+      setAuthError(true);
+    }
+  }, [error]);
 
   const groupOrdersByStatus = (orders: OrderWithRestaurant[]) => {
     return orders.reduce((acc: { [key in OrderStatus]?: OrderWithRestaurant[] }, order) => {
@@ -72,6 +88,11 @@ const CustomerOrders: React.FC = () => {
       return acc;
     }, {});
   };
+
+  // Redirect to login if not authenticated or auth error
+  if ((!authLoading && !user) || authError) {
+    return <Navigate to="/login" />;
+  }
 
   if (isLoading) {
     return (
@@ -93,14 +114,30 @@ const CustomerOrders: React.FC = () => {
         <NavBar />
         <div className="container mx-auto py-8">
           <h1 className="text-2xl font-bold mb-4">Your Orders</h1>
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>
+              {error.message}
+              <div className="mt-2">
+                <Button 
+                  onClick={() => refetch()} 
+                  variant="outline"
+                  className="mt-2"
+                >
+                  Try Again
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
           <Card className="p-8 text-center bg-white">
-            <p className="text-red-500">Error: {error.message}</p>
-            <button 
+            <p className="text-red-500">Failed to load your orders</p>
+            <Button 
               onClick={() => refetch()} 
               className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
             >
               Try Again
-            </button>
+            </Button>
           </Card>
         </div>
       </div>

@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { orderApi } from '@/api/services/orderService';
 import { Order, OrderStatus } from '@/lib/database.types';
@@ -108,7 +109,7 @@ export const useOrders = (options: OrdersOptions = {}) => {
     }
   }, [toast]);
 
-  // Add the verifyDeliveryPin function
+  // Update the verifyDeliveryPin function
   const verifyDeliveryPin = useCallback(async (orderId: string, pin: string) => {
     try {
       console.log(`Attempting to verify PIN for order ${orderId}`);
@@ -130,9 +131,11 @@ export const useOrders = (options: OrdersOptions = {}) => {
         console.log('PIN verification failed:', result.message);
         return { success: false, message: result.message };
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error verifying delivery PIN:", err);
-      return { success: false, message: "Error processing your request" };
+      // Provide more detailed error information
+      const errorMessage = err.response?.data?.error || err.message || "Error processing your request";
+      return { success: false, message: errorMessage };
     }
   }, []);
 

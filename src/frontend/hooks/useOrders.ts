@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { orderApi } from '@/api/services/orderService';
 import { Order, OrderStatus } from '@/lib/database.types';
-import { useAuth } from './useAuth';
+import { useAuth } from '@/lib/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { mqttClient } from '@/lib/mqtt-client';
 
@@ -23,9 +23,9 @@ export const useOrders = (options: OrdersOptions = {}) => {
 
   // Determine which API method to use based on the options
   const fetchOrders = useCallback(async (forceRefresh: boolean = false) => {
-    // Skip fetching if we don't have the necessary IDs
-    if (!options.restaurantId && !options.userId && !options.courierId && !options.status && !user) {
-      console.log('No user or specific ID provided for fetching orders');
+    // Skip fetching if we don't have the necessary IDs or user is not authenticated
+    if ((!options.restaurantId && !options.userId && !options.courierId && !options.status && !user) || !localStorage.getItem('auth_token')) {
+      console.log('No user, auth token, or specific ID provided for fetching orders');
       setIsLoading(false);
       return [];
     }
@@ -61,9 +61,9 @@ export const useOrders = (options: OrdersOptions = {}) => {
       setHasFetched(true);
       setIsLoading(false);
       return fetchedOrders || [];
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error fetching orders:", err);
-      setError(err instanceof Error ? err : new Error('Failed to fetch orders'));
+      setError(err instanceof Error ? err : new Error(err.message || 'Failed to fetch orders'));
       
       toast({
         title: "Error",
@@ -120,10 +120,11 @@ export const useOrders = (options: OrdersOptions = {}) => {
 
   // Initial fetch - with proper dependency tracking
   useEffect(() => {
-    // Only fetch if we have some relevant ID to fetch by
+    // Only fetch if we have some relevant ID to fetch by and user is authenticated
     const hasRelevantId = options.restaurantId || options.courierId || options.userId || user?.id;
+    const isAuthenticated = !!localStorage.getItem('auth_token');
     
-    if (!hasFetched && hasRelevantId) {
+    if (!hasFetched && hasRelevantId && isAuthenticated) {
       console.log('useOrders hook - initial fetch with options:', options);
       fetchOrders()
         .then(result => {
