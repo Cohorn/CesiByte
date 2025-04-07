@@ -7,6 +7,9 @@ import { Upload, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { restaurantApi } from '@/api/services/restaurantService';
 
+// Define the bucket name as a constant
+const RESTAURANT_IMAGES_BUCKET = 'Restaurant Images';
+
 interface RestaurantImageUploadProps {
   currentImageUrl?: string | null;
   onImageUpload: (url: string) => void;
@@ -29,6 +32,14 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
         const exists = await restaurantApi.ensureStorageBucket();
         setBucketReady(exists);
         console.log('Bucket ready status:', exists);
+        
+        if (!exists) {
+          toast({
+            title: "Warning",
+            description: `"${RESTAURANT_IMAGES_BUCKET}" bucket not found in Supabase storage.`,
+            variant: "destructive"
+          });
+        }
       } catch (error) {
         console.error('Error checking bucket:', error);
         toast({
@@ -70,11 +81,11 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
     setIsUploading(true);
     
     try {
-      // Ensure the storage bucket exists if it's not ready yet
+      // Verify bucket exists before proceeding
       if (!bucketReady) {
-        const created = await restaurantApi.ensureStorageBucket();
-        if (!created) {
-          throw new Error('Unable to create or verify storage bucket');
+        const exists = await restaurantApi.ensureStorageBucket();
+        if (!exists) {
+          throw new Error(`"${RESTAURANT_IMAGES_BUCKET}" bucket not found in Supabase storage.`);
         }
         setBucketReady(true);
       }
@@ -82,13 +93,13 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
       // Create a unique file name
       const fileExt = file.name.split('.').pop();
       const fileName = `${Math.random().toString(36).substring(2, 15)}-${Date.now()}.${fileExt}`;
-      const filePath = `${fileName}`;
+      const filePath = `restaurants/${fileName}`;
       
-      console.log('Uploading file to path:', filePath);
+      console.log(`Uploading file to ${RESTAURANT_IMAGES_BUCKET}/${filePath}`);
       
       // Upload file to Supabase Storage
       const { data, error: uploadError } = await supabase.storage
-        .from('restaurant_images')
+        .from(RESTAURANT_IMAGES_BUCKET)
         .upload(filePath, file, {
           cacheControl: '3600',
           upsert: true
@@ -105,7 +116,7 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
       
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
-        .from('restaurant_images')
+        .from(RESTAURANT_IMAGES_BUCKET)
         .getPublicUrl(data.path);
       
       console.log('Image uploaded successfully, public URL:', publicUrl);
@@ -119,7 +130,7 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
       console.error('Error uploading image:', error);
       toast({
         title: "Error",
-        description: "Failed to upload image. Please try again later.",
+        description: error instanceof Error ? error.message : "Failed to upload image. Please try again later.",
         variant: "destructive",
       });
     } finally {
@@ -156,11 +167,11 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
             accept="image/*"
             className="hidden" 
             onChange={handleImageUpload}
-            disabled={isUploading}
+            disabled={isUploading || !bucketReady}
           />
           <label 
             htmlFor="image"
-            className="cursor-pointer flex flex-col items-center justify-center py-4"
+            className={`cursor-pointer flex flex-col items-center justify-center py-4 ${!bucketReady ? 'opacity-50' : ''}`}
           >
             <Upload className="h-10 w-10 text-gray-400 mb-2" />
             <span className="text-sm text-gray-600">
@@ -169,6 +180,11 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
             <span className="text-xs text-gray-400 mt-1">
               JPG, PNG, GIF up to 5MB
             </span>
+            {!bucketReady && (
+              <span className="text-xs text-red-500 mt-2">
+                Storage not available. Please check Supabase configuration.
+              </span>
+            )}
           </label>
         </div>
       )}

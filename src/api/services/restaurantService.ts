@@ -1,7 +1,8 @@
-
 import { apiClient } from '../client';
 import { Restaurant, MenuItem } from '@/lib/database.types';
 import { supabase } from '@/lib/supabase';
+
+const RESTAURANT_IMAGES_BUCKET = 'Restaurant Images';
 
 export const restaurantApi = {
   getAllRestaurants: async () => {
@@ -197,7 +198,7 @@ export const restaurantApi = {
   
   ensureStorageBucket: async () => {
     try {
-      console.log('Checking if restaurant_images bucket exists');
+      console.log(`Checking if "${RESTAURANT_IMAGES_BUCKET}" bucket exists`);
       
       const { data: buckets, error } = await supabase
         .storage
@@ -208,45 +209,16 @@ export const restaurantApi = {
         return false;
       }
       
-      const bucketExists = buckets.some(bucket => bucket.name === 'restaurant_images');
+      const bucketExists = buckets.some(bucket => bucket.name === RESTAURANT_IMAGES_BUCKET);
       console.log('Bucket exists check result:', bucketExists);
       
-      if (!bucketExists) {
-        console.log('Restaurant_images bucket not found, creating it...');
-        const { error: createError } = await supabase.storage.createBucket('restaurant_images', {
-          public: true
-        });
-        
-        if (createError) {
-          console.error('Error creating bucket:', createError);
-          return false;
-        }
-        
-        console.log('Bucket created successfully');
-        
-        // Instead of using the RPC function which is causing the TypeScript error,
-        // we'll create policies directly using Supabase Storage API
-        try {
-          // Try to create the policies directly using the Storage API
-          const { data: policies, error: policiesError } = await supabase.storage.from('restaurant_images')
-            .createSignedUrls(['public_policy_setup'], 60); // This is just a dummy call to check accessibility
-            
-          if (policiesError) {
-            console.error('Error checking storage policies:', policiesError);
-          } else {
-            console.log('Storage is accessible, policies working');
-          }
-        } catch (policyError) {
-          console.error('Error setting up storage policies:', policyError);
-          // Even if policy creation fails, we can continue as the bucket was created
-          // The user might have limited permissions but upload could still work
-        }
-        
+      if (bucketExists) {
+        console.log('Restaurant Images bucket found, continuing with upload');
         return true;
+      } else {
+        console.error(`"${RESTAURANT_IMAGES_BUCKET}" bucket not found. Please ensure it exists in Supabase Storage.`);
+        return false;
       }
-      
-      console.log('Bucket already exists, no need to create');
-      return true;
     } catch (error) {
       console.error('Error ensuring storage bucket exists:', error);
       return false;
