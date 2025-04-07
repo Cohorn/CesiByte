@@ -1,9 +1,9 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Upload, X } from 'lucide-react';
+import ImageUploadPreview from './ImageUploadPreview';
+import ImageUploadArea from './ImageUploadArea';
+import { useStorageBucket } from '@/hooks/useStorageBucket';
 import { supabase } from '@/lib/supabase';
 
 // Define the bucket name as a constant
@@ -21,50 +21,8 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
   onImageRemove
 }) => {
   const [isUploading, setIsUploading] = useState(false);
-  const [bucketReady, setBucketReady] = useState(false);
+  const { bucketReady, verifyBucketAccess } = useStorageBucket(RESTAURANT_IMAGES_BUCKET);
   const { toast } = useToast();
-
-  // Check if the bucket exists on component mount
-  useEffect(() => {
-    const checkBucket = async () => {
-      try {
-        // First try to list buckets to check if the storage is accessible
-        const { data: buckets, error: listError } = await supabase.storage.listBuckets();
-        
-        if (listError) {
-          console.error('Error accessing storage:', listError);
-          setBucketReady(false);
-          return;
-        }
-        
-        // Check if our target bucket exists
-        const targetBucket = buckets.find(bucket => bucket.name === RESTAURANT_IMAGES_BUCKET);
-        
-        if (targetBucket) {
-          console.log(`"${RESTAURANT_IMAGES_BUCKET}" bucket found`);
-          setBucketReady(true);
-        } else {
-          console.error(`"${RESTAURANT_IMAGES_BUCKET}" bucket not found`);
-          setBucketReady(false);
-          toast({
-            title: "Storage configuration issue",
-            description: `"${RESTAURANT_IMAGES_BUCKET}" bucket not found in Supabase storage.`,
-            variant: "destructive"
-          });
-        }
-      } catch (error) {
-        console.error('Error checking storage bucket:', error);
-        setBucketReady(false);
-        toast({
-          title: "Storage connection issue",
-          description: "Could not connect to image storage. Please try again later.",
-          variant: "destructive"
-        });
-      }
-    };
-    
-    checkBucket();
-  }, [toast]);
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -96,13 +54,10 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
     try {
       // Verify bucket exists before proceeding
       if (!bucketReady) {
-        // Try one more time to check if the bucket exists
-        const { data: buckets, error: listError } = await supabase.storage.listBuckets();
-        
-        if (listError || !buckets.some(bucket => bucket.name === RESTAURANT_IMAGES_BUCKET)) {
+        const isAccessible = await verifyBucketAccess();
+        if (!isAccessible) {
           throw new Error(`Cannot upload: "${RESTAURANT_IMAGES_BUCKET}" bucket not accessible.`);
         }
-        setBucketReady(true);
       }
       
       // Create a unique file name
@@ -158,50 +113,13 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
   return (
     <div>
       {currentImageUrl ? (
-        <div className="relative w-full aspect-video mb-2 rounded-md overflow-hidden bg-gray-100">
-          <img 
-            src={currentImageUrl} 
-            alt="Restaurant" 
-            className="w-full h-full object-cover"
-          />
-          <Button
-            type="button"
-            variant="destructive"
-            size="icon"
-            className="absolute top-2 right-2 rounded-full"
-            onClick={onImageRemove}
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
+        <ImageUploadPreview imageUrl={currentImageUrl} onRemove={onImageRemove} />
       ) : (
-        <div className="border-2 border-dashed border-gray-300 rounded-md p-4 text-center">
-          <Input 
-            id="image" 
-            type="file" 
-            accept="image/*"
-            className="hidden" 
-            onChange={handleImageUpload}
-            disabled={isUploading || !bucketReady}
-          />
-          <label 
-            htmlFor="image"
-            className={`cursor-pointer flex flex-col items-center justify-center py-4 ${!bucketReady ? 'opacity-50' : ''}`}
-          >
-            <Upload className="h-10 w-10 text-gray-400 mb-2" />
-            <span className="text-sm text-gray-600">
-              {isUploading ? 'Uploading...' : 'Upload restaurant photo (optional)'}
-            </span>
-            <span className="text-xs text-gray-400 mt-1">
-              JPG, PNG, GIF up to 5MB
-            </span>
-            {!bucketReady && (
-              <span className="text-xs text-red-500 mt-2">
-                Image upload not available. Please try again later.
-              </span>
-            )}
-          </label>
-        </div>
+        <ImageUploadArea 
+          isUploading={isUploading} 
+          bucketReady={bucketReady} 
+          onFileSelect={handleImageUpload} 
+        />
       )}
     </div>
   );

@@ -3,73 +3,176 @@ import { apiClient } from '../client';
 import { Restaurant, MenuItem } from '@/lib/database.types';
 import { supabase } from '@/lib/supabase';
 
+// Constants
 const RESTAURANT_IMAGES_BUCKET = 'Restaurant Images';
 
+// Define the restaurant API
 export const restaurantApi = {
-  getAllRestaurants: async () => {
-    console.log('Fetching all restaurants');
+  // Get all restaurants
+  getRestaurants: async (options?: { lat?: number; lng?: number; search?: string }) => {
+    let endpoint = '/restaurants';
+    const params = new URLSearchParams();
+    
+    if (options?.lat && options?.lng) {
+      params.append('lat', options.lat.toString());
+      params.append('lng', options.lng.toString());
+    }
+    
+    if (options?.search) {
+      params.append('search', options.search);
+    }
+    
+    if (params.toString()) {
+      endpoint += `?${params.toString()}`;
+    }
+    
+    const response = await apiClient.get(endpoint);
+    return response.data;
+  },
+  
+  // Get a specific restaurant
+  getRestaurant: async (id: string) => {
+    const response = await apiClient.get(`/restaurants/${id}`);
+    return response.data;
+  },
+  
+  // Get restaurant by user ID
+  getRestaurantByUser: async (userId: string) => {
+    const response = await apiClient.get(`/restaurants/user/${userId}`);
+    return response.data;
+  },
+  
+  // Get restaurant for the current user
+  getCurrentUserRestaurant: async () => {
     try {
-      const response = await apiClient.get('/restaurants');
-      console.log('Fetched restaurants successfully:', response.data);
+      const response = await apiClient.get('/restaurants/my-restaurant');
       return response.data;
     } catch (error) {
-      console.error('Error fetching all restaurants:', error);
+      console.error('Error getting current user restaurant:', error);
       throw error;
     }
   },
-
-  getRestaurantById: async (id: string) => {
-    console.log(`Fetching restaurant by ID: ${id}`);
+  
+  // Create a new restaurant
+  createRestaurant: async (restaurantData: Omit<Restaurant, 'id' | 'created_at'>) => {
     try {
+      console.log('Creating restaurant with data:', restaurantData);
+      const response = await apiClient.post('/restaurants', restaurantData);
+      return response.data;
+    } catch (error) {
+      console.error('Error creating restaurant:', error);
+      throw error;
+    }
+  },
+  
+  // Update an existing restaurant
+  updateRestaurant: async (id: string, restaurantData: Partial<Restaurant>) => {
+    const response = await apiClient.put(`/restaurants/${id}`, restaurantData);
+    return response.data;
+  },
+  
+  // Delete a restaurant
+  deleteRestaurant: async (id: string) => {
+    const response = await apiClient.delete(`/restaurants/${id}`);
+    return response.data;
+  },
+  
+  // Get menu items for a restaurant
+  getMenuItems: async (restaurantId: string) => {
+    const response = await apiClient.get(`/restaurants/${restaurantId}/menu`);
+    return response.data;
+  },
+  
+  // Add a menu item
+  addMenuItem: async (restaurantId: string, menuItem: Omit<MenuItem, 'id' | 'created_at'>) => {
+    const response = await apiClient.post(`/restaurants/${restaurantId}/menu`, menuItem);
+    return response.data;
+  },
+  
+  // Update a menu item
+  updateMenuItem: async (restaurantId: string, itemId: string, menuItem: Partial<MenuItem>) => {
+    const response = await apiClient.put(`/restaurants/${restaurantId}/menu/${itemId}`, menuItem);
+    return response.data;
+  },
+  
+  // Delete a menu item
+  deleteMenuItem: async (restaurantId: string, itemId: string) => {
+    const response = await apiClient.delete(`/restaurants/${restaurantId}/menu/${itemId}`);
+    return response.data;
+  },
+  
+  // Get nearby restaurants
+  getNearbyRestaurants: async (lat: number, lng: number, radius?: number) => {
+    const params = new URLSearchParams({
+      lat: lat.toString(),
+      lng: lng.toString()
+    });
+    
+    if (radius) {
+      params.append('radius', radius.toString());
+    }
+    
+    const response = await apiClient.get(`/restaurants/nearby?${params.toString()}`);
+    return response.data;
+  },
+  
+  // Direct Supabase methods for restaurants
+  supabase: {
+    // Get all restaurants
+    getRestaurants: async () => {
+      const { data, error } = await supabase
+        .from('restaurants')
+        .select('*');
+        
+      if (error) {
+        console.error('Supabase error getting restaurants:', error);
+        throw error;
+      }
+      
+      return data;
+    },
+    
+    // Get a specific restaurant
+    getRestaurant: async (id: string) => {
       const { data, error } = await supabase
         .from('restaurants')
         .select('*')
         .eq('id', id)
         .single();
         
-      if (error) throw error;
+      if (error) {
+        console.error(`Supabase error getting restaurant ${id}:`, error);
+        throw error;
+      }
+      
       return data;
-    } catch (error) {
-      console.error(`Error fetching restaurant by ID ${id}:`, error);
-      throw error;
-    }
-  },
-
-  getRestaurantByUserId: async (userId: string) => {
-    console.log(`Fetching restaurant by user ID: ${userId}`);
-    try {
+    },
+    
+    // Get restaurant by user ID
+    getRestaurantByUser: async (userId: string) => {
       const { data, error } = await supabase
         .from('restaurants')
         .select('*')
         .eq('user_id', userId)
         .single();
         
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error(`Error fetching restaurant by user ID ${userId}:`, error);
-      throw error;
-    }
-  },
-
-  createRestaurant: async (data: Omit<Restaurant, 'id' | 'created_at'>) => {
-    console.log('Creating restaurant with data:', data);
-    try {
-      if (!data.user_id) {
-        console.error('Error: user_id is required to create a restaurant');
-        throw new Error('User ID is required to create a restaurant');
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // No restaurant found for this user - this is not a true error
+          return null;
+        }
+        console.error(`Supabase error getting restaurant for user ${userId}:`, error);
+        throw error;
       }
       
-      const { data: result, error } = await supabase
+      return data;
+    },
+    
+    // Create a new restaurant
+    createRestaurant: async (restaurantData: Omit<Restaurant, 'id' | 'created_at'>) => {
+      const { data, error } = await supabase
         .from('restaurants')
-        .insert({
-          name: data.name,
-          address: data.address,
-          lat: data.lat,
-          lng: data.lng,
-          user_id: data.user_id,
-          image_url: data.image_url || null
-        })
+        .insert(restaurantData)
         .select()
         .single();
         
@@ -78,126 +181,44 @@ export const restaurantApi = {
         throw error;
       }
       
-      console.log('Restaurant created successfully via Supabase:', result);
-      return result as Restaurant;
-    } catch (error) {
-      console.error('Error creating restaurant:', error);
-      throw error;
-    }
-  },
-
-  updateRestaurant: async (id: string, data: Partial<Restaurant>) => {
-    console.log(`Updating restaurant ${id} with data:`, data);
-    try {
-      const { data: result, error } = await supabase
-        .from('restaurants')
-        .update(data)
-        .eq('id', id)
-        .select()
-        .single();
-        
-      if (error) {
-        console.error('Supabase error updating restaurant:', error);
-        throw error;
-      }
-      
-      console.log('Restaurant updated successfully via Supabase:', result);
-      return result as Restaurant;
-    } catch (error) {
-      console.error(`Error updating restaurant ${id}:`, error);
-      throw error;
-    }
-  },
-
-  deleteRestaurant: async (id: string) => {
-    console.log(`Deleting restaurant ${id}`);
-    try {
-      const { error } = await supabase
-        .from('restaurants')
-        .delete()
-        .eq('id', id);
-        
-      if (error) {
-        console.error('Supabase error deleting restaurant:', error);
-        throw error;
-      }
-      
-      console.log('Restaurant deleted successfully via Supabase');
-      return true;
-    } catch (error) {
-      console.error(`Error deleting restaurant ${id}:`, error);
-      throw error;
-    }
-  },
-
-  getMenuItems: async (restaurantId: string) => {
-    console.log(`Fetching menu items for restaurant ${restaurantId}`);
-    try {
-      const { data, error } = await supabase
-        .from('menu_items')
-        .select('*')
-        .eq('restaurant_id', restaurantId);
-        
-      if (error) throw error;
       return data;
-    } catch (error) {
-      console.error(`Error fetching menu items for restaurant ${restaurantId}:`, error);
-      throw error;
-    }
-  },
-
-  createMenuItem: async (data: Omit<MenuItem, 'id' | 'created_at'>) => {
-    console.log('Creating menu item with data:', data);
-    try {
-      const { data: result, error } = await supabase
-        .from('menu_items')
-        .insert(data)
-        .select()
-        .single();
-        
-      if (error) throw error;
-      return result;
-    } catch (error) {
-      console.error('Error creating menu item:', error);
-      throw error;
-    }
-  },
-
-  updateMenuItem: async (id: string, data: Partial<MenuItem>) => {
-    console.log(`Updating menu item ${id} with data:`, data);
-    try {
-      const { data: result, error } = await supabase
-        .from('menu_items')
-        .update(data)
+    },
+    
+    // Update an existing restaurant
+    updateRestaurant: async (id: string, restaurantData: Partial<Restaurant>) => {
+      const { data, error } = await supabase
+        .from('restaurants')
+        .update(restaurantData)
         .eq('id', id)
         .select()
         .single();
         
-      if (error) throw error;
-      return result;
-    } catch (error) {
-      console.error(`Error updating menu item ${id}:`, error);
-      throw error;
-    }
-  },
-
-  deleteMenuItem: async (id: string) => {
-    console.log(`Deleting menu item ${id}`);
-    try {
+      if (error) {
+        console.error(`Supabase error updating restaurant ${id}:`, error);
+        throw error;
+      }
+      
+      return data;
+    },
+    
+    // Delete a restaurant
+    deleteRestaurant: async (id: string) => {
       const { error } = await supabase
-        .from('menu_items')
+        .from('restaurants')
         .delete()
         .eq('id', id);
         
-      if (error) throw error;
+      if (error) {
+        console.error(`Supabase error deleting restaurant ${id}:`, error);
+        throw error;
+      }
+      
       return true;
-    } catch (error) {
-      console.error(`Error deleting menu item ${id}:`, error);
-      throw error;
     }
   },
   
-  ensureStorageBucket: async () => {
+  // Check if storage bucket exists and is accessible
+  ensureStorageBucket: async (): Promise<boolean> => {
     try {
       console.log(`Checking if "${RESTAURANT_IMAGES_BUCKET}" bucket exists`);
       
@@ -230,7 +251,7 @@ export const restaurantApi = {
         return false;
       }
     } catch (error) {
-      console.error('Error ensuring storage bucket exists:', error);
+      console.error('Error checking for Restaurant Images bucket:', error);
       return false;
     }
   }
