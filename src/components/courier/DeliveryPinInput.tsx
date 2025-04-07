@@ -73,9 +73,10 @@ const DeliveryPinInput: React.FC<DeliveryPinInputProps> = ({
           setError((result.message || 'Invalid PIN') + '. Please double-check the PIN with the customer.');
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error during pin verification:', err);
-      setError('Failed to verify PIN. Please try again.');
+      const errorMessage = err.message || 'Failed to verify PIN. Please try again.';
+      setError(errorMessage);
     } finally {
       setIsVerifying(false);
     }

@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
@@ -39,10 +38,8 @@ const CourierActiveOrders = () => {
     refetch
   } = useCourierActiveOrders(user?.id);
   
-  // Get the verifyDeliveryPin function from useOrders hook
   const { verifyDeliveryPin } = useOrders({ courierId: user?.id });
 
-  // Callback for PIN verification
   const handleVerifyPin = useCallback(async (orderId: string, pin: string) => {
     try {
       if (pinVerificationState.isVerifying) {
@@ -52,12 +49,10 @@ const CourierActiveOrders = () => {
       setPinVerificationState({ orderId, isVerifying: true });
       console.log(`Verifying PIN for order ${orderId} with value ${pin}`);
       
-      // Added timeout protection
       const timeoutPromise = new Promise<{ success: false, message: string }>((_, reject) => 
         setTimeout(() => reject(new Error('Verification request timed out')), 15000)
       );
       
-      // Race the verification against the timeout
       const result = await Promise.race([
         verifyDeliveryPin(orderId, pin),
         timeoutPromise
@@ -71,7 +66,6 @@ const CourierActiveOrders = () => {
           description: "PIN verified successfully. Delivery completed!"
         });
         
-        // If PIN is verified, refetch orders to update the UI
         refetch();
         setPinVerificationState({ orderId: null, isVerifying: false });
         return { success: true, message: "Delivery confirmed" };
@@ -103,12 +97,10 @@ const CourierActiveOrders = () => {
     }
   }, [verifyDeliveryPin, refetch, toast, pinVerificationState.isVerifying]);
 
-  // Redirect if user is not a courier
   if (!user || user.user_type !== 'courier') {
     return <Navigate to="/" />;
   }
 
-  // Separate loading state for initial load vs refresh
   const isInitialLoading = loading && (activeOrders.length === 0 && reviews.length === 0);
 
   return (

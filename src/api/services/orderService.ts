@@ -241,8 +241,9 @@ export const orderApi = {
     try {
       console.log(`Verifying delivery PIN for order ${orderId} with pin ${pin}`);
       
+      // Fix the endpoint path - the proper path should be /orders/:orderId/verify-pin
       const response = await apiClient.post(`/orders/${orderId}/verify-pin`, { pin });
-      console.log('PIN verification response:', response.data);
+      console.log('PIN verification API response:', response.data);
       
       if (response.data.success) {
         console.log('PIN verified successfully, order marked as delivered');
@@ -285,6 +286,7 @@ export const orderApi = {
       }
     } catch (error: any) {
       console.error('Error verifying delivery PIN:', error);
+      
       // Extract the error message from the response if possible
       const errorMessage = 
         error.response?.data?.error || 
