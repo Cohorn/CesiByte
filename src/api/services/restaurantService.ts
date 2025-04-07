@@ -1,4 +1,3 @@
-
 import { apiClient } from '../client';
 import { Restaurant, MenuItem } from '@/lib/database.types';
 import { supabase } from '@/lib/supabase';
@@ -53,13 +52,11 @@ export const restaurantApi = {
   createRestaurant: async (data: Omit<Restaurant, 'id' | 'created_at'>) => {
     console.log('Creating restaurant with data:', data);
     try {
-      // Validate that user_id is present
       if (!data.user_id) {
         console.error('Error: user_id is required to create a restaurant');
         throw new Error('User ID is required to create a restaurant');
       }
       
-      // Use supabase directly
       const { data: result, error } = await supabase
         .from('restaurants')
         .insert({
@@ -89,7 +86,6 @@ export const restaurantApi = {
   updateRestaurant: async (id: string, data: Partial<Restaurant>) => {
     console.log(`Updating restaurant ${id} with data:`, data);
     try {
-      // Use supabase directly
       const { data: result, error } = await supabase
         .from('restaurants')
         .update(data)
@@ -113,7 +109,6 @@ export const restaurantApi = {
   deleteRestaurant: async (id: string) => {
     console.log(`Deleting restaurant ${id}`);
     try {
-      // Use supabase directly
       const { error } = await supabase
         .from('restaurants')
         .delete()
@@ -132,7 +127,6 @@ export const restaurantApi = {
     }
   },
 
-  // Menu items
   getMenuItems: async (restaurantId: string) => {
     console.log(`Fetching menu items for restaurant ${restaurantId}`);
     try {
@@ -200,7 +194,6 @@ export const restaurantApi = {
     }
   },
   
-  // Storage bucket check and creation
   ensureStorageBucket: async () => {
     try {
       console.log('Checking if restaurant_images bucket exists');
@@ -208,7 +201,10 @@ export const restaurantApi = {
         .storage
         .listBuckets();
         
-      if (error) throw error;
+      if (error) {
+        console.error('Error listing buckets:', error);
+        throw error;
+      }
       
       const bucketExists = buckets.some(bucket => bucket.name === 'restaurant_images');
       
@@ -218,7 +214,22 @@ export const restaurantApi = {
           public: true
         });
         
-        if (createError) throw createError;
+        if (createError) {
+          console.error('Error creating bucket:', createError);
+          throw createError;
+        }
+        
+        try {
+          const { error: policyError } = await supabase.storage.from('restaurant_images')
+            .createSignedUrl('dummy-policy-check.txt', 60);
+          
+          if (policyError && !policyError.message.includes('not found')) {
+            console.error('Error setting bucket policy:', policyError);
+          }
+        } catch (policyError) {
+          console.error('Error setting bucket policy:', policyError);
+        }
+        
         console.log('Bucket created successfully');
       } else {
         console.log('Bucket already exists');

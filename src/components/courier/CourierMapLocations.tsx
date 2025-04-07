@@ -6,7 +6,7 @@ import { MapLocationType } from '@/lib/database.types';
 interface CourierMapLocationsProps {
   activeOrders: any[];
   restaurants: any[];
-  userLocation: { lat: number; lng: number };
+  userLocation: { lat: number; lng: number } | null;
 }
 
 const CourierMapLocations: React.FC<CourierMapLocationsProps> = ({

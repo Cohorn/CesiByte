@@ -44,33 +44,37 @@ const Map: React.FC<MapProps> = ({ locations, center, height = '400px' }) => {
 
     // Mark map as initialized only after it's fully loaded
     map.current.on('load', () => {
-      // Add 3D building layer if it exists in the style
-      if (map.current && map.current.getStyle().layers) {
-        // Check if 'building' layer exists before trying to add 3D buildings
-        if (map.current.getStyle().layers.some(layer => layer.id === 'building')) {
-          map.current.addLayer({
-            'id': '3d-buildings',
-            'source': 'composite',
-            'source-layer': 'building',
-            'filter': ['==', 'extrude', 'true'],
-            'type': 'fill-extrusion',
-            'minzoom': 15,
-            'paint': {
-              'fill-extrusion-color': '#aaa',
-              'fill-extrusion-height': [
-                'interpolate', ['linear'], ['zoom'],
-                15, 0,
-                15.05, ['get', 'height']
-              ],
-              'fill-extrusion-base': [
-                'interpolate', ['linear'], ['zoom'],
-                15, 0,
-                15.05, ['get', 'min_height']
-              ],
-              'fill-extrusion-opacity': 0.6
-            }
-          });
+      try {
+        // Add 3D building layer if it exists in the style
+        if (map.current && map.current.getStyle().layers) {
+          // Check if 'building' layer exists before trying to add 3D buildings
+          if (map.current.getStyle().layers.some(layer => layer.id === 'building')) {
+            map.current.addLayer({
+              'id': '3d-buildings',
+              'source': 'composite',
+              'source-layer': 'building',
+              'filter': ['==', 'extrude', 'true'],
+              'type': 'fill-extrusion',
+              'minzoom': 15,
+              'paint': {
+                'fill-extrusion-color': '#aaa',
+                'fill-extrusion-height': [
+                  'interpolate', ['linear'], ['zoom'],
+                  15, 0,
+                  15.05, ['get', 'height']
+                ],
+                'fill-extrusion-base': [
+                  'interpolate', ['linear'], ['zoom'],
+                  15, 0,
+                  15.05, ['get', 'min_height']
+                ],
+                'fill-extrusion-opacity': 0.6
+              }
+            });
+          }
         }
+      } catch (error) {
+        console.error('Error adding 3D building layer:', error);
       }
       
       setMapInitialized(true);
@@ -111,41 +115,70 @@ const Map: React.FC<MapProps> = ({ locations, center, height = '400px' }) => {
       loc.lng !== 0
     );
 
+    // Skip if no valid locations
+    if (validLocations.length === 0) {
+      // If center is provided, use it
+      if (center && map.current) {
+        try {
+          map.current.flyTo({
+            center: center,
+            zoom: 9,
+            essential: true
+          });
+        } catch (error) {
+          console.error('Error flying to center:', error);
+        }
+      }
+      return;
+    }
+
     // Add new markers
     validLocations.forEach(location => {
-      const { lat, lng, type, name } = location;
-      
-      const popupContent = document.createElement('div');
-      popupContent.innerText = name;
-
-      const marker = new mapboxgl.Marker({ 
-        color: type === 'restaurant' ? '#F00' : type === 'user' ? '#00F' : '#0F0' 
-      })
-        .setLngLat([lng, lat])
-        .setPopup(new mapboxgl.Popup().setDOMContent(popupContent))
-        .addTo(map.current!);
+      try {
+        const { lat, lng, type, name } = location;
         
-      markers.push(marker);
-      bounds.extend([lng, lat]);
+        const popupContent = document.createElement('div');
+        popupContent.innerText = name;
+
+        const marker = new mapboxgl.Marker({ 
+          color: type === 'restaurant' ? '#F00' : type === 'user' ? '#00F' : '#0F0' 
+        })
+          .setLngLat([lng, lat])
+          .setPopup(new mapboxgl.Popup().setDOMContent(popupContent))
+          .addTo(map.current!);
+          
+        markers.push(marker);
+        bounds.extend([lng, lat]);
+      } catch (error) {
+        console.error('Error adding marker:', error);
+      }
     });
 
     // Store current markers for later cleanup
     markersRef.current = markers;
 
     // Fit map to bounds if we have valid locations
-    if (validLocations.length > 0 && !bounds.isEmpty()) {
-      map.current.fitBounds(bounds, { 
-        padding: 50,
-        maxZoom: 15
-      });
+    if (!bounds.isEmpty() && map.current) {
+      try {
+        map.current.fitBounds(bounds, { 
+          padding: 50,
+          maxZoom: 15
+        });
+      } catch (error) {
+        console.error('Error fitting map to bounds:', error);
+      }
     }
     // If center is provided, use it instead of fitting to bounds
-    else if (center) {
-      map.current.flyTo({
-        center: center,
-        zoom: 9,
-        essential: true
-      });
+    else if (center && map.current) {
+      try {
+        map.current.flyTo({
+          center: center,
+          zoom: 9,
+          essential: true
+        });
+      } catch (error) {
+        console.error('Error flying to center:', error);
+      }
     }
   }, [locations, center, mapInitialized]);
 
