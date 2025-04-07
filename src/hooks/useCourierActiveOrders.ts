@@ -14,10 +14,21 @@ export function useCourierActiveOrders(courierId?: string) {
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { toast } = useToast();
-  const { reviews, loading: reviewsLoading, refetch: refetchReviews } = useReviews({ 
-    courierId, 
-    onError: (err) => setError(err.message)
-  });
+  
+  // Fix: Use isLoading instead of loading and don't pass onError in ReviewFilters
+  const { 
+    reviews, 
+    isLoading: reviewsLoading, 
+    error: reviewsError,
+    refetch: refetchReviews 
+  } = useReviews({ courierId });
+  
+  // Handle reviews error separately
+  useEffect(() => {
+    if (reviewsError) {
+      setError(reviewsError.message);
+    }
+  }, [reviewsError]);
 
   const fetchActiveOrders = useCallback(async (showLoading = true) => {
     if (!courierId) {
