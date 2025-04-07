@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { Order, OrderStatus } from '@/lib/database.types';
@@ -8,6 +7,7 @@ import DeliveryReviewButton from '@/components/DeliveryReviewButton';
 import { getTimeRemainingBeforeCancel, formatRemainingTime, getEffectiveOrderStatus } from '@/utils/orderTimeUtils';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, LockKeyhole } from 'lucide-react';
+import { useAuth } from '@/lib/AuthContext';
 
 interface OrderListItemProps {
   order: Order;
@@ -24,8 +24,8 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
 }) => {
   const [remainingTime, setRemainingTime] = useState<number | null>(getTimeRemainingBeforeCancel(order));
   const [effectiveStatus, setEffectiveStatus] = useState<OrderStatus>(getEffectiveOrderStatus(order));
+  const { user } = useAuth();
   
-  // Update the countdown timer every minute
   useEffect(() => {
     if (remainingTime === null || remainingTime <= 0) return;
     
@@ -33,23 +33,23 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
       const newRemainingTime = getTimeRemainingBeforeCancel(order);
       setRemainingTime(newRemainingTime);
       setEffectiveStatus(getEffectiveOrderStatus(order));
-    }, 60000); // Update every minute
+    }, 60000);
     
     return () => clearInterval(timer);
   }, [order, remainingTime]);
   
-  // Get status display color
   const getStatusColor = () => {
     if (effectiveStatus === 'canceled') return 'bg-red-100 text-red-800';
     if (effectiveStatus === 'delivered' || effectiveStatus === 'completed') return 'bg-green-100 text-green-800';
     return 'bg-blue-100 text-blue-800';
   };
 
-  // Show PIN code only for active orders that have a delivery_pin
   const shouldShowPinCode = () => {
     return (
       order.delivery_pin && 
       isCurrentOrder && 
+      user?.user_type === 'customer' &&
+      user?.id === order.user_id &&
       ['accepted_by_restaurant', 'preparing', 'ready_for_pickup', 'picked_up', 'on_the_way'].includes(order.status)
     );
   };
@@ -73,7 +73,6 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
           <span className="capitalize">{effectiveStatus.replace(/_/g, ' ')}</span>
         </Badge>
         
-        {/* Show countdown timer if applicable */}
         {remainingTime !== null && effectiveStatus !== 'canceled' && (
           <Badge variant="outline" className="ml-2 flex items-center gap-1">
             {remainingTime <= 15 && <AlertCircle className="h-3 w-3 text-red-500" />}
@@ -81,13 +80,11 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
           </Badge>
         )}
         
-        {/* Show auto-cancel notice */}
         {effectiveStatus === 'canceled' && order.status !== 'canceled' && (
           <span className="text-xs text-red-600 ml-2">Auto-canceled due to timeout</span>
         )}
       </div>
       
-      {/* Show delivery PIN code */}
       {shouldShowPinCode() && (
         <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded flex items-center">
           <LockKeyhole className="h-5 w-5 text-yellow-600 mr-2" />
@@ -114,7 +111,6 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
         <strong>Total:</strong> ${order.total_price?.toFixed(2)}
       </div>
       
-      {/* Only show status update controls if order hasn't been auto-canceled */}
       {isCurrentOrder && effectiveStatus !== 'canceled' && (
         <OrderStatusUpdate 
           orderId={order.id}
