@@ -36,33 +36,29 @@ const OrderStatusUpdate: React.FC<OrderStatusUpdateProps> = ({
   // Define the status flow based on user type
   // This determines what status options are available for each user type
   const restaurantStatusFlow: Record<OrderStatus, OrderStatus[]> = {
-    pending: ['accepted_by_restaurant', 'canceled'],
+    created: ['accepted_by_restaurant', 'canceled'],
     accepted_by_restaurant: ['preparing', 'canceled'],
     preparing: ['ready_for_pickup', 'canceled'],
     ready_for_pickup: ['picked_up', 'canceled'],
     // Restaurant can't update beyond this point
     picked_up: [],
-    in_delivery: [],
+    on_the_way: [],
     delivered: [],
     completed: [],
-    canceled: [],
-    created: ['accepted_by_restaurant', 'canceled'],
-    on_the_way: []
+    canceled: []
   };
 
   const courierStatusFlow: Record<OrderStatus, OrderStatus[]> = {
-    picked_up: ['in_delivery', 'canceled'],
-    in_delivery: ['delivered', 'canceled'],
+    picked_up: ['on_the_way', 'canceled'],
+    on_the_way: ['delivered', 'canceled'],
     // Courier can't update beyond this point or before pickup
-    pending: [],
+    created: [],
     accepted_by_restaurant: [],
     preparing: [],
     ready_for_pickup: [],
     delivered: [],
     completed: [],
-    canceled: [],
-    created: [],
-    on_the_way: ['delivered', 'canceled']
+    canceled: []
   };
 
   // Get the next possible statuses based on user type and current status
