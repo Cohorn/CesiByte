@@ -10,7 +10,6 @@ class MQTTClient {
   private messageQueue: Array<{topic: string, message: any}> = [];
   private connectionAttempts = 0;
   private maxReconnectDelay = 30000; // Maximum delay is 30 seconds
-  private eventHandlers: Map<string, Set<(topic: string, message: any) => void>> = new Map(); // Added event handlers map
 
   // Connect to the MQTT WebSocket proxy
   connect() {
@@ -105,26 +104,9 @@ class MQTTClient {
         
         // Check for wildcard subscribers
         this.notifyWildcardSubscribers(data.topic, messageData);
-        
-        // Trigger event handlers
-        this.triggerEventHandlers(data.topic, messageData);
       }
     } catch (error) {
       console.error('Error processing WebSocket message:', error);
-    }
-  }
-  
-  // New method: Trigger event handlers for message events
-  private triggerEventHandlers(topic: string, message: any) {
-    const messageHandlers = this.eventHandlers.get('message');
-    if (messageHandlers) {
-      messageHandlers.forEach(handler => {
-        try {
-          handler(topic, message);
-        } catch (error) {
-          console.error(`Error in message event handler:`, error);
-        }
-      });
     }
   }
 
@@ -252,28 +234,6 @@ class MQTTClient {
       
       // Make sure we're trying to connect
       this.connect();
-    }
-  }
-  
-  // New method: Add event listener for generic events
-  on(event: string, handler: (...args: any[]) => void) {
-    if (event === 'message') {
-      if (!this.eventHandlers.has(event)) {
-        this.eventHandlers.set(event, new Set());
-      }
-      this.eventHandlers.get(event)!.add(handler as any);
-    } else {
-      console.warn(`Unsupported event type: ${event}`);
-    }
-  }
-
-  // New method: Remove event listener
-  off(event: string, handler: (...args: any[]) => void) {
-    if (this.eventHandlers.has(event)) {
-      this.eventHandlers.get(event)!.delete(handler as any);
-      if (this.eventHandlers.get(event)!.size === 0) {
-        this.eventHandlers.delete(event);
-      }
     }
   }
   

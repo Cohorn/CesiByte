@@ -10,7 +10,7 @@ interface AuthContextType {
   authError: Error | null;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, userData: Partial<User>) => Promise<{ error: any }>;
-  signOut: () => Promise<void>; // Changed from logout to signOut
+  signOut: () => Promise<void>;
   updateProfile: (updates: Partial<User>) => Promise<any>;
   setUserType: (type: UserType) => Promise<void>;
   deleteAccount: () => Promise<void>;
