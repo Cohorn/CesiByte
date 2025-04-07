@@ -1,4 +1,3 @@
-
 import { apiClient } from '../client';
 import { Order, OrderStatus } from '@/lib/database.types';
 import { mqttClient } from '@/lib/mqtt-client';
@@ -12,11 +11,43 @@ const ordersCache = {
   byStatus: new Map<string, { data: Order[]; timestamp: number }>(),
 };
 
-// Cache TTL in milliseconds (2 minutes)
-const CACHE_TTL = 2 * 60 * 1000;
+// Cache TTL in milliseconds (30 seconds for development, adjust as needed)
+const CACHE_TTL = 30 * 1000;
 
 // WebSocket subscribers tracking
 const subscribers = new Set<(order: Order) => void>();
+
+// Process order items to ensure they're in the correct format
+const processOrderItems = (order) => {
+  if (!order) return order;
+  
+  try {
+    let parsedItems = [];
+    
+    if (typeof order.items === 'string') {
+      parsedItems = JSON.parse(order.items);
+    } else if (Array.isArray(order.items)) {
+      parsedItems = order.items;
+    } else if (order.items && typeof order.items === 'object') {
+      // If it's already a JSON object but not an array
+      parsedItems = [order.items];
+    }
+    
+    return {
+      ...order,
+      items: parsedItems
+    };
+  } catch (e) {
+    console.error(`Error processing items for order ${order?.id}:`, e);
+    return order;
+  }
+};
+
+// Process a batch of orders
+const processOrders = (orders) => {
+  if (!orders) return [];
+  return orders.map(processOrderItems);
+};
 
 export const orderApi = {
   getOrderById: async (id: string) => {
@@ -35,10 +66,12 @@ export const orderApi = {
       const response = await apiClient.get(`/orders/${id}`);
       console.log(`Order ${id} fetched successfully:`, response.data);
       
-      // Update cache
-      ordersCache.byId.set(id, { data: response.data, timestamp: now });
+      const processedOrder = processOrderItems(response.data);
       
-      return response.data;
+      // Update cache
+      ordersCache.byId.set(id, { data: processedOrder, timestamp: now });
+      
+      return processedOrder;
     } catch (error) {
       console.error('Error fetching order by ID:', error);
       throw error;
@@ -61,10 +94,12 @@ export const orderApi = {
       const response = await apiClient.get(`/orders/user/${userId}`);
       console.log(`Received ${response.data?.length || 0} orders for user ${userId}`);
       
-      // Update cache
-      ordersCache.byUser.set(userId, { data: response.data, timestamp: now });
+      const processedOrders = processOrders(response.data);
       
-      return response.data;
+      // Update cache
+      ordersCache.byUser.set(userId, { data: processedOrders, timestamp: now });
+      
+      return processedOrders;
     } catch (error) {
       console.error('Error fetching user orders:', error);
       throw error;
@@ -92,30 +127,8 @@ export const orderApi = {
       
       const response = await apiClient.get(`/orders/restaurant/${restaurantId}${queryParam}`);
       console.log(`Received ${response.data?.length || 0} orders for restaurant ${restaurantId}`);
-      console.log('Restaurant orders data sample:', response.data?.slice(0, 2));
       
-      // Process orders to ensure items are properly formatted
-      const processedOrders = (response.data || []).map(order => {
-        let parsedItems = [];
-        
-        try {
-          if (typeof order.items === 'string') {
-            parsedItems = JSON.parse(order.items);
-          } else if (Array.isArray(order.items)) {
-            parsedItems = order.items;
-          } else if (order.items && typeof order.items === 'object') {
-            // If it's already a JSON object but not an array
-            parsedItems = [order.items];
-          }
-        } catch (e) {
-          console.error(`Error parsing items for order ${order.id}:`, e);
-        }
-        
-        return {
-          ...order,
-          items: parsedItems
-        };
-      });
+      const processedOrders = processOrders(response.data);
       
       // Update cache
       ordersCache.byRestaurant.set(restaurantId, { 
@@ -147,10 +160,12 @@ export const orderApi = {
       const response = await apiClient.get(`/orders/courier/${courierId}`);
       console.log(`Received ${response.data?.length || 0} orders for courier ${courierId}`);
       
-      // Update cache
-      ordersCache.byCourier.set(courierId, { data: response.data, timestamp: now });
+      const processedOrders = processOrders(response.data);
       
-      return response.data;
+      // Update cache
+      ordersCache.byCourier.set(courierId, { data: processedOrders, timestamp: now });
+      
+      return processedOrders;
     } catch (error) {
       console.error('Error fetching courier orders:', error);
       throw error;
@@ -174,10 +189,12 @@ export const orderApi = {
       const response = await apiClient.get(`/orders/status/${statusParam}`);
       console.log(`Received ${response.data?.length || 0} orders with status ${statusParam}`);
       
-      // Update cache
-      ordersCache.byStatus.set(statusParam, { data: response.data, timestamp: now });
+      const processedOrders = processOrders(response.data);
       
-      return response.data;
+      // Update cache
+      ordersCache.byStatus.set(statusParam, { data: processedOrders, timestamp: now });
+      
+      return processedOrders;
     } catch (error) {
       console.error('Error fetching orders by status:', error);
       throw error;
@@ -215,20 +232,10 @@ export const orderApi = {
       const response = await apiClient.put(`/orders/${orderId}/status`, { status });
       console.log('Order status update response:', response.data);
       
-      const updatedOrder = response.data;
+      const updatedOrder = processOrderItems(response.data);
       
-      // Update cache for this specific order
-      const order = ordersCache.byId.get(orderId);
-      if (order) {
-        order.data.status = status;
-        ordersCache.byId.set(orderId, { ...order, timestamp: Date.now() });
-      }
-      
-      // Clear other caches as they might contain this order
-      ordersCache.byUser.clear();
-      ordersCache.byRestaurant.clear();
-      ordersCache.byCourier.clear();
-      ordersCache.byStatus.clear();
+      // Clear caches to ensure fresh data
+      orderApi.clearCache();
       
       // Notify over MQTT
       if (mqttClient) {
@@ -240,7 +247,9 @@ export const orderApi = {
         }));
         
         if (updatedOrder.restaurant_id) {
-          mqttClient.publish(`foodapp/restaurants/${updatedOrder.restaurant_id}/orders/updated`, JSON.stringify(updatedOrder));
+          mqttClient.publish(`foodapp/restaurants/${updatedOrder.restaurant_id}/orders/updated`, 
+            JSON.stringify(updatedOrder)
+          );
         }
       }
       
@@ -260,18 +269,10 @@ export const orderApi = {
       const response = await apiClient.put(`/orders/${orderId}/courier`, { courier_id: courierId });
       console.log('Courier assignment response:', response.data);
       
-      // Update cache for this specific order
-      const order = ordersCache.byId.get(orderId);
-      if (order) {
-        order.data.courier_id = courierId;
-        ordersCache.byId.set(orderId, { ...order, timestamp: Date.now() });
-      }
+      const updatedOrder = processOrderItems(response.data);
       
-      // Clear other caches as they might contain this order
-      ordersCache.byUser.clear();
-      ordersCache.byRestaurant.clear();
-      ordersCache.byCourier.clear();
-      ordersCache.byStatus.clear();
+      // Clear caches to ensure fresh data
+      orderApi.clearCache();
       
       // Notify over MQTT
       if (mqttClient) {
@@ -282,9 +283,9 @@ export const orderApi = {
       }
       
       // Notify subscribers
-      subscribers.forEach(callback => callback(response.data));
+      subscribers.forEach(callback => callback(updatedOrder));
       
-      return response.data;
+      return updatedOrder;
     } catch (error) {
       console.error('Error assigning courier:', error);
       throw error;

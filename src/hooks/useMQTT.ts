@@ -2,7 +2,7 @@
 import { useEffect, useCallback, useState } from 'react';
 import { mqttClient } from '@/lib/mqtt-client';
 
-// Hook for using MQTT in React components
+// Generic hook for using MQTT in React components
 export function useMQTT<T = any>(topic: string) {
   const [messages, setMessages] = useState<T[]>([]);
   const [lastMessage, setLastMessage] = useState<T | null>(null);
@@ -17,9 +17,11 @@ export function useMQTT<T = any>(topic: string) {
       setMessages(prev => [message, ...prev].slice(0, 100)); // Keep last 100 messages
     };
     
+    console.log(`Subscribing to MQTT topic: ${topic}`);
     mqttClient.subscribe(topic, handleMessage);
     
     return () => {
+      console.log(`Unsubscribing from MQTT topic: ${topic}`);
       mqttClient.unsubscribe(topic, handleMessage);
     };
   }, [topic]);
@@ -44,10 +46,13 @@ export function useOrderMQTT(orderId?: string) {
       }
     };
     
-    mqttClient.subscribe(`foodapp/orders/${orderId}/status`, handleStatusUpdate);
+    const topic = `foodapp/orders/${orderId}/status`;
+    console.log(`Subscribing to order status MQTT topic: ${topic}`);
+    mqttClient.subscribe(topic, handleStatusUpdate);
     
     return () => {
-      mqttClient.unsubscribe(`foodapp/orders/${orderId}/status`, handleStatusUpdate);
+      console.log(`Unsubscribing from order status MQTT topic: ${topic}`);
+      mqttClient.unsubscribe(topic, handleStatusUpdate);
     };
   }, [orderId]);
   
@@ -59,7 +64,10 @@ export function useRestaurantOrdersMQTT(restaurantId?: string) {
   const [newOrder, setNewOrder] = useState<any | null>(null);
   
   useEffect(() => {
-    if (!restaurantId) return;
+    if (!restaurantId) {
+      console.log('No restaurant ID provided for MQTT subscription');
+      return;
+    }
     
     const handleNewOrder = (order: any) => {
       console.log("Restaurant MQTT - New order received:", order);
@@ -68,11 +76,13 @@ export function useRestaurantOrdersMQTT(restaurantId?: string) {
       setTimeout(() => setNewOrder(null), 5000);
     };
     
-    console.log(`Subscribing to restaurant MQTT topic: foodapp/restaurants/${restaurantId}/orders`);
-    mqttClient.subscribe(`foodapp/restaurants/${restaurantId}/orders`, handleNewOrder);
+    const topic = `foodapp/restaurants/${restaurantId}/orders`;
+    console.log(`Subscribing to restaurant MQTT topic: ${topic}`);
+    mqttClient.subscribe(topic, handleNewOrder);
     
     return () => {
-      mqttClient.unsubscribe(`foodapp/restaurants/${restaurantId}/orders`, handleNewOrder);
+      console.log(`Unsubscribing from restaurant MQTT topic: ${topic}`);
+      mqttClient.unsubscribe(topic, handleNewOrder);
     };
   }, [restaurantId]);
   
@@ -90,10 +100,13 @@ export function useCourierAssignmentsMQTT(courierId?: string) {
       setNewAssignment(assignment);
     };
     
-    mqttClient.subscribe(`foodapp/couriers/${courierId}/assignments`, handleNewAssignment);
+    const topic = `foodapp/couriers/${courierId}/assignments`;
+    console.log(`Subscribing to courier assignments MQTT topic: ${topic}`);
+    mqttClient.subscribe(topic, handleNewAssignment);
     
     return () => {
-      mqttClient.unsubscribe(`foodapp/couriers/${courierId}/assignments`, handleNewAssignment);
+      console.log(`Unsubscribing from courier assignments MQTT topic: ${topic}`);
+      mqttClient.unsubscribe(topic, handleNewAssignment);
     };
   }, [courierId]);
   

@@ -1,5 +1,5 @@
 
-import React from 'react';
+import { useEffect, useCallback, useState } from 'react';
 
 // MQTT client for the frontend
 // This is a simplified implementation that uses the WebSocket proxy in the API gateway
@@ -38,68 +38,21 @@ class MQTTClient {
         
         // Resubscribe to all previously subscribed topics
         for (const topic of this.subscriptions.keys()) {
-          this.subscribe(topic);
+          this.sendSubscribe(topic);
         }
         
         // Send any queued messages
-        while (this.messageQueue.length > 0) {
-          const { topic, message } = this.messageQueue.shift()!;
-          this.publish(topic, message);
-        }
+        this.processMessageQueue();
       };
       
-      this.ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          
-          if (data.topic && data.message) {
-            // Parse the message if it's JSON
-            let messageData;
-            try {
-              messageData = JSON.parse(data.message);
-            } catch (e) {
-              messageData = data.message;
-            }
-            
-            // Notify subscribers
-            const handlers = this.subscriptions.get(data.topic);
-            if (handlers) {
-              handlers.forEach(handler => handler(messageData));
-            }
-            
-            // Check for wildcard subscribers
-            for (const [topic, topicHandlers] of this.subscriptions.entries()) {
-              if (topic.includes('#') && this.matchTopic(data.topic, topic)) {
-                topicHandlers.forEach(handler => handler(messageData));
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Error processing WebSocket message:', error);
-        }
-      };
+      this.ws.onmessage = this.handleMessage.bind(this);
       
       this.ws.onclose = () => {
         console.log('Disconnected from MQTT WebSocket proxy');
         this.connected = false;
         this.connecting = false;
         
-        // Try to reconnect with exponential backoff
-        if (!this.reconnectTimeout) {
-          // Calculate delay with exponential backoff, capped at maxReconnectDelay
-          const delay = Math.min(
-            1000 * Math.pow(2, this.connectionAttempts), 
-            this.maxReconnectDelay
-          );
-          
-          console.log(`Will try to reconnect in ${delay}ms`);
-          
-          this.reconnectTimeout = setTimeout(() => {
-            this.reconnectTimeout = null;
-            this.connectionAttempts++;
-            this.connect();
-          }, delay);
-        }
+        this.scheduleReconnect();
       };
       
       this.ws.onerror = (error) => {
@@ -109,6 +62,72 @@ class MQTTClient {
     } catch (error) {
       console.error('Error creating WebSocket:', error);
       this.connecting = false;
+      this.scheduleReconnect();
+    }
+  }
+
+  private scheduleReconnect() {
+    // Try to reconnect with exponential backoff
+    if (!this.reconnectTimeout) {
+      // Calculate delay with exponential backoff, capped at maxReconnectDelay
+      const delay = Math.min(
+        1000 * Math.pow(2, this.connectionAttempts), 
+        this.maxReconnectDelay
+      );
+      
+      console.log(`Will try to reconnect in ${delay}ms`);
+      
+      this.reconnectTimeout = setTimeout(() => {
+        this.reconnectTimeout = null;
+        this.connectionAttempts++;
+        this.connect();
+      }, delay);
+    }
+  }
+
+  private processMessageQueue() {
+    while (this.messageQueue.length > 0 && this.connected) {
+      const { topic, message } = this.messageQueue.shift()!;
+      this.publish(topic, message);
+    }
+  }
+  
+  private handleMessage(event: MessageEvent) {
+    try {
+      const data = JSON.parse(event.data);
+      
+      if (data.topic && data.message) {
+        // Parse the message if it's JSON
+        let messageData;
+        try {
+          messageData = JSON.parse(data.message);
+        } catch (e) {
+          messageData = data.message;
+        }
+        
+        // Notify subscribers
+        this.notifySubscribers(data.topic, messageData);
+        
+        // Check for wildcard subscribers
+        this.notifyWildcardSubscribers(data.topic, messageData);
+      }
+    } catch (error) {
+      console.error('Error processing WebSocket message:', error);
+    }
+  }
+
+  private notifySubscribers(topic: string, messageData: any) {
+    const handlers = this.subscriptions.get(topic);
+    if (handlers) {
+      handlers.forEach(handler => handler(messageData));
+    }
+  }
+
+  private notifyWildcardSubscribers(topic: string, messageData: any) {
+    for (const [subscribedTopic, topicHandlers] of this.subscriptions.entries()) {
+      if (subscribedTopic.includes('#') && this.matchTopic(topic, subscribedTopic)) {
+        topicHandlers.forEach(handler => handler(messageData));
+      }
     }
   }
   
@@ -133,6 +152,15 @@ class MQTTClient {
     
     return actualParts.length === subParts.length;
   }
+
+  private sendSubscribe(topic: string) {
+    if (this.connected && this.ws) {
+      this.ws.send(JSON.stringify({
+        type: 'subscribe',
+        topic
+      }));
+    }
+  }
   
   // Subscribe to a topic
   subscribe(topic: string, callback?: (message: any) => void) {
@@ -145,10 +173,10 @@ class MQTTClient {
     }
     
     if (this.connected && this.ws) {
-      this.ws.send(JSON.stringify({
-        type: 'subscribe',
-        topic
-      }));
+      this.sendSubscribe(topic);
+    } else {
+      // Make sure we're trying to connect
+      this.connect();
     }
   }
   
@@ -163,11 +191,15 @@ class MQTTClient {
       
       if (this.subscriptions.get(topic)!.size === 0) {
         this.subscriptions.delete(topic);
+        this.sendUnsubscribe(topic);
       }
     } else {
       this.subscriptions.delete(topic);
+      this.sendUnsubscribe(topic);
     }
-    
+  }
+
+  private sendUnsubscribe(topic: string) {
     if (this.connected && this.ws) {
       this.ws.send(JSON.stringify({
         type: 'unsubscribe',
@@ -178,11 +210,13 @@ class MQTTClient {
   
   // Publish a message to a topic
   publish(topic: string, message: any) {
+    const formattedMessage = typeof message === 'object' ? JSON.stringify(message) : message;
+    
     if (this.connected && this.ws) {
       this.ws.send(JSON.stringify({
         type: 'publish',
         topic,
-        message: typeof message === 'object' ? JSON.stringify(message) : message
+        message: formattedMessage
       }));
     } else {
       // Queue the message for when we connect
@@ -219,18 +253,3 @@ export const mqttClient = new MQTTClient();
 
 // Automatically connect when imported
 mqttClient.connect();
-
-// Export the useMQTT hook directly from the client
-export function useMQTT(topic: string, callback: (message: any) => void) {
-  React.useEffect(() => {
-    mqttClient.subscribe(topic, callback);
-    
-    return () => {
-      mqttClient.unsubscribe(topic, callback);
-    };
-  }, [topic, callback]);
-  
-  return {
-    publish: mqttClient.publish.bind(mqttClient)
-  };
-}
