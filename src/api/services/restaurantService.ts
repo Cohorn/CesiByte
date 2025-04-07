@@ -1,3 +1,4 @@
+
 import { apiClient } from '../client';
 import { Restaurant, MenuItem } from '@/lib/database.types';
 import { supabase } from '@/lib/supabase';
@@ -200,9 +201,8 @@ export const restaurantApi = {
     try {
       console.log(`Checking if "${RESTAURANT_IMAGES_BUCKET}" bucket exists`);
       
-      const { data: buckets, error } = await supabase
-        .storage
-        .listBuckets();
+      // Try to list buckets and check if our target bucket exists
+      const { data: buckets, error } = await supabase.storage.listBuckets();
         
       if (error) {
         console.error('Error listing buckets:', error);
@@ -213,7 +213,17 @@ export const restaurantApi = {
       console.log('Bucket exists check result:', bucketExists);
       
       if (bucketExists) {
-        console.log('Restaurant Images bucket found, continuing with upload');
+        // Try to list files in the bucket to ensure we have access
+        const { data: files, error: listError } = await supabase.storage
+          .from(RESTAURANT_IMAGES_BUCKET)
+          .list();
+          
+        if (listError) {
+          console.error('Error listing files in bucket:', listError);
+          return false;
+        }
+        
+        console.log('Restaurant Images bucket found and accessible, continuing with upload');
         return true;
       } else {
         console.error(`"${RESTAURANT_IMAGES_BUCKET}" bucket not found. Please ensure it exists in Supabase Storage.`);

@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Upload, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { restaurantApi } from '@/api/services/restaurantService';
 
 // Define the bucket name as a constant
 const RESTAURANT_IMAGES_BUCKET = 'Restaurant Images';
@@ -29,22 +28,36 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
   useEffect(() => {
     const checkBucket = async () => {
       try {
-        const exists = await restaurantApi.ensureStorageBucket();
-        setBucketReady(exists);
-        console.log('Bucket ready status:', exists);
+        // First try to list buckets to check if the storage is accessible
+        const { data: buckets, error: listError } = await supabase.storage.listBuckets();
         
-        if (!exists) {
+        if (listError) {
+          console.error('Error accessing storage:', listError);
+          setBucketReady(false);
+          return;
+        }
+        
+        // Check if our target bucket exists
+        const targetBucket = buckets.find(bucket => bucket.name === RESTAURANT_IMAGES_BUCKET);
+        
+        if (targetBucket) {
+          console.log(`"${RESTAURANT_IMAGES_BUCKET}" bucket found`);
+          setBucketReady(true);
+        } else {
+          console.error(`"${RESTAURANT_IMAGES_BUCKET}" bucket not found`);
+          setBucketReady(false);
           toast({
-            title: "Warning",
+            title: "Storage configuration issue",
             description: `"${RESTAURANT_IMAGES_BUCKET}" bucket not found in Supabase storage.`,
             variant: "destructive"
           });
         }
       } catch (error) {
-        console.error('Error checking bucket:', error);
+        console.error('Error checking storage bucket:', error);
+        setBucketReady(false);
         toast({
-          title: "Warning",
-          description: "Could not verify image upload capability. Uploads may not work.",
+          title: "Storage connection issue",
+          description: "Could not connect to image storage. Please try again later.",
           variant: "destructive"
         });
       }
@@ -83,9 +96,11 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
     try {
       // Verify bucket exists before proceeding
       if (!bucketReady) {
-        const exists = await restaurantApi.ensureStorageBucket();
-        if (!exists) {
-          throw new Error(`"${RESTAURANT_IMAGES_BUCKET}" bucket not found in Supabase storage.`);
+        // Try one more time to check if the bucket exists
+        const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+        
+        if (listError || !buckets.some(bucket => bucket.name === RESTAURANT_IMAGES_BUCKET)) {
+          throw new Error(`Cannot upload: "${RESTAURANT_IMAGES_BUCKET}" bucket not accessible.`);
         }
         setBucketReady(true);
       }
@@ -182,7 +197,7 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
             </span>
             {!bucketReady && (
               <span className="text-xs text-red-500 mt-2">
-                Storage not available. Please check Supabase configuration.
+                Image upload not available. Please try again later.
               </span>
             )}
           </label>
