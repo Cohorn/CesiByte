@@ -25,13 +25,22 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
   // Check if the bucket exists on component mount
   useEffect(() => {
     const checkBucket = async () => {
-      const exists = await restaurantApi.ensureStorageBucket();
-      setBucketReady(exists);
-      console.log('Bucket ready status:', exists);
+      try {
+        const exists = await restaurantApi.ensureStorageBucket();
+        setBucketReady(exists);
+        console.log('Bucket ready status:', exists);
+      } catch (error) {
+        console.error('Error checking bucket:', error);
+        toast({
+          title: "Warning",
+          description: "Could not verify image upload capability. Uploads may not work.",
+          variant: "destructive"
+        });
+      }
     };
     
     checkBucket();
-  }, []);
+  }, [toast]);
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -65,7 +74,7 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
       if (!bucketReady) {
         const created = await restaurantApi.ensureStorageBucket();
         if (!created) {
-          throw new Error('Unable to create storage bucket');
+          throw new Error('Unable to create or verify storage bucket');
         }
         setBucketReady(true);
       }
@@ -90,10 +99,14 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
         throw uploadError;
       }
       
+      if (!data?.path) {
+        throw new Error('Upload succeeded but no file path was returned');
+      }
+      
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('restaurant_images')
-        .getPublicUrl(filePath);
+        .getPublicUrl(data.path);
       
       console.log('Image uploaded successfully, public URL:', publicUrl);
       onImageUpload(publicUrl);
@@ -106,7 +119,7 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
       console.error('Error uploading image:', error);
       toast({
         title: "Error",
-        description: "Failed to upload image. Please try again.",
+        description: "Failed to upload image. Please try again later.",
         variant: "destructive",
       });
     } finally {

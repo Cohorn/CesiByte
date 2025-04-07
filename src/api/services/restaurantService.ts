@@ -1,4 +1,3 @@
-
 import { apiClient } from '../client';
 import { Restaurant, MenuItem } from '@/lib/database.types';
 import { supabase } from '@/lib/supabase';
@@ -224,24 +223,14 @@ export const restaurantApi = {
         
         console.log('Bucket created successfully');
         
-        // Use the correct URL with environment variables
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://ukrukdqjvvsvfvmqzxdv.supabase.co";
-        const supabaseKey = import.meta.env.VITE_SUPABASE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVrcnVrZHFqdnZzdmZ2bXF6eGR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM0MDYxMTcsImV4cCI6MjA1ODk4MjExN30.V9T0HKUznzB1Gp1_RpwrDADDWfvRXdtehx5y0u6hK4c";
+        // Create public access policies for the bucket
+        const { error: policyError } = await supabase
+          .rpc('create_storage_public_policy', { bucket_name: 'restaurant_images' });
         
-        const storageUrl = `${supabaseUrl}/functions/v1/create_storage_policy`;
-        
-        const response = await fetch(storageUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseKey}`
-          },
-          body: JSON.stringify({ bucketName: 'restaurant_images' })
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.error('Error creating access policies:', errorData);
+        if (policyError) {
+          console.error('Error creating storage policies:', policyError);
+          // Even if policy creation fails, we can continue as the bucket was created
+          // The user might have limited permissions but upload could still work
         } else {
           console.log('Public access policies created successfully');
         }
