@@ -27,7 +27,7 @@ const RestaurantOrders = () => {
   
   const REFRESH_COOLDOWN = 10000; // 10 seconds
 
-  // Only fetch orders once we have the restaurant
+  // Initialize orders state regardless of restaurant
   const { 
     orders, 
     isLoading: ordersLoading, 
@@ -35,13 +35,11 @@ const RestaurantOrders = () => {
     refetch,
     updateOrderStatus 
   } = useOrders(
-    restaurant ? { restaurantId: restaurant.id } : {}
+    restaurant ? { restaurantId: restaurant.id } : {} 
   );
 
-  // Set up MQTT for real-time order notifications
-  const { newOrder } = restaurant 
-    ? useRestaurantOrdersMQTT(restaurant.id) 
-    : { newOrder: null };
+  // Initialize MQTT state regardless of restaurant
+  const { newOrder } = useRestaurantOrdersMQTT(restaurant?.id);
 
   // Handle new orders from MQTT
   useEffect(() => {
@@ -145,13 +143,16 @@ const RestaurantOrders = () => {
     }
   };
 
+  // If user is not logged in or not a restaurant owner, show unauthorized message
   if (!user || user.user_type !== 'restaurant') {
-    return <div className="flex justify-center items-center h-screen">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold mb-4">Unauthorized</h1>
-        <p className="text-gray-600">You do not have permission to view this page.</p>
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">Unauthorized</h1>
+          <p className="text-gray-600">You do not have permission to view this page.</p>
+        </div>
       </div>
-    </div>;
+    );
   }
 
   return (
@@ -172,7 +173,7 @@ const RestaurantOrders = () => {
         />
         
         {isLoading ? (
-          <LoadingState />
+          <LoadingState message="Loading restaurant orders..." />
         ) : !restaurant ? (
           <RestaurantSetupPrompt />
         ) : orders.length === 0 ? (

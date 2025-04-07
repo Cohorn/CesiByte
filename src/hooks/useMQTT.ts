@@ -11,17 +11,21 @@ export function useMQTT<T = any>(topic: string) {
   // Check connection status periodically
   useEffect(() => {
     const intervalId = setInterval(() => {
-      setIsConnected(mqttClient.isConnected());
+      setIsConnected(mqttClient?.isConnected?.() || false);
     }, 2000);
     
     return () => clearInterval(intervalId);
   }, []);
   
   const publish = useCallback((message: any) => {
-    mqttClient.publish(topic, message);
+    if (mqttClient?.publish) {
+      mqttClient.publish(topic, message);
+    }
   }, [topic]);
   
   useEffect(() => {
+    if (!mqttClient?.subscribe) return;
+
     const handleMessage = (message: T) => {
       setLastMessage(message);
       setMessages(prev => [message, ...prev].slice(0, 100)); // Keep last 100 messages
@@ -32,7 +36,9 @@ export function useMQTT<T = any>(topic: string) {
     
     return () => {
       console.log(`Unsubscribing from MQTT topic: ${topic}`);
-      mqttClient.unsubscribe(topic, handleMessage);
+      if (mqttClient?.unsubscribe) {
+        mqttClient.unsubscribe(topic, handleMessage);
+      }
     };
   }, [topic]);
   
@@ -49,10 +55,10 @@ export function useOrderMQTT(orderId?: string) {
   const [orderStatus, setOrderStatus] = useState<string | null>(null);
   
   useEffect(() => {
-    if (!orderId) return;
+    if (!orderId || !mqttClient?.subscribe) return;
     
     const handleStatusUpdate = (message: any) => {
-      if (message.status) {
+      if (message && message.status) {
         setOrderStatus(message.status);
       }
     };
@@ -63,7 +69,9 @@ export function useOrderMQTT(orderId?: string) {
     
     return () => {
       console.log(`Unsubscribing from order status MQTT topic: ${topic}`);
-      mqttClient.unsubscribe(topic, handleStatusUpdate);
+      if (mqttClient?.unsubscribe) {
+        mqttClient.unsubscribe(topic, handleStatusUpdate);
+      }
     };
   }, [orderId]);
   
@@ -78,15 +86,16 @@ export function useRestaurantOrdersMQTT(restaurantId?: string) {
   // Check connection status periodically
   useEffect(() => {
     const intervalId = setInterval(() => {
-      setIsConnected(mqttClient.isConnected());
+      setIsConnected(mqttClient?.isConnected?.() || false);
     }, 2000);
     
     return () => clearInterval(intervalId);
   }, []);
   
   useEffect(() => {
-    if (!restaurantId) {
-      console.log('No restaurant ID provided for MQTT subscription');
+    if (!restaurantId || !mqttClient?.subscribe) {
+      // Always return a valid newOrder state of null when not subscribed
+      setNewOrder(null);
       return;
     }
     
@@ -103,7 +112,9 @@ export function useRestaurantOrdersMQTT(restaurantId?: string) {
     
     return () => {
       console.log(`Unsubscribing from restaurant MQTT topic: ${topic}`);
-      mqttClient.unsubscribe(topic, handleNewOrder);
+      if (mqttClient?.unsubscribe) {
+        mqttClient.unsubscribe(topic, handleNewOrder);
+      }
     };
   }, [restaurantId]);
   
@@ -115,7 +126,7 @@ export function useCourierAssignmentsMQTT(courierId?: string) {
   const [newAssignment, setNewAssignment] = useState<any | null>(null);
   
   useEffect(() => {
-    if (!courierId) return;
+    if (!courierId || !mqttClient?.subscribe) return;
     
     const handleNewAssignment = (assignment: any) => {
       setNewAssignment(assignment);
@@ -127,7 +138,9 @@ export function useCourierAssignmentsMQTT(courierId?: string) {
     
     return () => {
       console.log(`Unsubscribing from courier assignments MQTT topic: ${topic}`);
-      mqttClient.unsubscribe(topic, handleNewAssignment);
+      if (mqttClient?.unsubscribe) {
+        mqttClient.unsubscribe(topic, handleNewAssignment);
+      }
     };
   }, [courierId]);
   
