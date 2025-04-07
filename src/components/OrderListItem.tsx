@@ -4,17 +4,20 @@ import { format } from 'date-fns';
 import { Order, OrderStatus } from '@/lib/database.types';
 import OrderItemCard from '@/components/OrderItemCard';
 import OrderStatusUpdate from '@/components/OrderStatusUpdate';
+import DeliveryReviewButton from '@/components/DeliveryReviewButton';
 
 interface OrderListItemProps {
   order: Order;
   onUpdateStatus: (orderId: string, status: OrderStatus) => Promise<{ success: boolean, error?: any }>;
   isCurrentOrder?: boolean;
+  enableReview?: boolean;
 }
 
 const OrderListItem: React.FC<OrderListItemProps> = ({ 
   order, 
   onUpdateStatus,
-  isCurrentOrder = true
+  isCurrentOrder = true,
+  enableReview = false
 }) => {
   return (
     <div className="bg-white rounded shadow p-4">
@@ -54,6 +57,15 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
           currentStatus={order.status}
           onStatusUpdate={onUpdateStatus}
         />
+      )}
+      
+      {enableReview && order.courier_id && (
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <DeliveryReviewButton 
+            orderId={order.id} 
+            courierId={order.courier_id} 
+          />
+        </div>
       )}
     </div>
   );

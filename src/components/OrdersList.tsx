@@ -8,13 +8,15 @@ interface OrdersListProps {
   onUpdateStatus: (orderId: string, status: OrderStatus) => Promise<{ success: boolean, error?: any }>;
   isCurrentOrders?: boolean;
   emptyMessage?: string;
+  enableReviews?: boolean;
 }
 
 const OrdersList: React.FC<OrdersListProps> = ({ 
   orders, 
   onUpdateStatus,
   isCurrentOrders = true,
-  emptyMessage = "No orders found."
+  emptyMessage = "No orders found.",
+  enableReviews = false
 }) => {
   if (orders.length === 0) {
     return (
@@ -32,6 +34,7 @@ const OrdersList: React.FC<OrdersListProps> = ({
           order={order} 
           onUpdateStatus={onUpdateStatus}
           isCurrentOrder={isCurrentOrders}
+          enableReview={enableReviews && order.courier_id !== null && order.status === 'delivered'}
         />
       ))}
     </div>
