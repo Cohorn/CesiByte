@@ -72,10 +72,12 @@ const CustomerOrders: React.FC = () => {
 
   // Check for authentication errors (401)
   useEffect(() => {
-    if (error && error.message && 
-        (error.message.includes('401') || 
-         (error.response && error.response.status === 401))) {
-      setAuthError(true);
+    if (error) {
+      // Use type assertion to check for response property on Error
+      const axiosError = error as Error & { response?: { status?: number } };
+      if (axiosError.response && axiosError.response.status === 401) {
+        setAuthError(true);
+      }
     }
   }, [error]);
 

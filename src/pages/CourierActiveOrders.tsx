@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
@@ -41,6 +40,7 @@ const CourierActiveOrders = () => {
   // Callback for PIN verification
   const handleVerifyPin = useCallback(async (orderId: string, pin: string) => {
     try {
+      console.log(`Verifying PIN for order ${orderId} with value ${pin}`);
       const result = await verifyDeliveryPin(orderId, pin);
       
       if (result.success) {
@@ -51,17 +51,23 @@ const CourierActiveOrders = () => {
         
         // If PIN is verified, refetch orders to update the UI
         refetch();
+        return { success: true, message: "Delivery confirmed" };
       } else {
+        const errorMessage = result.message || "Invalid PIN";
+        console.error("PIN verification failed:", errorMessage);
+        
         toast({
           title: "Verification Failed",
-          description: result.message || "Invalid PIN",
+          description: errorMessage,
           variant: "destructive"
         });
+        
+        return { success: false, message: errorMessage };
       }
-      
-      return result;
     } catch (err) {
-      console.error("Error verifying PIN:", err);
+      const error = err as Error;
+      console.error("Error verifying PIN:", error);
+      
       toast({
         title: "Error",
         description: "An unexpected error occurred. Please try again.",

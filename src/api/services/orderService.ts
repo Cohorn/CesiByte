@@ -240,8 +240,8 @@ export const orderApi = {
   verifyDeliveryPin: async (orderId: string, pin: string) => {
     try {
       console.log(`Verifying delivery PIN for order ${orderId}`);
-      // Fix: The API endpoint should be properly constructed
-      const response = await apiClient.post(`/order-service/orders/${orderId}/verify-pin`, { pin });
+      // Fix: Use the correct API endpoint without the "order-service" prefix
+      const response = await apiClient.post(`/orders/${orderId}/verify-pin`, { pin });
       
       if (response.data.success) {
         console.log('PIN verified successfully, order marked as delivered');
@@ -284,9 +284,16 @@ export const orderApi = {
       }
     } catch (error) {
       console.error('Error verifying delivery PIN:', error);
+      // Extract the error message from the response if possible
+      const errorMessage = 
+        error.response?.data?.error || 
+        error.response?.data?.message || 
+        error.message || 
+        'Error processing your request';
+      
       return {
         success: false,
-        message: 'Error processing your request'
+        message: errorMessage
       };
     }
   },

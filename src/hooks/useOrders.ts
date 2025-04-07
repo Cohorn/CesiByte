@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { orderApi } from '@/api/services/orderService';
 import { Order, OrderStatus } from '@/lib/database.types';
 import { useAuth } from '@/lib/AuthContext';
@@ -20,18 +20,43 @@ export const useOrders = (options: OrdersOptions = {}) => {
   const [hasFetched, setHasFetched] = useState<boolean>(false);
   const { user } = useAuth();
   const { toast } = useToast();
+  
+  // Add a mounted ref to prevent state updates after unmount
+  const isMounted = useRef(true);
+
+  // Effect to set isMounted to false on cleanup
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   // Determine which API method to use based on the options
   const fetchOrders = useCallback(async (forceRefresh: boolean = false) => {
     // Skip fetching if we don't have the necessary IDs
     if (!options.restaurantId && !options.userId && !options.courierId && !options.status && !user) {
       console.log('No user or specific ID provided for fetching orders');
-      setIsLoading(false);
+      if (isMounted.current) {
+        setIsLoading(false);
+      }
       return [];
     }
 
-    setIsLoading(true);
-    setError(null);
+    // Also check if auth token exists
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      console.log('No auth token available, skipping order fetch');
+      if (isMounted.current) {
+        setIsLoading(false);
+        setError(new Error('Authentication required'));
+      }
+      return [];
+    }
+
+    if (isMounted.current) {
+      setIsLoading(true);
+      setError(null);
+    }
 
     try {
       let fetchedOrders: Order[] = [];
@@ -57,22 +82,28 @@ export const useOrders = (options: OrdersOptions = {}) => {
 
       console.log(`Fetched ${fetchedOrders?.length || 0} orders`);
       
-      // Update state with fetched orders
-      setOrders(fetchedOrders || []);
-      setHasFetched(true);
-      setIsLoading(false);
+      // Update state only if the component is still mounted
+      if (isMounted.current) {
+        setOrders(fetchedOrders || []);
+        setHasFetched(true);
+        setIsLoading(false);
+      }
       return fetchedOrders || [];
     } catch (err) {
       console.error("Error fetching orders:", err);
-      setError(err instanceof Error ? err : new Error('Failed to fetch orders'));
       
-      toast({
-        title: "Error",
-        description: "Could not fetch orders",
-        variant: "destructive"
-      });
-      
-      setIsLoading(false);
+      // Check if component is still mounted before updating state
+      if (isMounted.current) {
+        setError(err instanceof Error ? err : new Error('Failed to fetch orders'));
+        
+        toast({
+          title: "Error",
+          description: "Could not fetch orders",
+          variant: "destructive"
+        });
+        
+        setIsLoading(false);
+      }
       return [];
     }
   }, [options.userId, options.restaurantId, options.courierId, options.status, user, toast]);
@@ -88,11 +119,13 @@ export const useOrders = (options: OrdersOptions = {}) => {
       });
 
       // Update local state without refetching
-      setOrders(prevOrders => 
-        prevOrders.map(order => 
-          order.id === orderId ? { ...order, status, updated_at: new Date().toISOString() } : order
-        )
-      );
+      if (isMounted.current) {
+        setOrders(prevOrders => 
+          prevOrders.map(order => 
+            order.id === orderId ? { ...order, status, updated_at: new Date().toISOString() } : order
+          )
+        );
+      }
       
       return { success: true, data: result };
     } catch (err) {
@@ -109,7 +142,7 @@ export const useOrders = (options: OrdersOptions = {}) => {
     }
   }, [toast]);
 
-  // Update the verifyDeliveryPin function
+  // Update the verifyDeliveryPin function to handle errors better
   const verifyDeliveryPin = useCallback(async (orderId: string, pin: string) => {
     try {
       console.log(`Attempting to verify PIN for order ${orderId}`);
@@ -118,7 +151,7 @@ export const useOrders = (options: OrdersOptions = {}) => {
       if (result.success) {
         console.log('PIN verification succeeded');
         // Update local state without refetching
-        if (result.order) {
+        if (result.order && isMounted.current) {
           setOrders(prevOrders => 
             prevOrders.map(order => 
               order.id === orderId ? result.order : order
@@ -131,10 +164,22 @@ export const useOrders = (options: OrdersOptions = {}) => {
         console.log('PIN verification failed:', result.message);
         return { success: false, message: result.message };
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error("Error verifying delivery PIN:", err);
       // Provide more detailed error information
-      const errorMessage = err.response?.data?.error || err.message || "Error processing your request";
+      const errorObj = err as Error & { 
+        response?: { 
+          data?: { error?: string; message?: string; }; 
+          status?: number 
+        } 
+      };
+      
+      const errorMessage = 
+        errorObj.response?.data?.error || 
+        errorObj.response?.data?.message || 
+        errorObj.message || 
+        "Error processing your request";
+      
       return { success: false, message: errorMessage };
     }
   }, []);
