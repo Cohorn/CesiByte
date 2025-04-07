@@ -225,6 +225,53 @@ export function useRestaurant() {
     }
   };
 
+  const deleteRestaurant = async () => {
+    if (!restaurant) {
+      toast({
+        title: "Error",
+        description: "No restaurant to delete",
+        variant: "destructive",
+      });
+      return false;
+    }
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log(`Deleting restaurant ${restaurant.id}`);
+      
+      // Use Supabase directly
+      const { error: deleteError } = await supabase
+        .from('restaurants')
+        .delete()
+        .eq('id', restaurant.id);
+        
+      if (deleteError) {
+        throw deleteError;
+      }
+      
+      setRestaurant(null);
+      setLastFetched(null);
+      toast({
+        title: "Success",
+        description: "Restaurant deleted successfully",
+      });
+      return true;
+    } catch (error) {
+      console.error("Error deleting restaurant:", error);
+      setError(error as Error);
+      toast({
+        title: "Error",
+        description: "Could not delete restaurant",
+        variant: "destructive",
+      });
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     restaurant,
     loading,
@@ -232,5 +279,6 @@ export function useRestaurant() {
     fetchRestaurant,
     createRestaurant,
     updateRestaurant,
+    deleteRestaurant,
   };
 }

@@ -79,9 +79,7 @@ export const restaurantApi = {
   updateRestaurant: async (id: string, data: Partial<Restaurant>) => {
     console.log(`Updating restaurant ${id} with data:`, data);
     try {
-      // Use supabase directly instead of the backend API
-      const { supabase } = await import('@/lib/supabase');
-      
+      // Use supabase directly
       const { data: result, error } = await supabase
         .from('restaurants')
         .update(data)
@@ -98,6 +96,28 @@ export const restaurantApi = {
       return result as Restaurant;
     } catch (error) {
       console.error(`Error updating restaurant ${id}:`, error);
+      throw error;
+    }
+  },
+
+  deleteRestaurant: async (id: string) => {
+    console.log(`Deleting restaurant ${id}`);
+    try {
+      // Use supabase directly
+      const { error } = await supabase
+        .from('restaurants')
+        .delete()
+        .eq('id', id);
+        
+      if (error) {
+        console.error('Supabase error deleting restaurant:', error);
+        throw error;
+      }
+      
+      console.log('Restaurant deleted successfully via Supabase');
+      return true;
+    } catch (error) {
+      console.error(`Error deleting restaurant ${id}:`, error);
       throw error;
     }
   },

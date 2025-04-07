@@ -7,13 +7,23 @@ import NavBar from '@/components/NavBar';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
-import { MapPin, Upload, X } from 'lucide-react';
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { MapPin, Upload, X, Trash, RotateCcw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
-import { Link } from 'react-router-dom';
 
 const formSchema = z.object({
   name: z.string().min(2, {
@@ -32,21 +42,23 @@ const RestaurantSetup = () => {
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const { toast } = useToast();
-  const { restaurant, loading, createRestaurant, updateRestaurant } = useRestaurant();
+  const { restaurant, loading, createRestaurant, updateRestaurant, deleteRestaurant } = useRestaurant();
 
   const {
     register,
     handleSubmit,
     setValue,
-    formState: { errors },
+    reset,
+    formState: { errors, isDirty },
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: restaurant?.name || "",
-      address: restaurant?.address || "",
-      image_url: restaurant?.image_url || "",
+      name: "",
+      address: "",
+      image_url: "",
     },
   });
 
@@ -100,12 +112,37 @@ const RestaurantSetup = () => {
       const fileName = `${Math.random().toString(36).substring(2, 15)}-${Date.now()}.${fileExt}`;
       const filePath = `restaurants/${fileName}`;
       
+      // Check if storage bucket exists and create if needed
+      const { data: bucketData } = await supabase
+        .from('storage.buckets')
+        .select('id')
+        .eq('id', 'restaurant_images')
+        .maybeSingle();
+      
+      if (!bucketData) {
+        console.log('Creating restaurant_images bucket');
+        const { error: bucketError } = await supabase
+          .storage
+          .createBucket('restaurant_images', {
+            public: true
+          });
+          
+        if (bucketError) {
+          console.error('Error creating bucket:', bucketError);
+          // Continue anyway as the bucket might already exist
+        }
+      }
+      
       // Upload file to Supabase Storage
-      const { error: uploadError, data } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('restaurant_images')
-        .upload(filePath, file);
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true
+        });
       
       if (uploadError) {
+        console.error('Error uploading image:', uploadError);
         throw uploadError;
       }
       
@@ -115,7 +152,7 @@ const RestaurantSetup = () => {
         .getPublicUrl(filePath);
       
       setImagePreview(publicUrl);
-      setValue("image_url", publicUrl);
+      setValue("image_url", publicUrl, { shouldDirty: true });
       
       toast({
         title: "Success",
@@ -125,7 +162,7 @@ const RestaurantSetup = () => {
       console.error('Error uploading image:', error);
       toast({
         title: "Error",
-        description: "Failed to upload image",
+        description: "Failed to upload image. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -135,14 +172,65 @@ const RestaurantSetup = () => {
 
   const removeImage = () => {
     setImagePreview(null);
-    setValue("image_url", "");
+    setValue("image_url", "", { shouldDirty: true });
+  };
+
+  const handleDeleteRestaurant = async () => {
+    if (!restaurant) return;
+    
+    setIsDeleting(true);
+    try {
+      const success = await deleteRestaurant();
+      if (success) {
+        toast({
+          title: "Success",
+          description: "Restaurant deleted successfully. You can create a new one now.",
+        });
+        reset({
+          name: "",
+          address: "",
+          image_url: ""
+        });
+        setImagePreview(null);
+      }
+    } catch (error) {
+      console.error('Error deleting restaurant:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete restaurant",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const resetForm = () => {
+    if (restaurant) {
+      setValue("name", restaurant.name);
+      setValue("address", restaurant.address);
+      if (restaurant.image_url) {
+        setValue("image_url", restaurant.image_url);
+        setImagePreview(restaurant.image_url);
+      } else {
+        setValue("image_url", "");
+        setImagePreview(null);
+      }
+    } else {
+      reset({
+        name: "",
+        address: "",
+        image_url: ""
+      });
+      setImagePreview(null);
+    }
   };
 
   const onSubmit = async (data: FormData) => {
     if (!user) {
       toast({
         title: "Error",
-        description: "You must be logged in to create a restaurant",
+        description: "You must be logged in to manage a restaurant",
         variant: "destructive",
       });
       return;
@@ -177,7 +265,11 @@ const RestaurantSetup = () => {
           title: "Success!",
           description: restaurant ? "Restaurant updated" : "Restaurant created",
         });
-        navigate('/restaurant/menu');
+        
+        if (!restaurant) {
+          // Newly created - navigate to menu
+          navigate('/restaurant/menu');
+        }
       }
     } catch (error) {
       console.error('Error saving restaurant:', error);
@@ -294,10 +386,69 @@ const RestaurantSetup = () => {
                 </div>
               </div>
               
-              <Button type="submit" disabled={isSubmitting} className="w-full">
-                {isSubmitting ? 'Saving...' : 'Save Restaurant'}
-              </Button>
+              <div className="flex gap-2 mt-4">
+                <Button 
+                  type="submit" 
+                  disabled={isSubmitting} 
+                  className="flex-1"
+                >
+                  {isSubmitting ? 'Saving...' : (restaurant ? 'Update Restaurant' : 'Create Restaurant')}
+                </Button>
+                
+                {isDirty && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={resetForm}
+                    disabled={isSubmitting}
+                  >
+                    <RotateCcw className="h-4 w-4 mr-1" />
+                    Reset
+                  </Button>
+                )}
+              </div>
             </form>
+            
+            {restaurant && (
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                <h3 className="text-lg font-medium text-gray-900 mb-3">Delete Restaurant</h3>
+                <p className="text-sm text-gray-500 mb-4">
+                  Deleting your restaurant will remove all associated information and cannot be undone.
+                  You will be able to create a new restaurant afterward.
+                </p>
+                
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="destructive"
+                      className="w-full"
+                      disabled={isDeleting}
+                    >
+                      <Trash className="h-4 w-4 mr-1" />
+                      {isDeleting ? 'Deleting...' : 'Delete Restaurant'}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete your
+                        restaurant and all associated data.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleDeleteRestaurant}
+                        className="bg-red-600 hover:bg-red-700"
+                      >
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            )}
           </div>
         )}
       </div>
