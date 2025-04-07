@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { orderApi } from '@/api/services/orderService';
 import { Order, OrderStatus } from '@/lib/database.types';
@@ -22,7 +23,8 @@ export const useOrders = (options: OrdersOptions = {}) => {
 
   // Determine which API method to use based on the options
   const fetchOrders = useCallback(async (forceRefresh: boolean = false) => {
-    if (!user && !options.restaurantId && !options.userId && !options.courierId) {
+    // Skip fetching if we don't have the necessary IDs
+    if (!options.restaurantId && !options.userId && !options.courierId && !options.status && !user) {
       console.log('No user or specific ID provided for fetching orders');
       setIsLoading(false);
       return [];
@@ -57,6 +59,7 @@ export const useOrders = (options: OrdersOptions = {}) => {
       // Update state with fetched orders
       setOrders(fetchedOrders || []);
       setHasFetched(true);
+      setIsLoading(false);
       return fetchedOrders || [];
     } catch (err) {
       console.error("Error fetching orders:", err);
@@ -68,9 +71,8 @@ export const useOrders = (options: OrdersOptions = {}) => {
         variant: "destructive"
       });
       
-      return [];
-    } finally {
       setIsLoading(false);
+      return [];
     }
   }, [options.userId, options.restaurantId, options.courierId, options.status, user, toast]);
 
@@ -118,26 +120,26 @@ export const useOrders = (options: OrdersOptions = {}) => {
 
   // Initial fetch - with proper dependency tracking
   useEffect(() => {
-    const shouldFetch = 
-      !hasFetched && 
-      (user || options.restaurantId || options.courierId || options.userId);
+    // Only fetch if we have some relevant ID to fetch by
+    const hasRelevantId = options.restaurantId || options.courierId || options.userId || user?.id;
     
-    if (shouldFetch) {
+    if (!hasFetched && hasRelevantId) {
       console.log('useOrders hook - initial fetch with options:', options);
-      fetchOrders().then(() => {
-        console.log('Initial orders fetch complete');
-      });
-    } else if (!shouldFetch && !isLoading) {
-      console.log('Skipping initial fetch - no relevant IDs available');
+      fetchOrders()
+        .then(result => {
+          console.log('Initial orders fetch complete, count:', result.length);
+        })
+        .catch(err => {
+          console.error('Error in initial orders fetch:', err);
+        });
     }
   }, [
-    user?.id, 
     options.restaurantId, 
     options.courierId, 
-    options.userId, 
+    options.userId,
+    user?.id,
     fetchOrders, 
-    hasFetched,
-    isLoading
+    hasFetched
   ]);
 
   // Subscribe to real-time updates

@@ -12,93 +12,104 @@ class MQTTClient {
   private messageQueue: Array<{topic: string, message: any}> = [];
   private connectionAttempts = 0;
   private maxReconnectDelay = 30000; // Maximum delay is 30 seconds
+  private connecting = false;
 
   // Connect to the MQTT WebSocket proxy
   connect() {
-    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+    if (this.connecting || (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING))) {
       return;
     }
 
+    this.connecting = true;
+    
     // Use API gateway WebSocket endpoint for MQTT
     const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/mqtt`;
     
     console.log(`Connecting to MQTT WebSocket proxy at ${wsUrl}`);
     
-    this.ws = new WebSocket(wsUrl);
-    
-    this.ws.onopen = () => {
-      console.log('Connected to MQTT WebSocket proxy');
-      this.connected = true;
-      this.connectionAttempts = 0;
+    try {
+      this.ws = new WebSocket(wsUrl);
       
-      // Resubscribe to all previously subscribed topics
-      for (const topic of this.subscriptions.keys()) {
-        this.subscribe(topic);
-      }
-      
-      // Send any queued messages
-      while (this.messageQueue.length > 0) {
-        const { topic, message } = this.messageQueue.shift()!;
-        this.publish(topic, message);
-      }
-    };
-    
-    this.ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
+      this.ws.onopen = () => {
+        console.log('Connected to MQTT WebSocket proxy');
+        this.connected = true;
+        this.connecting = false;
+        this.connectionAttempts = 0;
         
-        if (data.topic && data.message) {
-          // Parse the message if it's JSON
-          let messageData;
-          try {
-            messageData = JSON.parse(data.message);
-          } catch (e) {
-            messageData = data.message;
-          }
+        // Resubscribe to all previously subscribed topics
+        for (const topic of this.subscriptions.keys()) {
+          this.subscribe(topic);
+        }
+        
+        // Send any queued messages
+        while (this.messageQueue.length > 0) {
+          const { topic, message } = this.messageQueue.shift()!;
+          this.publish(topic, message);
+        }
+      };
+      
+      this.ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
           
-          // Notify subscribers
-          const handlers = this.subscriptions.get(data.topic);
-          if (handlers) {
-            handlers.forEach(handler => handler(messageData));
-          }
-          
-          // Check for wildcard subscribers
-          for (const [topic, topicHandlers] of this.subscriptions.entries()) {
-            if (topic.includes('#') && this.matchTopic(data.topic, topic)) {
-              topicHandlers.forEach(handler => handler(messageData));
+          if (data.topic && data.message) {
+            // Parse the message if it's JSON
+            let messageData;
+            try {
+              messageData = JSON.parse(data.message);
+            } catch (e) {
+              messageData = data.message;
+            }
+            
+            // Notify subscribers
+            const handlers = this.subscriptions.get(data.topic);
+            if (handlers) {
+              handlers.forEach(handler => handler(messageData));
+            }
+            
+            // Check for wildcard subscribers
+            for (const [topic, topicHandlers] of this.subscriptions.entries()) {
+              if (topic.includes('#') && this.matchTopic(data.topic, topic)) {
+                topicHandlers.forEach(handler => handler(messageData));
+              }
             }
           }
+        } catch (error) {
+          console.error('Error processing WebSocket message:', error);
         }
-      } catch (error) {
-        console.error('Error processing WebSocket message:', error);
-      }
-    };
-    
-    this.ws.onclose = () => {
-      console.log('Disconnected from MQTT WebSocket proxy');
-      this.connected = false;
+      };
       
-      // Try to reconnect with exponential backoff
-      if (!this.reconnectTimeout) {
-        // Calculate delay with exponential backoff, capped at maxReconnectDelay
-        const delay = Math.min(
-          1000 * Math.pow(2, this.connectionAttempts), 
-          this.maxReconnectDelay
-        );
+      this.ws.onclose = () => {
+        console.log('Disconnected from MQTT WebSocket proxy');
+        this.connected = false;
+        this.connecting = false;
         
-        console.log(`Will try to reconnect in ${delay}ms`);
-        
-        this.reconnectTimeout = setTimeout(() => {
-          this.reconnectTimeout = null;
-          this.connectionAttempts++;
-          this.connect();
-        }, delay);
-      }
-    };
-    
-    this.ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
+        // Try to reconnect with exponential backoff
+        if (!this.reconnectTimeout) {
+          // Calculate delay with exponential backoff, capped at maxReconnectDelay
+          const delay = Math.min(
+            1000 * Math.pow(2, this.connectionAttempts), 
+            this.maxReconnectDelay
+          );
+          
+          console.log(`Will try to reconnect in ${delay}ms`);
+          
+          this.reconnectTimeout = setTimeout(() => {
+            this.reconnectTimeout = null;
+            this.connectionAttempts++;
+            this.connect();
+          }, delay);
+        }
+      };
+      
+      this.ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        this.connecting = false;
+      };
+    } catch (error) {
+      console.error('Error creating WebSocket:', error);
+      this.connecting = false;
+    }
   }
   
   // Checks if a topic matches a wildcard subscription

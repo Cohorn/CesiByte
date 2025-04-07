@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import NavBar from '@/components/NavBar';
@@ -26,16 +27,18 @@ const RestaurantOrders = () => {
   
   const REFRESH_COOLDOWN = 10000; // 10 seconds
   
+  // Fetch restaurant data if user is logged in and is a restaurant owner
   useEffect(() => {
     if (user?.user_type === 'restaurant' && !restaurant && !attemptedFetch) {
       console.log("RestaurantOrders - Fetching restaurant data for user:", user.id);
       setAttemptedFetch(true);
-      fetchRestaurant(undefined, true).then(result => {
+      fetchRestaurant(user.id, true).then(result => {
         console.log("RestaurantOrders - Restaurant fetch result:", result);
       });
     }
   }, [user, restaurant, fetchRestaurant, attemptedFetch]);
 
+  // Only fetch orders once we have the restaurant
   const { 
     orders, 
     isLoading: ordersLoading, 
@@ -46,25 +49,29 @@ const RestaurantOrders = () => {
     restaurant ? { restaurantId: restaurant.id } : {}
   );
 
+  // Set up MQTT for real-time order notifications
   const { newOrder } = restaurant 
     ? useRestaurantOrdersMQTT(restaurant.id) 
     : { newOrder: null };
 
+  // Handle new orders from MQTT
   useEffect(() => {
     if (newOrder) {
       console.log("Received new order from MQTT:", newOrder);
       refetch(true);
       toast({
         title: "New Order",
-        description: `You have received a new order! Order #${newOrder.id}`,
+        description: `You have received a new order! Order #${newOrder.id?.substring(0, 8) || 'New'}`,
       });
     }
   }, [newOrder, refetch, toast]);
 
+  // Maintain local orders state to handle updates without refetching
   const [localOrders, setLocalOrders] = useState<Order[]>([]);
 
+  // Update local orders when API orders change
   useEffect(() => {
-    if (orders.length > 0) {
+    if (orders && orders.length > 0) {
       console.log("Setting local orders from API orders:", orders);
       setLocalOrders(orders);
     }
@@ -72,19 +79,20 @@ const RestaurantOrders = () => {
 
   const isLoading = restaurantLoading || ordersLoading;
 
+  // Filter orders into current and past
   const currentOrders = localOrders.filter(order => isCurrentOrder(order.status));
   const pastOrders = localOrders.filter(order => !isCurrentOrder(order.status));
 
+  // Auto-refresh orders when restaurant is loaded
   useEffect(() => {
     console.log("RestaurantOrders - Current restaurant:", restaurant);
     console.log("RestaurantOrders - Current orders:", orders);
     
-    if (restaurant && orders.length === 0 && !ordersLoading && !ordersError && !isRefreshing && !attemptedFetch) {
+    if (restaurant && orders.length === 0 && !ordersLoading && !ordersError && !isRefreshing) {
       console.log("RestaurantOrders - Auto-refreshing orders for restaurant:", restaurant.id);
       handleRefresh();
-      setAttemptedFetch(true);
     }
-  }, [restaurant, orders, ordersLoading, ordersError, isRefreshing, attemptedFetch]);
+  }, [restaurant, orders, ordersLoading, ordersError, isRefreshing]);
 
   const canRefresh = useCallback(() => {
     if (!lastRefreshTime) return true;
@@ -110,7 +118,7 @@ const RestaurantOrders = () => {
       console.log("Manually refreshing restaurant orders");
       if (!restaurant && user) {
         console.log("No restaurant data found, fetching restaurant first");
-        const restaurantData = await fetchRestaurant(undefined, true);
+        const restaurantData = await fetchRestaurant(user.id, true);
         if (restaurantData) {
           console.log("Restaurant fetched, now refreshing orders");
           await refetch?.(true);
@@ -272,7 +280,7 @@ const RestaurantOrders = () => {
           <div className="bg-white rounded shadow p-8 text-center">
             <h2 className="text-xl font-semibold mb-4">Restaurant Not Found</h2>
             <p className="text-gray-500 mb-4">Please set up your restaurant first.</p>
-            <Button onClick={handleSetupRestaurant}>
+            <Button onClick={() => navigate('/restaurant/setup')}>
               Set Up Restaurant
             </Button>
           </div>
@@ -296,7 +304,64 @@ const RestaurantOrders = () => {
             
             <TabsContent value="current" className="space-y-4">
               {currentOrders.length > 0 ? (
-                currentOrders.map(renderOrderCard)
+                currentOrders.map(order => (
+                  <div key={order.id} className="bg-white rounded shadow p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h2 className="text-lg font-semibold">Order #{order.id.substring(0, 8)}</h2>
+                      <span className="text-sm text-gray-600">
+                        {format(new Date(order.created_at), 'PPP p')}
+                      </span>
+                    </div>
+                    
+                    <div className="mb-2">
+                      <strong>Delivery Address:</strong> {order.delivery_address}
+                    </div>
+                    
+                    <div className="mb-2">
+                      <strong>Status:</strong> <span className="capitalize">{order.status.replace(/_/g, ' ')}</span>
+                    </div>
+                    
+                    <div>
+                      <strong>Items:</strong>
+                      <ul className="mt-2">
+                        {Array.isArray(order.items) && order.items.map((item, index) => (
+                          <li key={index} className="py-2">
+                            <OrderItemCard item={item} />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    
+                    <div className="mt-4">
+                      <strong>Total:</strong> ${order.total_price?.toFixed(2)}
+                    </div>
+                    
+                    <OrderStatusUpdate 
+                      orderId={order.id}
+                      currentStatus={order.status}
+                      onStatusUpdate={async (orderId, status) => {
+                        try {
+                          const result = await updateOrderStatus(orderId, status);
+                          
+                          if (result.success) {
+                            setLocalOrders(prevOrders => 
+                              prevOrders.map(order => 
+                                order.id === orderId 
+                                  ? { ...order, status, updated_at: new Date().toISOString() }
+                                  : order
+                              )
+                            );
+                          }
+                          
+                          return result;
+                        } catch (error) {
+                          console.error("Error in handleUpdateOrderStatus:", error);
+                          return { success: false, error };
+                        }
+                      }}
+                    />
+                  </div>
+                ))
               ) : (
                 <div className="bg-white rounded shadow p-8 text-center">
                   <p className="text-gray-500">No current orders.</p>
@@ -306,7 +371,39 @@ const RestaurantOrders = () => {
             
             <TabsContent value="past" className="space-y-4">
               {pastOrders.length > 0 ? (
-                pastOrders.map(renderOrderCard)
+                pastOrders.map(order => (
+                  <div key={order.id} className="bg-white rounded shadow p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h2 className="text-lg font-semibold">Order #{order.id.substring(0, 8)}</h2>
+                      <span className="text-sm text-gray-600">
+                        {format(new Date(order.created_at), 'PPP p')}
+                      </span>
+                    </div>
+                    
+                    <div className="mb-2">
+                      <strong>Delivery Address:</strong> {order.delivery_address}
+                    </div>
+                    
+                    <div className="mb-2">
+                      <strong>Status:</strong> <span className="capitalize">{order.status.replace(/_/g, ' ')}</span>
+                    </div>
+                    
+                    <div>
+                      <strong>Items:</strong>
+                      <ul className="mt-2">
+                        {Array.isArray(order.items) && order.items.map((item, index) => (
+                          <li key={index} className="py-2">
+                            <OrderItemCard item={item} />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    
+                    <div className="mt-4">
+                      <strong>Total:</strong> ${order.total_price?.toFixed(2)}
+                    </div>
+                  </div>
+                ))
               ) : (
                 <div className="bg-white rounded shadow p-8 text-center">
                   <p className="text-gray-500">No past orders.</p>

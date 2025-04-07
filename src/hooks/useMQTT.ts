@@ -62,11 +62,13 @@ export function useRestaurantOrdersMQTT(restaurantId?: string) {
     if (!restaurantId) return;
     
     const handleNewOrder = (order: any) => {
+      console.log("Restaurant MQTT - New order received:", order);
       setNewOrder(order);
       // Reset after a short delay to allow for subsequent notifications
       setTimeout(() => setNewOrder(null), 5000);
     };
     
+    console.log(`Subscribing to restaurant MQTT topic: foodapp/restaurants/${restaurantId}/orders`);
     mqttClient.subscribe(`foodapp/restaurants/${restaurantId}/orders`, handleNewOrder);
     
     return () => {
