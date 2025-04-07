@@ -98,10 +98,8 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
         <OrderStatusUpdate 
           orderId={order.id}
           currentStatus={order.status}
-          onUpdateStatus={onUpdateStatus}
+          onStatusUpdate={onUpdateStatus}
           restaurantId={order.restaurant_id}
-          courierId={order.courier_id || undefined}
-          userId={order.user_id}
         />
       )}
       
