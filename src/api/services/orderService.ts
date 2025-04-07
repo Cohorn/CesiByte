@@ -240,7 +240,7 @@ export const orderApi = {
   verifyDeliveryPin: async (orderId: string, pin: string) => {
     try {
       console.log(`Verifying delivery PIN for order ${orderId}`);
-      // Fix: Use the correct API endpoint without the "order-service" prefix
+      // Fix: Use the correct API endpoint path
       const response = await apiClient.post(`/orders/${orderId}/verify-pin`, { pin });
       
       if (response.data.success) {

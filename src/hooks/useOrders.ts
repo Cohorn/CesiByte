@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { orderApi } from '@/api/services/orderService';
 import { Order, OrderStatus } from '@/lib/database.types';
@@ -20,20 +19,16 @@ export const useOrders = (options: OrdersOptions = {}) => {
   const [hasFetched, setHasFetched] = useState<boolean>(false);
   const { user } = useAuth();
   const { toast } = useToast();
-  
-  // Add a mounted ref to prevent state updates after unmount
   const isMounted = useRef(true);
 
-  // Effect to set isMounted to false on cleanup
   useEffect(() => {
+    isMounted.current = true;
     return () => {
       isMounted.current = false;
     };
   }, []);
 
-  // Determine which API method to use based on the options
   const fetchOrders = useCallback(async (forceRefresh: boolean = false) => {
-    // Skip fetching if we don't have the necessary IDs
     if (!options.restaurantId && !options.userId && !options.courierId && !options.status && !user) {
       console.log('No user or specific ID provided for fetching orders');
       if (isMounted.current) {
@@ -42,7 +37,6 @@ export const useOrders = (options: OrdersOptions = {}) => {
       return [];
     }
 
-    // Also check if auth token exists
     const token = localStorage.getItem('auth_token');
     if (!token) {
       console.log('No auth token available, skipping order fetch');
@@ -61,7 +55,6 @@ export const useOrders = (options: OrdersOptions = {}) => {
     try {
       let fetchedOrders: Order[] = [];
 
-      // Check if we have a restaurant ID and prioritize that for fetching
       if (options.restaurantId) {
         console.log(`Fetching orders for restaurant ID: ${options.restaurantId}, force: ${forceRefresh}`);
         fetchedOrders = await orderApi.getOrdersByRestaurant(options.restaurantId, forceRefresh);
@@ -75,14 +68,12 @@ export const useOrders = (options: OrdersOptions = {}) => {
         console.log(`Fetching orders by status: ${options.status}`);
         fetchedOrders = await orderApi.getOrdersByStatus(options.status);
       } else if (user) {
-        // Default to current user's orders if no specific option is provided
         console.log(`Fetching orders for current user: ${user.id}`);
         fetchedOrders = await orderApi.getOrdersByUser(user.id);
       }
 
       console.log(`Fetched ${fetchedOrders?.length || 0} orders`);
       
-      // Update state only if the component is still mounted
       if (isMounted.current) {
         setOrders(fetchedOrders || []);
         setHasFetched(true);
@@ -92,7 +83,6 @@ export const useOrders = (options: OrdersOptions = {}) => {
     } catch (err) {
       console.error("Error fetching orders:", err);
       
-      // Check if component is still mounted before updating state
       if (isMounted.current) {
         setError(err instanceof Error ? err : new Error('Failed to fetch orders'));
         
@@ -112,13 +102,11 @@ export const useOrders = (options: OrdersOptions = {}) => {
     try {
       const result = await orderApi.updateOrderStatus(orderId, status);
       
-      // Success handling
       toast({
         title: "Status Updated",
         description: `Order status has been updated to ${status.replace(/_/g, ' ')}`,
       });
 
-      // Update local state without refetching
       if (isMounted.current) {
         setOrders(prevOrders => 
           prevOrders.map(order => 
@@ -131,7 +119,6 @@ export const useOrders = (options: OrdersOptions = {}) => {
     } catch (err) {
       console.error("Error updating order status:", err);
       
-      // Error handling
       toast({
         title: "Update Failed",
         description: "Could not update the order status",
@@ -142,51 +129,51 @@ export const useOrders = (options: OrdersOptions = {}) => {
     }
   }, [toast]);
 
-  // Update the verifyDeliveryPin function to handle errors better
+  const assignCourier = useCallback(async (orderId: string, courierId: string) => {
+    try {
+      const result = await orderApi.assignCourier(orderId, courierId);
+      
+      toast({
+        title: "Courier Assigned",
+        description: `Courier ${courierId} has been assigned to order ${orderId}`,
+      });
+
+      if (isMounted.current) {
+        setOrders(prevOrders => 
+          prevOrders.map(order => 
+            order.id === orderId ? { ...order, courier_id: courierId } : order
+          )
+        );
+      }
+      
+      return { success: true, data: result };
+    } catch (err) {
+      console.error("Error assigning courier:", err);
+      
+      toast({
+        title: "Assignment Failed",
+        description: "Could not assign the courier",
+        variant: "destructive"
+      });
+      
+      return { success: false, error: err };
+    }
+  }, [toast]);
+
   const verifyDeliveryPin = useCallback(async (orderId: string, pin: string) => {
     try {
-      console.log(`Attempting to verify PIN for order ${orderId}`);
-      const result = await orderApi.verifyDeliveryPin(orderId, pin);
-      
-      if (result.success) {
-        console.log('PIN verification succeeded');
-        // Update local state without refetching
-        if (result.order && isMounted.current) {
-          setOrders(prevOrders => 
-            prevOrders.map(order => 
-              order.id === orderId ? result.order : order
-            )
-          );
-        }
-        
-        return { success: true, data: result.order };
-      } else {
-        console.log('PIN verification failed:', result.message);
-        return { success: false, message: result.message };
-      }
+      console.log(`Sending verification request for order ${orderId} with PIN ${pin}`);
+      return await orderApi.verifyDeliveryPin(orderId, pin);
     } catch (err) {
-      console.error("Error verifying delivery PIN:", err);
-      // Provide more detailed error information
-      const errorObj = err as Error & { 
-        response?: { 
-          data?: { error?: string; message?: string; }; 
-          status?: number 
-        } 
+      console.error("Error in verifyDeliveryPin:", err);
+      return { 
+        success: false, 
+        message: err instanceof Error ? err.message : "Error processing your request" 
       };
-      
-      const errorMessage = 
-        errorObj.response?.data?.error || 
-        errorObj.response?.data?.message || 
-        errorObj.message || 
-        "Error processing your request";
-      
-      return { success: false, message: errorMessage };
     }
   }, []);
 
-  // Initial fetch - better dependency tracking
   useEffect(() => {
-    // Only fetch if we have some relevant ID to fetch by
     const hasRelevantId = options.restaurantId || options.courierId || options.userId || user?.id;
     
     if (!hasFetched && hasRelevantId) {
@@ -208,11 +195,9 @@ export const useOrders = (options: OrdersOptions = {}) => {
     hasFetched
   ]);
 
-  // Subscribe to real-time updates
   useEffect(() => {
     console.log('Setting up real-time order updates subscription');
     
-    // Set up MQTT subscriptions for real-time updates
     if (mqttClient && (options.restaurantId || options.userId || options.courierId)) {
       const topics = [];
       
@@ -237,12 +222,10 @@ export const useOrders = (options: OrdersOptions = {}) => {
         mqttClient.subscribe(topic);
       }
       
-      // Subscribe to order update events to trigger refreshes
       const updateTopic = 'foodapp/orders/events/updated';
       topics.push(updateTopic);
       mqttClient.subscribe(updateTopic);
       
-      // Return cleanup function
       return () => {
         topics.forEach(topic => {
           console.log(`Unsubscribing from: ${topic}`);
@@ -251,11 +234,9 @@ export const useOrders = (options: OrdersOptions = {}) => {
       };
     }
     
-    // Subscribe to order updates via the orderApi
     const unsubscribe = orderApi.subscribeToOrderUpdates((updatedOrder) => {
       console.log('Received order update:', updatedOrder);
       
-      // Check if this update is relevant to our current filter
       let isRelevant = false;
       
       if (options.restaurantId && updatedOrder.restaurant_id === options.restaurantId) {
@@ -272,17 +253,14 @@ export const useOrders = (options: OrdersOptions = {}) => {
       }
       
       if (isRelevant) {
-        // Update local state without refetching
         setOrders(prevOrders => {
           const orderExists = prevOrders.some(order => order.id === updatedOrder.id);
           
           if (orderExists) {
-            // Update existing order
             return prevOrders.map(order => 
               order.id === updatedOrder.id ? updatedOrder : order
             );
           } else {
-            // Add new order
             return [updatedOrder, ...prevOrders];
           }
         });
@@ -300,6 +278,7 @@ export const useOrders = (options: OrdersOptions = {}) => {
     error,
     refetch: fetchOrders,
     updateOrderStatus,
+    assignCourier,
     verifyDeliveryPin
   };
 };
