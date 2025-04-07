@@ -1,6 +1,7 @@
 
 import { apiClient } from '../client';
 import { Restaurant, MenuItem } from '@/lib/database.types';
+import { supabase } from '@/lib/supabase';
 
 export const restaurantApi = {
   getAllRestaurants: async () => {
@@ -42,12 +43,23 @@ export const restaurantApi = {
   createRestaurant: async (data: Omit<Restaurant, 'id' | 'created_at'>) => {
     console.log('Creating restaurant with data:', data);
     try {
-      // Use supabase directly instead of the backend API
-      const { supabase } = await import('@/lib/supabase');
+      // Validate that user_id is present
+      if (!data.user_id) {
+        console.error('Error: user_id is required to create a restaurant');
+        throw new Error('User ID is required to create a restaurant');
+      }
       
+      // Use supabase directly instead of the backend API
       const { data: result, error } = await supabase
         .from('restaurants')
-        .insert(data)
+        .insert({
+          name: data.name,
+          address: data.address,
+          lat: data.lat,
+          lng: data.lng,
+          user_id: data.user_id,
+          image_url: data.image_url || null
+        })
         .select()
         .single();
         

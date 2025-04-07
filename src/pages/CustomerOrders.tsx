@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -42,7 +41,6 @@ const CustomerOrders = () => {
   const { submitReview } = useReviews();
   const { updateOrderStatus } = useOrders();
 
-  // Define which statuses are considered "active" vs "past"
   const activeStatuses: OrderStatus[] = [
     'created', 
     'accepted_by_restaurant', 
@@ -54,91 +52,87 @@ const CustomerOrders = () => {
   ];
   const pastStatuses: OrderStatus[] = ['completed'];
 
-  useEffect(() => {
+  const fetchOrders = useCallback(async () => {
     if (!user) {
       return;
     }
 
-    const fetchOrders = async () => {
-      try {
-        // Fetch orders with restaurant data
-        const { data: ordersData, error: ordersError } = await supabase
-          .from('orders')
-          .select(`
-            *,
-            restaurants (*)
-          `)
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
+    try {
+      const { data: ordersData, error: ordersError } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          restaurants (*)
+        `)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
 
-        if (ordersError) {
-          console.error('Error fetching orders:', ordersError);
-          toast({
-            title: "Error",
-            description: "Failed to load orders",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        // Fetch courier users
-        const courierIds = ordersData
-          ?.map(order => order.courier_id)
-          .filter(Boolean) as string[];
-        
-        if (courierIds && courierIds.length > 0) {
-          const { data: couriersData, error: couriersError } = await supabase
-            .from('users')
-            .select('id, name, lat, lng')
-            .in('id', courierIds);
-          
-          if (couriersError) {
-            console.error('Error fetching couriers:', couriersError);
-          } else {
-            setCourierUsers(couriersData as SimpleUser[]);
-          }
-        }
-
-        if (ordersData) {
-          const ordersWithRestaurants = ordersData.map(order => {
-            // Parse items if it's a string
-            const parsedItems = typeof order.items === 'string' 
-              ? JSON.parse(order.items) 
-              : (Array.isArray(order.items) ? order.items : []);
-            
-            return {
-              ...order,
-              items: parsedItems as OrderItem[],
-              restaurant: order.restaurants as Restaurant,
-              status: order.status as OrderStatus,
-              delivery_pin: order.delivery_pin || '' // Ensure delivery_pin is included
-            } as OrderWithRestaurant;
-          });
-          
-          // Separate active and past orders
-          const active = ordersWithRestaurants.filter(order => 
-            activeStatuses.includes(order.status)
-          );
-          
-          const past = ordersWithRestaurants.filter(order => 
-            pastStatuses.includes(order.status)
-          );
-          
-          setActiveOrders(active);
-          setPastOrders(past);
-        }
-      } catch (error) {
-        console.error('Error fetching orders:', error);
+      if (ordersError) {
+        console.error('Error fetching orders:', ordersError);
         toast({
           title: "Error",
-          description: "An unexpected error occurred",
+          description: "Failed to load orders",
           variant: "destructive",
         });
+        return;
       }
-    };
 
-    fetchOrders();
+      const courierIds = ordersData
+        ?.map(order => order.courier_id)
+        .filter(Boolean) as string[];
+      
+      if (courierIds && courierIds.length > 0) {
+        const { data: couriersData, error: couriersError } = await supabase
+          .from('users')
+          .select('id, name, lat, lng')
+          .in('id', courierIds);
+        
+        if (couriersError) {
+          console.error('Error fetching couriers:', couriersError);
+        } else {
+          setCourierUsers(couriersData as SimpleUser[]);
+        }
+      }
+
+      if (ordersData) {
+        const formattedOrders = ordersData.map(order => {
+          const parsedItems = typeof order.items === 'string' 
+            ? JSON.parse(order.items as string) 
+            : order.items;
+          
+          return {
+            ...order,
+            items: parsedItems as OrderItem[],
+            restaurant: order.restaurants as Restaurant,
+            status: order.status as OrderStatus,
+            delivery_pin: order.delivery_pin || '0000'
+          } as OrderWithRestaurant;
+        });
+        
+        const active = formattedOrders.filter(order => 
+          activeStatuses.includes(order.status)
+        );
+        
+        const past = formattedOrders.filter(order => 
+          pastStatuses.includes(order.status)
+        );
+        
+        setActiveOrders(active);
+        setPastOrders(past);
+      }
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      });
+    }
   }, [user, toast, activeStatuses, pastStatuses]);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
 
   const handleReviewCourier = (order: Order) => {
     setSelectedOrder(order);
@@ -169,7 +163,6 @@ const CustomerOrders = () => {
   const handleConfirmDelivery = async (orderId: string) => {
     const result = await updateOrderStatus(orderId, 'completed');
     if (result.success) {
-      // Move the order from active to past
       const confirmedOrder = activeOrders.find(order => order.id === orderId);
       if (confirmedOrder) {
         const updatedOrder = { ...confirmedOrder, status: 'completed' as OrderStatus };
@@ -194,16 +187,13 @@ const CustomerOrders = () => {
     };
   };
 
-  // Redirect if user is not logged in
   if (!user) {
     return <Navigate to="/login" />;
   }
 
-  // Render an order card for both active and past orders
   const renderOrderCard = (order: OrderWithRestaurant, isActive: boolean) => {
     const courierInfo = getCourierInfo(order.courier_id);
     
-    // Calculate restaurant distance
     const restaurantDistance = calculateDistance(
       user.lat,
       user.lng,
@@ -211,7 +201,6 @@ const CustomerOrders = () => {
       order.restaurant.lng
     );
     
-    // Calculate courier distance if available and only for active orders
     const courierDistance = isActive && courierInfo.lat && courierInfo.lng ? 
       calculateDistance(user.lat, user.lng, courierInfo.lat, courierInfo.lng) : 0;
     
@@ -243,7 +232,6 @@ const CustomerOrders = () => {
           </p>
         </div>
         
-        {/* Delivery PIN Display */}
         {isActive && order.status === 'on_the_way' && order.delivery_pin && (
           <Card className="mt-3 bg-green-50 border-green-200">
             <CardContent className="p-3">

@@ -139,19 +139,28 @@ const RestaurantSetup = () => {
   };
 
   const onSubmit = async (data: FormData) => {
-    if (!user) return;
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to create a restaurant",
+        variant: "destructive",
+      });
+      return;
+    }
     
     setIsSubmitting(true);
     try {
-      // Instead of geocoding, use the coordinates from user registration
+      // Create the restaurant data object with the required user_id
       const restaurantData = {
         name: data.name,
         address: data.address,
         lat: user.lat || 0, // Use user's coordinates from registration
         lng: user.lng || 0, // Use user's coordinates from registration
-        user_id: user.id,
+        user_id: user.id, // Explicitly include the user ID
         image_url: data.image_url || null // Optional image URL
       };
+      
+      console.log("Submitting restaurant data:", restaurantData);
       
       let result;
       

@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Order, OrderStatus, SimpleUser } from '@/lib/database.types';
@@ -16,12 +15,10 @@ export function useCourierActiveOrders(courierId?: string) {
   const { toast } = useToast();
   const initCompletedRef = useRef(false);
   
-  // Use memoized courierId for useReviews to prevent unnecessary re-fetches
   const reviewsParams = useCallback(() => ({ 
     courierId: courierId 
   }), [courierId]);
   
-  // Use isLoading instead of loading and correctly handle the error
   const { 
     reviews, 
     isLoading: reviewsLoading, 
@@ -30,7 +27,6 @@ export function useCourierActiveOrders(courierId?: string) {
     averageRating
   } = useReviews(reviewsParams());
   
-  // Handle reviews error separately
   useEffect(() => {
     if (reviewsError) {
       setError(reviewsError.message);
@@ -44,14 +40,12 @@ export function useCourierActiveOrders(courierId?: string) {
     }
 
     try {
-      // Only update loading state if we're not refreshing and if showLoading is true
       if (showLoading && !isRefreshing) {
         setLoading(true);
       }
       
       setError(null);
       
-      // Fetch orders assigned to the current courier with restaurant details
       const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
         .select(`
@@ -76,7 +70,6 @@ export function useCourierActiveOrders(courierId?: string) {
         const formattedOrders = ordersData.map(order => {
           const restaurantData = order.restaurants as unknown as RestaurantData;
           
-          // Parse items if needed
           const parsedItems = typeof order.items === 'string' 
             ? JSON.parse(order.items as string) 
             : (Array.isArray(order.items) ? order.items : []);
@@ -88,13 +81,12 @@ export function useCourierActiveOrders(courierId?: string) {
             restaurant_address: restaurantData?.address || 'Unknown Address',
             restaurant_lat: restaurantData?.lat || 0,
             restaurant_lng: restaurantData?.lng || 0,
-            delivery_pin: order.delivery_pin || '' // Ensure delivery_pin is included
+            delivery_pin: order.delivery_pin || '0000'
           } as ActiveOrder;
         });
         setActiveOrders(formattedOrders);
       }
 
-      // Fetch all restaurants for map display
       const { data: restaurantData, error: restaurantError } = await supabase
         .from('restaurants')
         .select('*');
@@ -106,7 +98,6 @@ export function useCourierActiveOrders(courierId?: string) {
         setRestaurants(restaurantData || []);
       }
 
-      // Fetch reviewers if needed - only if we have reviews
       if (reviews.length > 0) {
         const reviewerIds = reviews.map(review => review.user_id);
         const { data: reviewersData, error: reviewersError } = await supabase
@@ -158,12 +149,11 @@ export function useCourierActiveOrders(courierId?: string) {
     
     loadInitialData();
     
-    // Set up interval to refresh data
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible' && isMounted && !isRefreshing) {
         refetch();
       }
-    }, 60000); // refresh every minute when visible
+    }, 60000);
     
     return () => {
       isMounted = false;
@@ -193,14 +183,12 @@ export function useCourierActiveOrders(courierId?: string) {
           description: `Order status updated to ${newStatus}`,
         });
 
-        // Optimistically update the local state
         setActiveOrders(prevOrders =>
           prevOrders.map(order =>
             order.id === orderId ? { ...order, status: newStatus } : order
           )
         );
         
-        // If the order is delivered, it should no longer be in the active orders
         if (newStatus === 'delivered') {
           await refetch();
         }

@@ -119,21 +119,24 @@ export function useRestaurant() {
     setError(null);
     
     try {
-      console.log("Creating restaurant with data:", {
+      // Make sure user_id is included and defined
+      const restaurantData = {
         ...data,
         user_id: user.id
-      });
+      };
+      
+      console.log("Creating restaurant with data:", restaurantData);
       
       // Use Supabase directly
       const { data: result, error: createError } = await supabase
         .from('restaurants')
         .insert({
-          name: data.name,
-          address: data.address,
-          lat: data.lat,
-          lng: data.lng,
-          user_id: user.id,
-          image_url: data.image_url || null
+          name: restaurantData.name,
+          address: restaurantData.address,
+          lat: restaurantData.lat,
+          lng: restaurantData.lng,
+          user_id: user.id, // Explicitly set user_id
+          image_url: restaurantData.image_url || null
         })
         .select()
         .single();
