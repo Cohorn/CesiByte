@@ -50,12 +50,9 @@ export function useCourierActiveOrders(courierId: string | null) {
       
       // Process to add restaurant data to main object
       const processedOrders = data.map(order => {
-        // Add delivery_pin if it doesn't exist in the order record
-        const delivery_pin = order.delivery_pin || '0000';
-        
         return {
           ...order,
-          delivery_pin,
+          delivery_pin: order.delivery_pin || '0000', // Default pin if not present
           restaurant_name: order.restaurants?.name || 'Unknown Restaurant',
           restaurant_address: order.restaurants?.address || 'Unknown Address',
           restaurant_lat: order.restaurants?.lat || 0,
