@@ -4,8 +4,8 @@ import mqtt from 'mqtt';
 export interface MQTTClient {
   isConnected: () => boolean;
   publish: (topic: string, message: any) => boolean;
-  subscribe: (topic: string) => void;
-  unsubscribe: (topic: string) => void;
+  subscribe: (topic: string, callback?: (topic: string, message: any) => void) => void;
+  unsubscribe: (topic: string, callback?: (topic: string, message: any) => void) => void;
   on: (event: string, callback: (topic: string, message: any) => void) => void;
   off: (event: string, callback: (topic: string, message: any) => void) => void;
 }
@@ -107,14 +107,27 @@ const createMQTTClientInterface = (mqttClient: mqtt.MqttClient): MQTTClient => {
       return true;
     },
     
-    subscribe: (topic: string) => {
+    subscribe: (topic: string, callback?: (topic: string, message: any) => void) => {
       console.log(`Subscribing to MQTT topic: ${topic}`);
       mqttClient.subscribe(topic);
+      
+      // If callback is provided, store it
+      if (callback) {
+        if (!subscribers.has('message')) {
+          subscribers.set('message', new Set());
+        }
+        subscribers.get('message')?.add(callback);
+      }
     },
     
-    unsubscribe: (topic: string) => {
+    unsubscribe: (topic: string, callback?: (topic: string, message: any) => void) => {
       console.log(`Unsubscribing from MQTT topic: ${topic}`);
       mqttClient.unsubscribe(topic);
+      
+      // If callback is provided, remove it
+      if (callback && subscribers.has('message')) {
+        subscribers.get('message')?.delete(callback);
+      }
     },
     
     on: (event: string, callback: (topic: string, message: any) => void) => {
