@@ -241,7 +241,7 @@ export const orderApi = {
     try {
       console.log(`Verifying delivery PIN for order ${orderId} with pin ${pin}`);
       
-      // Fix the endpoint path - the proper path should be /orders/:orderId/verify-pin
+      // Fix the endpoint path - should be /orders/:orderId/verify-pin
       const response = await apiClient.post(`/orders/${orderId}/verify-pin`, { pin });
       console.log('PIN verification API response:', response.data);
       
@@ -252,7 +252,7 @@ export const orderApi = {
         orderCacheService.clearCache();
         
         // Notify over MQTT
-        const updatedOrder = processOrderItems(response.data.order);
+        const updatedOrder = response.data.order ? processOrderItems(response.data.order) : null;
         
         orderMQTTService.publishOrderEvent(
           `foodapp/orders/${orderId}/status`, 
@@ -271,7 +271,9 @@ export const orderApi = {
         }
         
         // Notify subscribers
-        orderMQTTService.notifySubscribers(updatedOrder);
+        if (updatedOrder) {
+          orderMQTTService.notifySubscribers(updatedOrder);
+        }
         
         return {
           success: true,
@@ -287,7 +289,7 @@ export const orderApi = {
     } catch (error: any) {
       console.error('Error verifying delivery PIN:', error);
       
-      // Extract the error message from the response if possible
+      // Improved error extraction and logging
       const errorMessage = 
         error.response?.data?.error || 
         error.response?.data?.message || 

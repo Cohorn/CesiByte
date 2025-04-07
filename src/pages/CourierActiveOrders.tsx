@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
@@ -53,10 +54,15 @@ const CourierActiveOrders = () => {
         setTimeout(() => reject(new Error('Verification request timed out')), 15000)
       );
       
-      const result = await Promise.race([
-        verifyDeliveryPin(orderId, pin),
-        timeoutPromise
-      ]);
+      let result;
+      try {
+        result = await Promise.race([
+          verifyDeliveryPin(orderId, pin),
+          timeoutPromise
+        ]);
+      } catch (err) {
+        throw err;
+      }
       
       console.log('PIN verification result:', result);
       
@@ -97,6 +103,7 @@ const CourierActiveOrders = () => {
     }
   }, [verifyDeliveryPin, refetch, toast, pinVerificationState.isVerifying]);
 
+  // Early return if user is not a courier
   if (!user || user.user_type !== 'courier') {
     return <Navigate to="/" />;
   }
