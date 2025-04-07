@@ -1,4 +1,6 @@
 
+import React from 'react';
+
 // MQTT client for the frontend
 // This is a simplified implementation that uses the WebSocket proxy in the API gateway
 
@@ -157,7 +159,7 @@ class MQTTClient {
       this.ws.send(JSON.stringify({
         type: 'publish',
         topic,
-        message
+        message: typeof message === 'object' ? JSON.stringify(message) : message
       }));
     } else {
       // Queue the message for when we connect

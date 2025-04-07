@@ -1,6 +1,7 @@
 
 import { apiClient } from '../client';
 import { Order, OrderStatus } from '@/lib/database.types';
+import { mqttClient } from '@/lib/mqtt-client';
 
 // Cache for orders data
 const ordersCache = {
@@ -13,6 +14,9 @@ const ordersCache = {
 
 // Cache TTL in milliseconds (2 minutes)
 const CACHE_TTL = 2 * 60 * 1000;
+
+// WebSocket subscribers tracking
+const subscribers = new Set<(order: Order) => void>();
 
 export const orderApi = {
   getOrderById: async (id: string) => {
@@ -90,13 +94,36 @@ export const orderApi = {
       console.log(`Received ${response.data?.length || 0} orders for restaurant ${restaurantId}`);
       console.log('Restaurant orders data sample:', response.data?.slice(0, 2));
       
+      // Process orders to ensure items are properly formatted
+      const processedOrders = (response.data || []).map(order => {
+        let parsedItems = [];
+        
+        try {
+          if (typeof order.items === 'string') {
+            parsedItems = JSON.parse(order.items);
+          } else if (Array.isArray(order.items)) {
+            parsedItems = order.items;
+          } else if (order.items && typeof order.items === 'object') {
+            // If it's already a JSON object but not an array
+            parsedItems = [order.items];
+          }
+        } catch (e) {
+          console.error(`Error parsing items for order ${order.id}:`, e);
+        }
+        
+        return {
+          ...order,
+          items: parsedItems
+        };
+      });
+      
       // Update cache
       ordersCache.byRestaurant.set(restaurantId, { 
-        data: response.data, 
+        data: processedOrders, 
         timestamp: Date.now() 
       });
       
-      return response.data;
+      return processedOrders;
     } catch (error) {
       console.error('Error fetching restaurant orders:', error);
       console.error('Error details:', error.response?.data || error.message);
@@ -167,6 +194,14 @@ export const orderApi = {
       ordersCache.byUser.delete(orderData.user_id);
       ordersCache.byRestaurant.delete(orderData.restaurant_id);
       
+      // Notify over MQTT
+      if (mqttClient) {
+        mqttClient.publish(`foodapp/restaurants/${orderData.restaurant_id}/orders`, JSON.stringify(response.data));
+      }
+      
+      // Notify subscribers
+      subscribers.forEach(callback => callback(response.data));
+      
       return response.data;
     } catch (error) {
       console.error('Error creating order:', error);
@@ -179,6 +214,8 @@ export const orderApi = {
       console.log(`Updating order ${orderId} status to ${status}`);
       const response = await apiClient.put(`/orders/${orderId}/status`, { status });
       console.log('Order status update response:', response.data);
+      
+      const updatedOrder = response.data;
       
       // Update cache for this specific order
       const order = ordersCache.byId.get(orderId);
@@ -193,7 +230,24 @@ export const orderApi = {
       ordersCache.byCourier.clear();
       ordersCache.byStatus.clear();
       
-      return response.data;
+      // Notify over MQTT
+      if (mqttClient) {
+        const topic = `foodapp/orders/${orderId}/status`;
+        mqttClient.publish(topic, JSON.stringify({
+          orderId,
+          status,
+          timestamp: new Date().toISOString()
+        }));
+        
+        if (updatedOrder.restaurant_id) {
+          mqttClient.publish(`foodapp/restaurants/${updatedOrder.restaurant_id}/orders/updated`, JSON.stringify(updatedOrder));
+        }
+      }
+      
+      // Notify subscribers
+      subscribers.forEach(callback => callback(updatedOrder));
+      
+      return updatedOrder;
     } catch (error) {
       console.error('Error updating order status:', error);
       throw error;
@@ -219,6 +273,17 @@ export const orderApi = {
       ordersCache.byCourier.clear();
       ordersCache.byStatus.clear();
       
+      // Notify over MQTT
+      if (mqttClient) {
+        mqttClient.publish(`foodapp/couriers/${courierId}/assignments`, JSON.stringify({
+          orderId,
+          timestamp: new Date().toISOString()
+        }));
+      }
+      
+      // Notify subscribers
+      subscribers.forEach(callback => callback(response.data));
+      
       return response.data;
     } catch (error) {
       console.error('Error assigning courier:', error);
@@ -229,7 +294,11 @@ export const orderApi = {
   // Clear all caches or specific caches
   clearCache: (type?: 'byId' | 'byUser' | 'byRestaurant' | 'byCourier' | 'byStatus', key?: string) => {
     if (!type) {
-      Object.values(ordersCache).forEach(cache => cache.clear());
+      Object.values(ordersCache).forEach(cache => {
+        if (cache instanceof Map) {
+          cache.clear();
+        }
+      });
       console.log('All order caches cleared');
       return;
     }
@@ -238,18 +307,25 @@ export const orderApi = {
       ordersCache[type].delete(key);
       console.log(`Cache cleared for ${type} with key ${key}`);
     } else if (!key) {
-      ordersCache[type].clear();
+      if (ordersCache[type] instanceof Map) {
+        (ordersCache[type] as Map<string, any>).clear();
+      }
       console.log(`All ${type} caches cleared`);
     }
   },
 
   subscribeToOrderUpdates: (callback: (updatedOrder: Order) => void) => {
-    // This would be implemented with WebSockets in a real application
-    console.log('WebSocket subscription would be implemented here');
+    // Add the callback to subscribers
+    subscribers.add(callback);
     
-    // Return a mock unsubscribe function
+    // Also subscribe via MQTT for real-time updates
+    if (mqttClient) {
+      mqttClient.subscribe('foodapp/orders/events/#');
+    }
+    
+    // Return an unsubscribe function
     return () => {
-      console.log('WebSocket unsubscription would happen here');
+      subscribers.delete(callback);
     };
   }
 };

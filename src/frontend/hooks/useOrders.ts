@@ -3,18 +3,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { orderApi } from '@/api/services/orderService';
 import { Order, OrderStatus } from '@/lib/database.types';
 import { useAuth } from './useAuth';
-import { toast } from '@/hooks/use-toast';
-
-// MQTT WebSocket library would be imported here in a production app
-// For the prototype, we'll continue using existing Socket.IO setup
-/*
-import mqtt from 'mqtt';
-
-// Webosocket MQTT connection (typically would connect to the MQTT broker's WebSocket endpoint)
-const createMqttClient = () => {
-  return mqtt.connect('ws://api-gateway:9001');
-};
-*/
+import { useToast } from '@/hooks/use-toast';
+import { mqttClient } from '@/lib/mqtt-client';
 
 interface OrdersOptions {
   userId?: string;
@@ -28,39 +18,54 @@ export const useOrders = (options: OrdersOptions = {}) => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
   const { user } = useAuth();
+  const { toast } = useToast();
 
   // Determine which API method to use based on the options
   const fetchOrders = useCallback(async (forceRefresh: boolean = false) => {
     setIsLoading(true);
+    setError(null);
 
     try {
       let fetchedOrders: Order[] = [];
 
       if (options.userId) {
+        console.log(`Fetching orders for user ID: ${options.userId}`);
         fetchedOrders = await orderApi.getOrdersByUser(options.userId);
       } else if (options.restaurantId) {
+        console.log(`Fetching orders for restaurant ID: ${options.restaurantId}, force: ${forceRefresh}`);
         fetchedOrders = await orderApi.getOrdersByRestaurant(options.restaurantId, forceRefresh);
       } else if (options.courierId) {
+        console.log(`Fetching orders for courier ID: ${options.courierId}`);
         fetchedOrders = await orderApi.getOrdersByCourier(options.courierId);
       } else if (options.status) {
+        console.log(`Fetching orders by status: ${options.status}`);
         fetchedOrders = await orderApi.getOrdersByStatus(options.status);
       } else if (user) {
         // Default to current user's orders if no specific option is provided
+        console.log(`Fetching orders for current user: ${user.id}`);
         fetchedOrders = await orderApi.getOrdersByUser(user.id);
       }
 
+      console.log(`Fetched ${fetchedOrders?.length || 0} orders`);
+      
       // Update state with fetched orders
       setOrders(fetchedOrders || []);
-      setError(null);
       return fetchedOrders || [];
     } catch (err) {
       console.error("Error fetching orders:", err);
       setError(err instanceof Error ? err : new Error('Failed to fetch orders'));
+      
+      toast({
+        title: "Error",
+        description: "Could not fetch orders",
+        variant: "destructive"
+      });
+      
       return [];
     } finally {
       setIsLoading(false);
     }
-  }, [options.userId, options.restaurantId, options.courierId, options.status, user]);
+  }, [options.userId, options.restaurantId, options.courierId, options.status, user, toast]);
 
   const updateOrderStatus = useCallback(async (orderId: string, status: OrderStatus) => {
     try {
@@ -88,7 +93,7 @@ export const useOrders = (options: OrdersOptions = {}) => {
       
       return { success: false, error: err };
     }
-  }, [fetchOrders]);
+  }, [fetchOrders, toast]);
 
   const assignCourier = useCallback(async (orderId: string, courierId: string) => {
     try {
@@ -106,83 +111,92 @@ export const useOrders = (options: OrdersOptions = {}) => {
 
   // Initial fetch
   useEffect(() => {
+    console.log('useOrders hook - initial fetch with options:', options);
     if (user || options.restaurantId || options.courierId) {
       fetchOrders();
     }
   }, [user, options.restaurantId, options.courierId, fetchOrders]);
 
-  // Real-time updates using Socket.IO for now
-  // In a production app, we would use MQTT over WebSockets here
+  // Subscribe to real-time updates
   useEffect(() => {
-    /* 
-    // This would be MQTT implementation for production
-    const client = createMqttClient();
+    console.log('Setting up real-time order updates subscription');
     
-    client.on('connect', () => {
-      console.log('Connected to MQTT broker');
-      
-      // Subscribe to relevant topics based on options
-      if (options.userId) {
-        client.subscribe(`foodapp/users/${options.userId}/orders/#`);
+    // Set up MQTT subscriptions
+    if (mqttClient && (options.restaurantId || options.userId || options.courierId)) {
+      if (options.restaurantId) {
+        console.log(`Subscribing to restaurant orders: ${options.restaurantId}`);
+        mqttClient.subscribe(`foodapp/restaurants/${options.restaurantId}/orders/#`);
       }
       
-      if (options.restaurantId) {
-        client.subscribe(`foodapp/restaurants/${options.restaurantId}/orders`);
+      if (options.userId) {
+        console.log(`Subscribing to user orders: ${options.userId}`);
+        mqttClient.subscribe(`foodapp/users/${options.userId}/orders/#`);
       }
       
       if (options.courierId) {
-        client.subscribe(`foodapp/couriers/${options.courierId}/assignments`);
+        console.log(`Subscribing to courier assignments: ${options.courierId}`);
+        mqttClient.subscribe(`foodapp/couriers/${options.courierId}/assignments`);
       }
-      
-      // Always subscribe to status updates for orders we know about
-      for (const order of orders) {
-        client.subscribe(`foodapp/orders/${order.id}/status`);
-      }
-    });
+    }
     
-    client.on('message', (topic, message) => {
-      const data = JSON.parse(message.toString());
-      
-      if (topic.includes('/orders/') && topic.endsWith('/status')) {
-        // Handle status updates
-        // Update local state
-        setOrders(prev => prev.map(order => 
-          order.id === data.orderId ? { ...order, status: data.status } : order
-        ));
-      } else if (topic.endsWith('/orders')) {
-        // Handle new orders
-        // Add to local state if relevant
-        setOrders(prev => [data, ...prev]);
-      }
-    });
-    
-    return () => {
-      client.end();
-    };
-    */
-    
-    // Subscribe to order updates
+    // Subscribe to order updates via the orderApi
     const unsubscribe = orderApi.subscribeToOrderUpdates((updatedOrder) => {
-      setOrders(currentOrders => {
-        // Check if we already have this order
-        const orderIndex = currentOrders.findIndex(order => order.id === updatedOrder.id);
-        
-        if (orderIndex >= 0) {
-          // Update existing order
-          const newOrders = [...currentOrders];
-          newOrders[orderIndex] = updatedOrder;
-          return newOrders;
-        } else {
-          // Add new order
-          return [updatedOrder, ...currentOrders];
+      console.log('Received order update:', updatedOrder);
+      
+      // Check if this update is relevant to our current filter
+      let isRelevant = false;
+      
+      if (options.restaurantId && updatedOrder.restaurant_id === options.restaurantId) {
+        isRelevant = true;
+      } else if (options.userId && updatedOrder.user_id === options.userId) {
+        isRelevant = true;
+      } else if (options.courierId && updatedOrder.courier_id === options.courierId) {
+        isRelevant = true;
+      } else if (options.status) {
+        const statusArray = Array.isArray(options.status) ? options.status : [options.status];
+        if (statusArray.includes(updatedOrder.status)) {
+          isRelevant = true;
         }
-      });
+      }
+      
+      if (isRelevant) {
+        setOrders(currentOrders => {
+          // Check if we already have this order
+          const orderIndex = currentOrders.findIndex(order => order.id === updatedOrder.id);
+          
+          if (orderIndex >= 0) {
+            // Update existing order
+            const newOrders = [...currentOrders];
+            newOrders[orderIndex] = updatedOrder;
+            return newOrders;
+          } else {
+            // Add new order
+            return [updatedOrder, ...currentOrders];
+          }
+        });
+      }
     });
 
     return () => {
+      // Clean up MQTT subscriptions
+      if (mqttClient) {
+        if (options.restaurantId) {
+          mqttClient.unsubscribe(`foodapp/restaurants/${options.restaurantId}/orders/#`);
+        }
+        
+        if (options.userId) {
+          mqttClient.unsubscribe(`foodapp/users/${options.userId}/orders/#`);
+        }
+        
+        if (options.courierId) {
+          mqttClient.unsubscribe(`foodapp/couriers/${options.courierId}/assignments`);
+        }
+      }
+      
+      // Unsubscribe from order updates
       unsubscribe();
     };
-  }, [options.userId, options.restaurantId, options.courierId, orders]);
+  }, [options.restaurantId, options.userId, options.courierId, options.status]);
 
   return {
     orders,

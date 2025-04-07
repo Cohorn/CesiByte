@@ -12,10 +12,9 @@ import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { useNavigate } from 'react-router-dom';
 import OrderStatusUpdate, { isCurrentOrder } from '@/components/OrderStatusUpdate';
-import { 
-  Tabs, TabsContent, TabsList, TabsTrigger 
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Order, OrderStatus } from '@/lib/database.types';
+import { useMQTT } from '@/hooks/useMQTT';
 
 const RestaurantOrders = () => {
   const { user } = useAuth();
@@ -34,7 +33,7 @@ const RestaurantOrders = () => {
     if (user?.user_type === 'restaurant' && !restaurant && !attemptedFetch) {
       console.log("RestaurantOrders - Fetching restaurant data for user:", user.id);
       setAttemptedFetch(true);
-      fetchRestaurant(user.id, true).then(result => {
+      fetchRestaurant(undefined, true).then(result => {
         console.log("RestaurantOrders - Restaurant fetch result:", result);
       });
     }
@@ -51,12 +50,30 @@ const RestaurantOrders = () => {
     restaurant ? { restaurantId: restaurant.id } : {}
   );
 
+  // Listen for MQTT updates if we have a restaurant
+  const { newOrder } = restaurant 
+    ? useRestaurantOrdersMQTT(restaurant.id) 
+    : { newOrder: null };
+
+  // Update orders when we get a new order
+  useEffect(() => {
+    if (newOrder) {
+      console.log("Received new order from MQTT:", newOrder);
+      refetch(true);
+      toast({
+        title: "New Order",
+        description: `You have received a new order! Order #${newOrder.id}`,
+      });
+    }
+  }, [newOrder, refetch, toast]);
+
   // State to track orders that are being updated
   const [localOrders, setLocalOrders] = useState<Order[]>([]);
 
   // Update local orders whenever orders from the API change
   useEffect(() => {
     if (orders.length > 0) {
+      console.log("Setting local orders from API orders:", orders);
       setLocalOrders(orders);
     }
   }, [orders]);
@@ -104,7 +121,7 @@ const RestaurantOrders = () => {
       console.log("Manually refreshing restaurant orders");
       if (!restaurant && user) {
         console.log("No restaurant data found, fetching restaurant first");
-        const restaurantData = await fetchRestaurant(user.id, true);
+        const restaurantData = await fetchRestaurant(undefined, true);
         if (restaurantData) {
           console.log("Restaurant fetched, now refreshing orders");
           await refetch?.(true);
@@ -173,7 +190,7 @@ const RestaurantOrders = () => {
   const renderOrderCard = (order: Order) => (
     <div key={order.id} className="bg-white rounded shadow p-4">
       <div className="flex items-center justify-between mb-2">
-        <h2 className="text-lg font-semibold">Order #{order.id}</h2>
+        <h2 className="text-lg font-semibold">Order #{order.id.substring(0, 8)}</h2>
         <span className="text-sm text-gray-600">
           {format(new Date(order.created_at), 'PPP p')}
         </span>
