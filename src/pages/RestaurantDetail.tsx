@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
@@ -140,6 +139,11 @@ const RestaurantDetail = () => {
 
   const totalPrice = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
+  // Generate a random 4-digit PIN for delivery confirmation
+  const generatePin = () => {
+    return Math.floor(1000 + Math.random() * 9000).toString();
+  };
+
   const handlePlaceOrder = async () => {
     if (!user || !restaurant) {
       toast({
@@ -160,6 +164,10 @@ const RestaurantDetail = () => {
     }
 
     try {
+      // Generate a delivery PIN for the order
+      const deliveryPin = generatePin();
+      console.log("Placing order with delivery PIN:", deliveryPin);
+
       const { error } = await supabase.from('orders').insert({
         user_id: user.id,
         restaurant_id: restaurant.id,
@@ -169,7 +177,8 @@ const RestaurantDetail = () => {
         total_price: totalPrice,
         delivery_address: user.address,
         delivery_lat: user.lat,
-        delivery_lng: user.lng
+        delivery_lng: user.lng,
+        delivery_pin: deliveryPin // Add the delivery PIN
       });
 
       if (error) throw error;
