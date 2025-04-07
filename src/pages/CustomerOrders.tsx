@@ -52,10 +52,14 @@ const CustomerOrders: React.FC = () => {
     if (orders) {
       const ordersWithRestaurants = processOrdersWithRestaurants(orders);
       setProcessedOrders(ordersWithRestaurants);
+    } else {
+      // Reset to empty array when there are no orders
+      setProcessedOrders([]);
     }
   }, [orders]);
 
   useEffect(() => {
+    // Fetch orders when component mounts
     refetch();
   }, [refetch]);
 
@@ -121,7 +125,7 @@ const CustomerOrders: React.FC = () => {
           Object.entries(groupedOrders).map(([status, orders]) => (
             <div key={status} className="mb-6">
               <h2 className="text-xl font-semibold mb-2">{status.replace(/_/g, ' ')}</h2>
-              {orders?.length === 0 ? (
+              {!orders || orders.length === 0 ? (
                 <p>No orders with this status.</p>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -132,9 +136,9 @@ const CustomerOrders: React.FC = () => {
                       <p className="text-sm">Total: ${order.total_price.toFixed(2)}</p>
                       <p className="text-sm">Delivery Pin: {order.delivery_pin}</p>
                       <ul className="mt-2">
-                        {order.items.map(item => (
-                          <li key={item.menu_item_id} className="text-sm">
-                            {item.name} x{item.quantity} - ${item.price * item.quantity}
+                        {order.items.map((item, index) => (
+                          <li key={`${item.menu_item_id || 'item'}-${index}`} className="text-sm">
+                            {item.name} x{item.quantity} - ${(item.price * item.quantity).toFixed(2)}
                           </li>
                         ))}
                       </ul>

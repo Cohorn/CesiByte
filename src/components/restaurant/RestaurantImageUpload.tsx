@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,9 +18,15 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
   onImageRemove
 }) => {
   const [isUploading, setIsUploading] = useState(false);
+  const [bucketExists, setBucketExists] = useState(false);
   const { toast } = useToast();
 
-  const ensureStorageBucket = async () => {
+  // Check if the bucket exists on component mount
+  useEffect(() => {
+    checkBucketExists();
+  }, []);
+
+  const checkBucketExists = async () => {
     try {
       console.log('Checking if restaurant_images bucket exists');
       const { data: buckets, error } = await supabase
@@ -29,23 +35,41 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
         
       if (error) throw error;
       
-      const bucketExists = buckets.some(bucket => bucket.name === 'restaurant_images');
+      const exists = buckets.some(bucket => bucket.name === 'restaurant_images');
+      setBucketExists(exists);
       
-      if (!bucketExists) {
+      console.log('Bucket exists:', exists);
+      
+      if (!exists) {
         console.log('Creating restaurant_images bucket');
-        const { error: createError } = await supabase.storage.createBucket('restaurant_images', {
-          public: true
-        });
-        
-        if (createError) throw createError;
-        console.log('Bucket created successfully');
-      } else {
-        console.log('Bucket already exists');
+        await createBucket();
       }
       
+      return exists;
+    } catch (error) {
+      console.error('Error checking bucket:', error);
+      return false;
+    }
+  };
+
+  const createBucket = async () => {
+    try {
+      const { error } = await supabase.storage.createBucket('restaurant_images', {
+        public: true
+      });
+      
+      if (error) throw error;
+      
+      console.log('Bucket created successfully');
+      setBucketExists(true);
       return true;
     } catch (error) {
-      console.error('Error ensuring storage bucket exists:', error);
+      console.error('Error creating bucket:', error);
+      toast({
+        title: "Error",
+        description: "Could not create storage bucket. Please contact support.",
+        variant: "destructive"
+      });
       return false;
     }
   };
@@ -79,7 +103,12 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
     
     try {
       // Ensure the storage bucket exists
-      await ensureStorageBucket();
+      if (!bucketExists) {
+        const created = await createBucket();
+        if (!created) {
+          throw new Error('Unable to create storage bucket');
+        }
+      }
       
       // Create a unique file name
       const fileExt = file.name.split('.').pop();
