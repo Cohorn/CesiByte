@@ -1,3 +1,4 @@
+
 // This is a simplified version for demonstration
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -57,7 +58,11 @@ export function useCourierActiveOrders(courierId: string | null) {
   const [error, setError] = useState<Error | null>(null);
 
   const fetchActiveOrders = useCallback(async () => {
-    if (!courierId) return [];
+    if (!courierId) {
+      setActiveOrders([]);
+      setLoading(false);
+      return [];
+    }
     
     setLoading(true);
     setError(null);
@@ -80,7 +85,7 @@ export function useCourierActiveOrders(courierId: string | null) {
         return {
           ...order,
           // Default delivery_pin if not present
-          delivery_pin: '0000', 
+          delivery_pin: order.delivery_pin || '0000', 
           restaurant_name: order.restaurants?.name || 'Unknown Restaurant',
           restaurant_address: order.restaurants?.address || 'Unknown Address',
           restaurant_lat: order.restaurants?.lat || 0,
@@ -99,7 +104,7 @@ export function useCourierActiveOrders(courierId: string | null) {
       return processedOrders;
     } catch (err) {
       console.error('Error fetching active orders:', err);
-      setError(err as Error);
+      setError(err instanceof Error ? err : new Error('Failed to fetch active orders'));
       setLoading(false);
       return [];
     }
@@ -173,6 +178,11 @@ export function useCourierActiveOrders(courierId: string | null) {
     if (courierId) {
       fetchActiveOrders();
       fetchReviews();
+    } else {
+      // Reset state if courier ID is null
+      setActiveOrders([]);
+      setLoading(false);
+      setError(null);
     }
   }, [courierId, fetchActiveOrders, fetchReviews]);
 

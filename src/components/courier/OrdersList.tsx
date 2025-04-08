@@ -16,8 +16,13 @@ const OrdersList: React.FC<OrdersListProps> = ({
   userLocation,
   onAcceptOrder
 }) => {
-  if (orders.length === 0) {
-    return <p>No available orders</p>;
+  // Safely handle empty orders array
+  if (!orders || orders.length === 0) {
+    return (
+      <div className="bg-white rounded-lg p-4 text-center">
+        <p className="text-gray-500">No available orders at the moment</p>
+      </div>
+    );
   }
 
   return (

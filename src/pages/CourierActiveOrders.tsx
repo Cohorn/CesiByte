@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { useCourierActiveOrders } from '@/hooks/useCourierActiveOrders';
 import NavBar from '@/components/NavBar';
@@ -15,9 +15,9 @@ import { useOrders } from '@/hooks/useOrders';
 
 const CourierActiveOrders: React.FC = () => {
   const { user } = useAuth();
-  const { activeOrders, loading, error, refetch, updateOrderStatus } = useCourierActiveOrders(user?.id || '');
+  const { activeOrders, loading, error, refetch, updateOrderStatus } = useCourierActiveOrders(user?.id || null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  const [verifyingPin, setVerifyingPin] = useState(false);
+  const [userLocation, setUserLocation] = useState({ lat: 0, lng: 0 });
   
   // Fetch past orders separately
   const { 
@@ -30,36 +30,34 @@ const CourierActiveOrders: React.FC = () => {
     status: ['delivered', 'completed'] as OrderStatus[]
   });
 
-  const handlePinSubmit = async (orderId: string, pin: string) => {
-    if (!orderId) return { success: false, message: "No order selected" };
-    
-    setVerifyingPin(true);
+  // Set courier location from user profile
+  useEffect(() => {
+    if (user) {
+      setUserLocation({ lat: user.lat || 0, lng: user.lng || 0 });
+    }
+  }, [user]);
+
+  const handleStatusUpdate = async (orderId: string, status: OrderStatus) => {
+    await updateOrderStatus(orderId, status);
+    refetch(); // Refresh the list after updating
+  };
+
+  const handlePinVerification = async (orderId: string, pin: string) => {
+    if (!verifyDeliveryPin) {
+      console.error("verifyDeliveryPin function not available");
+      return { success: false, message: "Verification not available" };
+    }
     
     try {
-      if (verifyDeliveryPin) {
-        const result = await verifyDeliveryPin(orderId, pin);
-        if (result.success) {
-          // Handle success
-          refetch();
-          return { success: true };
-        } else {
-          return { success: false, message: result.message || "Invalid PIN" };
-        }
-      } else {
-        console.error("verifyDeliveryPin function not available");
-        return { success: false, message: "Verification not available" };
+      const result = await verifyDeliveryPin(orderId, pin);
+      if (result.success) {
+        refetch(); // Refresh the list after successful verification
       }
+      return result;
     } catch (error) {
       console.error("Error verifying PIN:", error);
       return { success: false, message: "Verification failed" };
-    } finally {
-      setVerifyingPin(false);
-      setSelectedOrderId(null);
     }
-  };
-  
-  const handleMarkDelivered = (orderId: string) => {
-    setSelectedOrderId(orderId);
   };
 
   if (loading || pastOrdersLoading) {
@@ -87,7 +85,7 @@ const CourierActiveOrders: React.FC = () => {
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>
-              {displayError?.message}
+              {displayError instanceof Error ? displayError.message : "An error occurred"}
               <div className="mt-2">
                 <Button 
                   onClick={() => refetch()} 
@@ -127,9 +125,20 @@ const CourierActiveOrders: React.FC = () => {
                 {activeOrders.map(order => (
                   <ActiveOrderCard 
                     key={order.id}
-                    activeOrder={order}
-                    onUpdateStatus={updateOrderStatus}
-                    onMarkDelivered={handleMarkDelivered}
+                    id={order.id}
+                    restaurantName={order.restaurant_name}
+                    restaurantAddress={order.restaurant_address}
+                    restaurantLat={order.restaurant_lat}
+                    restaurantLng={order.restaurant_lng}
+                    deliveryAddress={order.delivery_address}
+                    deliveryLat={order.delivery_lat}
+                    deliveryLng={order.delivery_lng}
+                    status={order.status}
+                    createdAt={order.created_at}
+                    userLat={userLocation.lat}
+                    userLng={userLocation.lng}
+                    onStatusUpdate={handleStatusUpdate}
+                    onVerifyPin={handlePinVerification}
                   />
                 ))}
               </div>
@@ -164,16 +173,6 @@ const CourierActiveOrders: React.FC = () => {
             )}
           </TabsContent>
         </Tabs>
-
-        {/* PIN verification dialog */}
-        {selectedOrderId && (
-          <DeliveryPinInput
-            orderId={selectedOrderId}
-            isOpen={!!selectedOrderId}
-            onClose={() => setSelectedOrderId(null)}
-            onVerify={handlePinSubmit}
-          />
-        )}
       </div>
     </div>
   );

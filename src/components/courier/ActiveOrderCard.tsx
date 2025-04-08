@@ -5,7 +5,6 @@ import { MapPin, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { calculateDistance, formatDistance } from '@/lib/distanceUtils';
 import { OrderStatus } from '@/lib/database.types';
-import DeliveryPinInput from './DeliveryPinInput';
 
 interface ActiveOrderProps {
   id: string;
@@ -66,7 +65,7 @@ const ActiveOrderCard: React.FC<ActiveOrderProps> = ({
   };
   
   return (
-    <div className="border p-4 rounded mb-4">
+    <div className="border p-4 rounded mb-4 bg-white shadow-sm">
       <h2 className="text-lg font-bold">{restaurantName}</h2>
       <p className="text-gray-600">{restaurantAddress}</p>
       <div className="flex items-center text-sm text-blue-600 mt-1">
@@ -83,7 +82,7 @@ const ActiveOrderCard: React.FC<ActiveOrderProps> = ({
       </div>
       
       <p className="mt-3">
-        Status: <span className="font-medium">{status}</span>
+        Status: <span className="font-medium capitalize">{status.replace(/_/g, ' ')}</span>
       </p>
       <p className="text-sm text-gray-500">
         {formatDistanceToNow(new Date(createdAt), {
@@ -116,3 +115,6 @@ const ActiveOrderCard: React.FC<ActiveOrderProps> = ({
 };
 
 export default ActiveOrderCard;
+
+// Import DeliveryPinInput at the top
+import DeliveryPinInput from './DeliveryPinInput';
