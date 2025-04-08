@@ -13,7 +13,6 @@ import OrdersList from '@/components/OrdersList';
 import { useReviews } from '@/hooks/useReviews';
 import { useToast } from '@/hooks/use-toast';
 import { restaurantApi } from '@/api/services/restaurantService';
-import { Toaster } from '@/components/ui/toaster';
 
 const processOrdersWithRestaurants = (data: any[]): OrderWithRestaurant[] => {
   return data.map(order => {
@@ -310,7 +309,6 @@ const CustomerOrders: React.FC = () => {
           </Card>
         )}
       </div>
-      <Toaster />
     </div>
   );
 };
