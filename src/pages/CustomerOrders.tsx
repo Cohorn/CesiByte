@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useOrders } from '@/hooks/useOrders';
 import { useAuth } from '@/lib/AuthContext';
@@ -12,12 +13,30 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import OrdersList from '@/components/OrdersList';
 import { useReviews } from '@/hooks/useReviews';
 import { useToast } from '@/hooks/use-toast';
+import { restaurantApi } from '@/api/services/restaurantService';
 
 const processOrdersWithRestaurants = (data: any[]): OrderWithRestaurant[] => {
   return data.map(order => {
     const delivery_pin = order.delivery_pin || '0000';
     
-    const restaurant = order.restaurants || {};
+    // Properly extract restaurant data, handle both formats
+    let restaurant: Restaurant;
+    if (order.restaurant) {
+      // Already has embedded restaurant object
+      restaurant = order.restaurant;
+    } else {
+      // Create a default restaurant object
+      restaurant = {
+        id: order.restaurant_id || '',
+        name: 'Unknown Restaurant',
+        address: 'Unknown Address',
+        lat: 0,
+        lng: 0,
+        user_id: '',
+        created_at: order.created_at || new Date().toISOString(),
+        image_url: null
+      };
+    }
     
     return {
       id: order.id,
@@ -33,16 +52,7 @@ const processOrdersWithRestaurants = (data: any[]): OrderWithRestaurant[] => {
       created_at: order.created_at,
       updated_at: order.updated_at,
       delivery_pin: delivery_pin,
-      restaurant: {
-        id: restaurant.id || '',
-        name: restaurant.name || 'Unknown Restaurant',
-        address: restaurant.address || 'Unknown Address',
-        lat: restaurant.lat || 0,
-        lng: restaurant.lng || 0,
-        user_id: restaurant.user_id || '',
-        created_at: restaurant.created_at || order.created_at,
-        image_url: restaurant.image_url || null
-      } as Restaurant
+      restaurant: restaurant
     };
   });
 };
@@ -56,6 +66,41 @@ const CustomerOrders: React.FC = () => {
   const [authError, setAuthError] = useState<boolean>(false);
   const { submitReview } = useReviews();
   const { toast } = useToast();
+  const [restaurantNames, setRestaurantNames] = useState<Record<string, string>>({});
+
+  // Fetch restaurant data for orders
+  useEffect(() => {
+    const fetchRestaurantNames = async () => {
+      if (!orders || orders.length === 0) return;
+      
+      const restaurantIds = Array.from(new Set(
+        orders.map(order => order.restaurant_id)
+      ));
+      
+      const namesMap: Record<string, string> = {};
+      
+      for (const id of restaurantIds) {
+        try {
+          const restaurant = await restaurantApi.supabase.getRestaurant(id);
+          if (restaurant) {
+            namesMap[id] = restaurant.name;
+          } else {
+            namesMap[id] = "Unknown Restaurant";
+          }
+        } catch (error) {
+          console.error(`Error fetching restaurant ${id}:`, error);
+          namesMap[id] = "Unknown Restaurant";
+        }
+      }
+      
+      setRestaurantNames(namesMap);
+      console.log("Restaurant names mapping:", namesMap);
+    };
+    
+    if (orders && orders.length > 0) {
+      fetchRestaurantNames();
+    }
+  }, [orders]);
 
   useEffect(() => {
     if (orders) {
@@ -82,22 +127,6 @@ const CustomerOrders: React.FC = () => {
       }
     }
   }, [error]);
-
-  const restaurantNames = processedOrders.reduce((acc, order) => {
-    if (order.restaurant && order.restaurant.name) {
-      acc[order.restaurant_id] = order.restaurant.name;
-    } else {
-      const originalOrder = orders?.find(o => o.id === order.id);
-      if (originalOrder?.restaurants?.name) {
-        acc[order.restaurant_id] = originalOrder.restaurants.name;
-      } else {
-        console.log(`Missing restaurant name for order ${order.id}, restaurant_id: ${order.restaurant_id}`);
-      }
-    }
-    return acc;
-  }, {} as Record<string, string>);
-
-  console.log("Restaurant names mapping:", restaurantNames);
 
   const handleReviewCourier = async (orderId: string, courierId: string) => {
     if (!user) return;

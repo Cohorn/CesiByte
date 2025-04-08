@@ -122,7 +122,7 @@ const CourierActiveOrders: React.FC = () => {
                 {activeOrders.map(order => (
                   <ActiveOrderCard 
                     key={order.id}
-                    order={order}
+                    activeOrder={order}
                     onUpdateStatus={updateOrderStatus}
                     onMarkDelivered={handleMarkDelivered}
                   />
@@ -163,10 +163,10 @@ const CourierActiveOrders: React.FC = () => {
         {/* PIN verification dialog */}
         {selectedOrderId && (
           <DeliveryPinInput
+            orderId={selectedOrderId}
             isOpen={!!selectedOrderId}
             onClose={() => setSelectedOrderId(null)}
-            onSubmit={handlePinSubmit}
-            isVerifying={verifyingPin}
+            onVerify={handlePinSubmit}
           />
         )}
       </div>
