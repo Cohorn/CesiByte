@@ -121,8 +121,9 @@ export const reviewApi = {
       if (restaurantId) params.append('restaurantId', restaurantId);
       if (courierId) params.append('courierId', courierId);
       
-      // Fix: Changed from 'reviews/check' to '/reviews/check' - this was causing a 404
+      console.log(`Checking existing review with params: ${params.toString()}`);
       const response = await apiClient.get(`/reviews/check?${params.toString()}`);
+      console.log(`Check existing review response:`, response.data);
       return response.data;
     } catch (error) {
       console.error('Error checking existing review:', error);
@@ -136,7 +137,6 @@ export const reviewApi = {
       if (filters.restaurantId) params.append('restaurantId', filters.restaurantId);
       if (filters.courierId) params.append('courierId', filters.courierId);
       
-      // Fix: Changed from 'reviews/average' to '/reviews/average' - this was causing a 404
       const response = await apiClient.get(`/reviews/average?${params.toString()}`);
       return response.data;
     } catch (error) {

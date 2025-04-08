@@ -71,6 +71,81 @@ app.get('/reviews', authenticateJWT, async (req, res) => {
   }
 });
 
+// IMPORTANT: These specific routes must come BEFORE the :id route
+// Handle checking for existing reviews
+app.get('/reviews/check', authenticateJWT, async (req, res) => {
+  try {
+    const { userId, restaurantId, courierId } = req.query;
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+    
+    let query = supabase
+      .from('reviews')
+      .select('id')
+      .eq('user_id', userId);
+
+    if (restaurantId) {
+      query = query.eq('restaurant_id', restaurantId);
+    }
+
+    if (courierId) {
+      query = query.eq('courier_id', courierId);
+    }
+    
+    const { data, error } = await query;
+    
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+    
+    res.status(200).json({ 
+      exists: data && data.length > 0,
+      existingId: data && data.length > 0 ? data[0].id : null
+    });
+  } catch (error) {
+    console.error('Error checking existing review:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Calculate average rating
+app.get('/reviews/average', authenticateJWT, async (req, res) => {
+  try {
+    const { restaurantId, courierId } = req.query;
+    
+    let query = supabase.from('reviews').select('rating');
+      
+    if (restaurantId) {
+      query = query.eq('restaurant_id', restaurantId);
+    }
+    
+    if (courierId) {
+      query = query.eq('courier_id', courierId);
+    }
+    
+    const { data, error } = await query;
+      
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+    
+    if (!data || data.length === 0) {
+      return res.status(200).json({ average: 0, count: 0 });
+    }
+    
+    const sum = data.reduce((acc, review) => acc + review.rating, 0);
+    const average = sum / data.length;
+    
+    res.status(200).json({ average, count: data.length });
+  } catch (error) {
+    console.error('Error calculating average rating:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// This route must come AFTER the specific /reviews/check and /reviews/average routes
 app.get('/reviews/:id', authenticateJWT, async (req, res) => {
   try {
     const { id } = req.params;
@@ -201,78 +276,6 @@ app.delete('/reviews/:id', authenticateJWT, async (req, res) => {
     res.status(204).send();
   } catch (error) {
     console.error('Error deleting review:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Missing route handler for checking existing reviews
-app.get('/reviews/check', authenticateJWT, async (req, res) => {
-  try {
-    const { userId, restaurantId, courierId } = req.query;
-    
-    if (!userId) {
-      return res.status(400).json({ error: 'userId is required' });
-    }
-    
-    let query = supabase
-      .from('reviews')
-      .select('id')
-      .eq('user_id', userId);
-
-    if (restaurantId) {
-      query = query.eq('restaurant_id', restaurantId);
-    }
-
-    if (courierId) {
-      query = query.eq('courier_id', courierId);
-    }
-    
-    const { data, error } = await query;
-    
-    if (error) {
-      return res.status(400).json({ error: error.message });
-    }
-    
-    res.status(200).json({ 
-      exists: data && data.length > 0,
-      existingId: data && data.length > 0 ? data[0].id : null
-    });
-  } catch (error) {
-    console.error('Error checking existing review:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-app.get('/reviews/average', authenticateJWT, async (req, res) => {
-  try {
-    const { restaurantId, courierId } = req.query;
-    
-    let query = supabase.from('reviews').select('rating');
-      
-    if (restaurantId) {
-      query = query.eq('restaurant_id', restaurantId);
-    }
-    
-    if (courierId) {
-      query = query.eq('courier_id', courierId);
-    }
-    
-    const { data, error } = await query;
-      
-    if (error) {
-      return res.status(400).json({ error: error.message });
-    }
-    
-    if (!data || data.length === 0) {
-      return res.status(200).json({ average: 0, count: 0 });
-    }
-    
-    const sum = data.reduce((acc, review) => acc + review.rating, 0);
-    const average = sum / data.length;
-    
-    res.status(200).json({ average, count: data.length });
-  } catch (error) {
-    console.error('Error calculating average rating:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
