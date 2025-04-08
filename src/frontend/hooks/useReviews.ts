@@ -84,10 +84,12 @@ export const useReviews = (filters: ReviewFilters = {}) => {
         reviewData.courier_id
       );
       
+      console.log('Check for existing review:', alreadyExists);
+      
       let result;
       
       if (alreadyExists.exists) {
-        console.log('Updating existing review:', alreadyExists.existingId);
+        console.log('Updating existing review with ID:', alreadyExists.existingId);
         
         // Update existing review
         result = await reviewApi.updateReview(alreadyExists.existingId, {
@@ -96,8 +98,11 @@ export const useReviews = (filters: ReviewFilters = {}) => {
         });
       } else {
         // Create new review
+        console.log('Creating new review');
         result = await reviewApi.createReview(reviewData);
       }
+      
+      console.log('Review submission result:', result);
       
       // Refresh the review list if we're viewing a specific entity's reviews
       if ((reviewData.restaurant_id && reviewData.restaurant_id === filters.restaurantId) ||

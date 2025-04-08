@@ -1,3 +1,4 @@
+
 const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
@@ -204,7 +205,8 @@ app.delete('/reviews/:id', authenticateJWT, async (req, res) => {
   }
 });
 
-app.get('/check', authenticateJWT, async (req, res) => {
+// Missing route handler for checking existing reviews
+app.get('/reviews/check', authenticateJWT, async (req, res) => {
   try {
     const { userId, restaurantId, courierId } = req.query;
     
@@ -241,7 +243,7 @@ app.get('/check', authenticateJWT, async (req, res) => {
   }
 });
 
-app.get('/average', authenticateJWT, async (req, res) => {
+app.get('/reviews/average', authenticateJWT, async (req, res) => {
   try {
     const { restaurantId, courierId } = req.query;
     

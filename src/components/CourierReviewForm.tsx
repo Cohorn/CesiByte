@@ -23,10 +23,14 @@ const CourierReviewForm: React.FC<CourierReviewFormProps> = ({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const { user } = useAuth();
   const { toast } = useToast();
-  const { reviews, submitReview } = useReviews({ courierId, userId: user?.id });
+  const { reviews, submitReview } = useReviews({ 
+    courierId, 
+    userId: user?.id 
+  });
   
   // Check if user has already reviewed this courier
   useEffect(() => {
+    console.log("Reviews data for courier:", reviews);
     if (reviews && reviews.length > 0) {
       // User has already reviewed this courier, pre-fill the form
       const existingReview = reviews[0];
@@ -46,12 +50,16 @@ const CourierReviewForm: React.FC<CourierReviewFormProps> = ({
         throw new Error("You must be logged in to submit a review");
       }
       
+      console.log("Submitting review for courier:", courierId);
+      
       const result = await submitReview({
         user_id: user.id,
         courier_id: courierId,
         rating,
         comment: comment.trim() || undefined
       });
+      
+      console.log("Review submission result:", result);
       
       if (result.success) {
         toast({

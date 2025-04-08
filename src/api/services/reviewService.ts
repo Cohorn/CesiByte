@@ -87,6 +87,7 @@ export const reviewApi = {
 
   updateReview: async (id: string, reviewData: Partial<Review>) => {
     try {
+      console.log('Updating review with id:', id, 'and data:', reviewData);
       const response = await apiClient.put(`/reviews/${id}`, reviewData);
       
       // Invalidate all cache since we don't know which filters this affects
@@ -120,6 +121,7 @@ export const reviewApi = {
       if (restaurantId) params.append('restaurantId', restaurantId);
       if (courierId) params.append('courierId', courierId);
       
+      // Fix: Changed from 'reviews/check' to '/reviews/check' - this was causing a 404
       const response = await apiClient.get(`/reviews/check?${params.toString()}`);
       return response.data;
     } catch (error) {
@@ -134,6 +136,7 @@ export const reviewApi = {
       if (filters.restaurantId) params.append('restaurantId', filters.restaurantId);
       if (filters.courierId) params.append('courierId', filters.courierId);
       
+      // Fix: Changed from 'reviews/average' to '/reviews/average' - this was causing a 404
       const response = await apiClient.get(`/reviews/average?${params.toString()}`);
       return response.data;
     } catch (error) {
