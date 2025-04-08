@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useOrders } from '@/hooks/useOrders';
 import { useAuth } from '@/lib/AuthContext';
@@ -103,33 +102,39 @@ const CustomerOrders: React.FC = () => {
   }, [orders]);
 
   useEffect(() => {
-    if (orders) {
-      const newStatusMap: Record<string, OrderStatus> = {};
-      
-      orders.forEach((order: Order) => {
-        if (!previousOrderStatuses[order.id]) {
-          newStatusMap[order.id] = order.status as OrderStatus;
-        } else {
-          newStatusMap[order.id] = previousOrderStatuses[order.id];
+    if (orders && orders.length > 0) {
+      // First time we get orders, set up initial status state
+      if (Object.keys(previousOrderStatuses).length === 0) {
+        const initialStatuses: Record<string, OrderStatus> = {};
+        orders.forEach((order: Order) => {
+          initialStatuses[order.id] = order.status as OrderStatus;
+        });
+        setPreviousOrderStatuses(initialStatuses);
+      } else {
+        // On subsequent updates, we compare with existing statuses
+        const updatedOrders = orders.filter((order: Order) => 
+          previousOrderStatuses[order.id] && 
+          previousOrderStatuses[order.id] !== order.status
+        );
+        
+        // If we have status changes, update processed orders and update previous statuses
+        if (updatedOrders.length > 0) {
+          const newStatusMap: Record<string, OrderStatus> = {...previousOrderStatuses};
+          
+          orders.forEach((order: Order) => {
+            newStatusMap[order.id] = order.status as OrderStatus;
+          });
+          
+          setPreviousOrderStatuses(newStatusMap);
         }
-      });
-      
-      setPreviousOrderStatuses(prev => ({...prev, ...newStatusMap}));
+      }
     }
-  }, []);
+  }, [orders]);
 
   useEffect(() => {
     if (orders) {
       const ordersWithRestaurants = processOrdersWithRestaurants(orders);
       setProcessedOrders(ordersWithRestaurants);
-      
-      const newStatusMap: Record<string, OrderStatus> = {};
-      
-      orders.forEach((order: Order) => {
-        newStatusMap[order.id] = order.status as OrderStatus;
-      });
-      
-      setPreviousOrderStatuses(newStatusMap);
     } else {
       setProcessedOrders([]);
     }
