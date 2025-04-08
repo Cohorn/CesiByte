@@ -77,6 +77,19 @@ export const useReviews = (filters: ReviewFilters = {}) => {
     try {
       console.log('Submitting review:', reviewData);
       
+      // Validate required fields
+      if (!reviewData.user_id) {
+        throw new Error("User ID is required");
+      }
+      
+      if (!reviewData.rating || reviewData.rating < 1 || reviewData.rating > 5) {
+        throw new Error("Valid rating (1-5) is required");
+      }
+      
+      if (!reviewData.restaurant_id && !reviewData.courier_id) {
+        throw new Error("Either restaurant ID or courier ID is required");
+      }
+      
       // Check if user has already reviewed this restaurant/courier
       const alreadyExists = await reviewApi.checkExistingReview(
         reviewData.user_id,
@@ -88,7 +101,7 @@ export const useReviews = (filters: ReviewFilters = {}) => {
       
       let result;
       
-      if (alreadyExists.exists) {
+      if (alreadyExists.exists && alreadyExists.existingId) {
         console.log('Updating existing review with ID:', alreadyExists.existingId);
         
         // Update existing review

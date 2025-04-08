@@ -38,39 +38,6 @@ const authenticateJWT = (req, res, next) => {
   }
 };
 
-// Review routes
-app.get('/reviews', authenticateJWT, async (req, res) => {
-  try {
-    // Parse filter params
-    const { userId, restaurantId, courierId } = req.query;
-    
-    let query = supabase.from('reviews').select('*');
-      
-    if (userId) {
-      query = query.eq('user_id', userId);
-    }
-    
-    if (restaurantId) {
-      query = query.eq('restaurant_id', restaurantId);
-    }
-    
-    if (courierId) {
-      query = query.eq('courier_id', courierId);
-    }
-    
-    const { data, error } = await query.order('created_at', { ascending: false });
-      
-    if (error) {
-      return res.status(400).json({ error: error.message });
-    }
-    
-    res.status(200).json(data);
-  } catch (error) {
-    console.error('Error fetching reviews:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 // IMPORTANT: These specific routes must come BEFORE the :id route
 // Handle checking for existing reviews
 app.get('/reviews/check', authenticateJWT, async (req, res) => {
@@ -141,6 +108,39 @@ app.get('/reviews/average', authenticateJWT, async (req, res) => {
     res.status(200).json({ average, count: data.length });
   } catch (error) {
     console.error('Error calculating average rating:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Review routes for collection
+app.get('/reviews', authenticateJWT, async (req, res) => {
+  try {
+    // Parse filter params
+    const { userId, restaurantId, courierId } = req.query;
+    
+    let query = supabase.from('reviews').select('*');
+      
+    if (userId) {
+      query = query.eq('user_id', userId);
+    }
+    
+    if (restaurantId) {
+      query = query.eq('restaurant_id', restaurantId);
+    }
+    
+    if (courierId) {
+      query = query.eq('courier_id', courierId);
+    }
+    
+    const { data, error } = await query.order('created_at', { ascending: false });
+      
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+    
+    res.status(200).json(data);
+  } catch (error) {
+    console.error('Error fetching reviews:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

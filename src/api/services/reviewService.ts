@@ -58,6 +58,7 @@ export const reviewApi = {
 
   getReviewById: async (id: string) => {
     try {
+      console.log(`Fetching review with ID: ${id}`);
       const response = await apiClient.get(`/reviews/${id}`);
       return response.data;
     } catch (error) {
@@ -102,6 +103,7 @@ export const reviewApi = {
 
   deleteReview: async (id: string) => {
     try {
+      console.log(`Deleting review with ID: ${id}`);
       const response = await apiClient.delete(`/reviews/${id}`);
       
       // Invalidate all cache since we don't know which filters this affects
@@ -127,6 +129,7 @@ export const reviewApi = {
       return response.data;
     } catch (error) {
       console.error('Error checking existing review:', error);
+      // Return a default response instead of throwing to avoid breaking the UI
       return { exists: false, existingId: null };
     }
   },
@@ -137,6 +140,7 @@ export const reviewApi = {
       if (filters.restaurantId) params.append('restaurantId', filters.restaurantId);
       if (filters.courierId) params.append('courierId', filters.courierId);
       
+      console.log(`Fetching average rating with params: ${params.toString()}`);
       const response = await apiClient.get(`/reviews/average?${params.toString()}`);
       return response.data;
     } catch (error) {

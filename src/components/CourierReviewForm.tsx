@@ -6,6 +6,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { useReviews } from '@/hooks/useReviews';
 import { useAuth } from '@/lib/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
 
 interface CourierReviewFormProps {
   courierId: string;
@@ -21,6 +23,7 @@ const CourierReviewForm: React.FC<CourierReviewFormProps> = ({
   const [rating, setRating] = useState<number>(5);
   const [comment, setComment] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
   const { reviews, submitReview } = useReviews({ 
@@ -44,10 +47,15 @@ const CourierReviewForm: React.FC<CourierReviewFormProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setSubmitError(null);
     
     try {
       if (!user) {
         throw new Error("You must be logged in to submit a review");
+      }
+      
+      if (!courierId) {
+        throw new Error("Courier ID is missing");
       }
       
       console.log("Submitting review for courier:", courierId);
@@ -70,8 +78,9 @@ const CourierReviewForm: React.FC<CourierReviewFormProps> = ({
       } else {
         throw new Error(result.error || "Failed to submit review");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error submitting review:", error);
+      setSubmitError(error.message || "There was an error submitting your review. Please try again.");
       toast({
         title: "Submission Failed",
         description: "There was an error submitting your review. Please try again.",
@@ -84,6 +93,13 @@ const CourierReviewForm: React.FC<CourierReviewFormProps> = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {submitError && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{submitError}</AlertDescription>
+        </Alert>
+      )}
+      
       <div>
         <label className="block text-sm font-medium mb-1">
           How would you rate your delivery experience?
