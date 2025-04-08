@@ -66,6 +66,10 @@ export const userApi = {
   deleteUser: async (id: string) => {
     try {
       const response = await apiClient.delete(`/users/${id}`);
+      // Clear any stored auth tokens upon successful deletion
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_email');
+      localStorage.removeItem('auth_password');
       return response.data;
     } catch (error) {
       console.error("Failed to delete user:", error);

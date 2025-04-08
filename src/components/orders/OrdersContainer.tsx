@@ -19,8 +19,9 @@ const OrdersContainer = () => {
     orders, 
     isLoading, 
     error, 
-    refetch 
-  } = user ? useOrders({ userId: user.id }) : { orders: [], isLoading: false, error: null, refetch: null };
+    refetch,
+    updateOrderStatus
+  } = user ? useOrders({ userId: user.id }) : { orders: [], isLoading: false, error: null, refetch: null, updateOrderStatus: null };
 
   const activeOrders = orders.filter(order => 
     !['delivered', 'completed'].includes(order.status)
@@ -50,6 +51,29 @@ const OrdersContainer = () => {
       });
     } finally {
       setIsRefreshing(false);
+    }
+  };
+
+  const handleUpdateStatus = async (orderId: string, status: string) => {
+    if (!updateOrderStatus) return;
+    
+    try {
+      await updateOrderStatus(orderId, status);
+      toast({
+        title: "Order updated",
+        description: `Order status changed to ${status}`,
+      });
+      
+      if (refetch) {
+        await refetch(true);
+      }
+    } catch (error) {
+      console.error("Error updating order status:", error);
+      toast({
+        title: "Update failed",
+        description: "Could not update order status",
+        variant: "destructive",
+      });
     }
   };
 
@@ -124,7 +148,11 @@ const OrdersContainer = () => {
             </div>
           ) : (
             activeOrders.map((order: Order) => (
-              <OrderListItem key={order.id} order={order} />
+              <OrderListItem 
+                key={order.id} 
+                order={order} 
+                onUpdateStatus={handleUpdateStatus}
+              />
             ))
           )}
         </TabsContent>
@@ -136,7 +164,11 @@ const OrdersContainer = () => {
             </div>
           ) : (
             pastOrders.map((order: Order) => (
-              <OrderListItem key={order.id} order={order} />
+              <OrderListItem 
+                key={order.id} 
+                order={order}
+                onUpdateStatus={handleUpdateStatus}
+              />
             ))
           )}
         </TabsContent>

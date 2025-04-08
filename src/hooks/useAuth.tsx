@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { authApi } from '@/api/services/authService';
 import { User, UserType } from '@/lib/database.types';
@@ -222,6 +221,9 @@ export function useAuth() {
       await userApi.deleteUser(user.id);
       
       localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_email');
+      localStorage.removeItem('auth_password');
+      
       setUser(null);
       
       toast({

@@ -343,7 +343,7 @@ app.delete('/:id', authenticateJWT, async (req, res) => {
     // Check if user exists
     const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('id')
+      .select('id, user_type')
       .eq('id', id)
       .single();
       
@@ -360,6 +360,24 @@ app.delete('/:id', authenticateJWT, async (req, res) => {
     if (deleteError) {
       return res.status(400).json({ error: deleteError.message });
     }
+
+    // Now also delete the user from auth.users using admin functionality
+    const { error: authDeleteError } = await supabase.auth.admin.deleteUser(id);
+    
+    if (authDeleteError) {
+      console.error('Error deleting user from auth system:', authDeleteError);
+      return res.status(500).json({ 
+        error: 'User profile deleted but auth account could not be removed',
+        details: authDeleteError.message
+      });
+    }
+    
+    // Publish user deleted event to MQTT
+    console.log(`Publishing user deleted event for user ${id}`);
+    mqttClient.publish('foodapp/users/events/deleted', JSON.stringify({
+      userId: id,
+      userType: userData.user_type
+    }));
     
     res.status(200).json({ success: true, message: 'User deleted successfully' });
   } catch (error) {
