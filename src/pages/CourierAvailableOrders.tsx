@@ -40,7 +40,7 @@ const CourierAvailableOrders = () => {
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">Available Orders</h1>
-          <CourierRatingDisplay rating={averageRating} />
+          <CourierRatingDisplay rating={averageRating.average} />
         </div>
 
         <div className="mb-2 flex justify-between items-center">
