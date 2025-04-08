@@ -2,6 +2,7 @@
 import React from 'react';
 import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
+import { isDeveloper, isCommercialAgent } from '@/lib/AuthContext';
 import NavBar from '@/components/NavBar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,12 +15,16 @@ import {
 const EmployeeDashboard = () => {
   const { user, signOut } = useAuth();
   
-  // Redirect if not logged in or not an employee
+  // Redirect if not logged in or not an employee type
   if (!user) {
     return <Navigate to="/login" />;
-  } else if (user.user_type !== 'employee') {
+  } else if (user.user_type !== 'employee' && user.user_type !== 'dev' && user.user_type !== 'com_agent') {
     return <Navigate to="/" />;
   }
+
+  // Check specific role permissions
+  const canAccessDeveloperTools = isDeveloper(user.user_type);
+  const canAccessCommercialTools = isCommercialAgent(user.user_type);
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
@@ -30,7 +35,7 @@ const EmployeeDashboard = () => {
           <div>
             <h1 className="text-2xl font-bold">Employee Dashboard</h1>
             <p className="text-gray-500">
-              Welcome, {user.name} | Employee
+              Welcome, {user.name} | {user.user_type.charAt(0).toUpperCase() + user.user_type.slice(1)}
             </p>
           </div>
           
@@ -43,7 +48,7 @@ const EmployeeDashboard = () => {
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Sitemap - New card */}
+          {/* Sitemap - Available to all employees */}
           <Card className="hover:shadow-md transition-shadow border-t-4 border-t-primary">
             <CardHeader>
               <CardTitle className="flex items-center">
@@ -79,92 +84,100 @@ const EmployeeDashboard = () => {
             </CardContent>
           </Card>
           
-          {/* User Management - Available to all employees */}
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Users className="h-5 w-5 mr-2" />
-                Customer Management
-              </CardTitle>
-              <CardDescription>
-                Manage customer accounts
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild className="w-full">
-                <Link to="/employee/customers">Manage Customers</Link>
-              </Button>
-            </CardContent>
-          </Card>
+          {/* User Management - Available to commercial agents */}
+          {canAccessCommercialTools && (
+            <>
+              <Card className="hover:shadow-md transition-shadow">
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Users className="h-5 w-5 mr-2" />
+                    Customer Management
+                  </CardTitle>
+                  <CardDescription>
+                    Manage customer accounts
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button asChild className="w-full">
+                    <Link to="/employee/customers">Manage Customers</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+              
+              <Card className="hover:shadow-md transition-shadow">
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Store className="h-5 w-5 mr-2" />
+                    Restaurant Management
+                  </CardTitle>
+                  <CardDescription>
+                    Manage restaurant accounts
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button asChild className="w-full">
+                    <Link to="/employee/restaurants">Manage Restaurants</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+              
+              <Card className="hover:shadow-md transition-shadow">
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Truck className="h-5 w-5 mr-2" />
+                    Courier Management
+                  </CardTitle>
+                  <CardDescription>
+                    Manage courier accounts
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button asChild className="w-full">
+                    <Link to="/employee/couriers">Manage Couriers</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            </>
+          )}
           
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Store className="h-5 w-5 mr-2" />
-                Restaurant Management
-              </CardTitle>
-              <CardDescription>
-                Manage restaurant accounts
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild className="w-full">
-                <Link to="/employee/restaurants">Manage Restaurants</Link>
-              </Button>
-            </CardContent>
-          </Card>
-          
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Truck className="h-5 w-5 mr-2" />
-                Courier Management
-              </CardTitle>
-              <CardDescription>
-                Manage courier accounts
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild className="w-full">
-                <Link to="/employee/couriers">Manage Couriers</Link>
-              </Button>
-            </CardContent>
-          </Card>
-          
-          {/* Developer Tools - Available to all employees */}
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Terminal className="h-5 w-5 mr-2" />
-                API Playground
-              </CardTitle>
-              <CardDescription>
-                Test API endpoints directly
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild className="w-full">
-                <Link to="/employee/api-playground">API Playground</Link>
-              </Button>
-            </CardContent>
-          </Card>
-          
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Layers className="h-5 w-5 mr-2" />
-                Component Library
-              </CardTitle>
-              <CardDescription>
-                Browse and download UI components
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild className="w-full">
-                <Link to="/employee/components">Component Library</Link>
-              </Button>
-            </CardContent>
-          </Card>
+          {/* Developer Tools - Available only to developers */}
+          {canAccessDeveloperTools && (
+            <>
+              <Card className="hover:shadow-md transition-shadow">
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Terminal className="h-5 w-5 mr-2" />
+                    API Playground
+                  </CardTitle>
+                  <CardDescription>
+                    Test API endpoints directly
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button asChild className="w-full">
+                    <Link to="/employee/api-playground">API Playground</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+              
+              <Card className="hover:shadow-md transition-shadow">
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Layers className="h-5 w-5 mr-2" />
+                    Component Library
+                  </CardTitle>
+                  <CardDescription>
+                    Browse and download UI components
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button asChild className="w-full">
+                    <Link to="/employee/components">Component Library</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            </>
+          )}
         </div>
       </div>
     </div>

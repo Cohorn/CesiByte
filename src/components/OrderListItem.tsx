@@ -9,8 +9,9 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import CourierReviewForm from '@/components/CourierReviewForm';
 import { useToast } from '@/hooks/use-toast';
-import { Clock, Bell } from 'lucide-react';
+import { Clock, Bell, CalendarClock } from 'lucide-react';
 import { isStaleOrder } from '@/utils/orderUtils';
+import { formatEstimatedDeliveryTime } from '@/utils/deliveryTimeUtils';
 
 interface OrderListItemProps {
   order: Order;
@@ -185,6 +186,17 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
           {statusChanged && <Bell className="h-4 w-4 inline ml-1 text-blue-600" />}
         </span>
       </div>
+      
+      {/* Display estimated delivery time for customers */}
+      {isCustomer && order.estimated_delivery_time && (
+        <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded flex items-center gap-2">
+          <CalendarClock className="h-4 w-4 text-blue-500" />
+          <div>
+            <div className="font-medium">Estimated Delivery Time:</div>
+            <div>{formatEstimatedDeliveryTime(order.estimated_delivery_time)}</div>
+          </div>
+        </div>
+      )}
       
       {/* Show countdown timer for active orders */}
       {isCurrentOrder && timeRemaining !== null && (

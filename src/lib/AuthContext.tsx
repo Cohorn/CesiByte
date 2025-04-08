@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, ReactNode } from 'react';
 import { useAuth as useAuthHook } from '@/hooks/useAuth';
 import { User, UserType } from './database.types';
@@ -33,12 +34,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 // Export a custom hook to use the auth context
 export const useAuth = () => useContext(AuthContext);
 
-// Make sure to handle new user types in isEmployee function
+// Updated to include dev and com_agent roles
 export const isEmployee = (userType: string | undefined): boolean => {
   return userType === 'employee' || userType === 'dev' || userType === 'com_agent';
 };
 
-// If there's a hasEmployeeRole function, update it to check for all employee roles
+// Updated to check for all employee roles
 export const hasEmployeeRole = (userType: string | undefined): boolean => {
   return isEmployee(userType);
+};
+
+// Determines if a user can access developer-specific features (API Playground and Component Library)
+export const isDeveloper = (userType: string | undefined): boolean => {
+  return userType === 'dev' || userType === 'employee';
+};
+
+// Determines if a user can access commercial agent features
+export const isCommercialAgent = (userType: string | undefined): boolean => {
+  return userType === 'com_agent' || userType === 'employee';
 };

@@ -41,3 +41,30 @@ export const calculateEstimatedDeliveryTime = (
   
   return estimatedDeliveryTime.toISOString();
 };
+
+/**
+ * Format estimated delivery time in a user-friendly way
+ * @param estimatedTimeIso ISO string of estimated delivery time
+ * @returns Formatted time string (e.g., "Today at 2:30 PM" or date format)
+ */
+export const formatEstimatedDeliveryTime = (estimatedTimeIso: string | undefined): string => {
+  if (!estimatedTimeIso) return "Delivery time unavailable";
+  
+  const estimatedTime = new Date(estimatedTimeIso);
+  const now = new Date();
+  
+  // Check if it's today
+  const isToday = now.toDateString() === estimatedTime.toDateString();
+  
+  if (isToday) {
+    return `Today at ${estimatedTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+  } else {
+    return estimatedTime.toLocaleString([], { 
+      weekday: 'short', 
+      month: 'short', 
+      day: 'numeric',
+      hour: 'numeric', 
+      minute: '2-digit'
+    });
+  }
+};

@@ -22,11 +22,10 @@ const RestaurantOrders = () => {
   const navigate = useNavigate();
   const { restaurant, loading: restaurantLoading, error: restaurantError, fetchRestaurant } = useRestaurant();
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastRefreshTime, setLastRefreshTime] = useState<number | null>(null);
   const { toast } = useToast();
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   
-  const REFRESH_COOLDOWN = 10000; // 10 seconds
+  // No longer using REFRESH_COOLDOWN
   const STALE_CHECK_INTERVAL = 5 * 60 * 1000; // Check for stale orders every 5 minutes
 
   // Initialize orders state regardless of restaurant
@@ -69,7 +68,6 @@ const RestaurantOrders = () => {
           // Auto refresh orders on initial page load
           refetch(true).then(() => {
             setInitialLoadComplete(true);
-            setLastRefreshTime(Date.now());
           });
         }
       });
@@ -82,7 +80,6 @@ const RestaurantOrders = () => {
       console.log("Restaurant data already loaded, auto-refreshing orders");
       refetch(true).then(() => {
         setInitialLoadComplete(true);
-        setLastRefreshTime(Date.now());
       });
     }
   }, [restaurant, initialLoadComplete, refetch]);
@@ -99,25 +96,9 @@ const RestaurantOrders = () => {
     return () => clearInterval(checkStaleOrdersInterval);
   }, [restaurant, refetch]);
 
-  const canRefresh = useCallback(() => {
-    if (!lastRefreshTime) return true;
-    
-    const timeSinceLastRefresh = Date.now() - lastRefreshTime;
-    return timeSinceLastRefresh >= REFRESH_COOLDOWN;
-  }, [lastRefreshTime]);
-
   const handleRefresh = async () => {
-    if (!canRefresh()) {
-      const remainingTime = Math.ceil((REFRESH_COOLDOWN - (Date.now() - (lastRefreshTime || 0))) / 1000);
-      toast({
-        title: "Please wait",
-        description: `You can refresh again in ${remainingTime} seconds`,
-      });
-      return;
-    }
-
+    // Now restaurants can refresh at any time
     setIsRefreshing(true);
-    setLastRefreshTime(Date.now());
     
     try {
       console.log("Manually refreshing restaurant orders");
@@ -192,7 +173,7 @@ const RestaurantOrders = () => {
           title="Restaurant Orders" 
           onRefresh={handleRefresh}
           isRefreshing={isRefreshing}
-          canRefresh={!!restaurant && canRefresh()}
+          canRefresh={!!restaurant} // Always allow refreshing now
         />
         
         <RestaurantAlerts 
