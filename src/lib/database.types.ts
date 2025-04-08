@@ -55,7 +55,8 @@ export type OrderStatus =
   | 'picked_up' 
   | 'on_the_way' 
   | 'delivered' 
-  | 'completed';
+  | 'completed'
+  | 'cancelled';
 
 export type Order = {
   id: string;

@@ -8,15 +8,18 @@ import { Button } from '@/components/ui/button';
 import { 
   Users, BarChart, Code, 
   Store, Truck, LogOut, 
-  Layers, Terminal, MapPin
+  Layers, Terminal, MapPin,
+  ClipboardList, Settings
 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 const EmployeeDashboard = () => {
   const { user, signOut } = useAuth();
+  const { toast } = useToast();
   
   // Redirect if not logged in
   if (!user) {
-    return <Navigate to="/login" />;
+    return <Navigate to="/employee/login" />;
   } 
   
   // Redirect non-employee users
@@ -33,6 +36,23 @@ const EmployeeDashboard = () => {
                           isCommercialAgent(user) ? 'Commercial Agent' : 
                           'Employee';
 
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast({
+        title: "Signed out successfully",
+        description: "You have been signed out of your employee account",
+      });
+    } catch (error) {
+      console.error("Error signing out:", error);
+      toast({
+        title: "Error",
+        description: "Failed to sign out. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <NavBar />
@@ -47,7 +67,13 @@ const EmployeeDashboard = () => {
           </div>
           
           <div className="flex space-x-2 mt-4 md:mt-0">
-            <Button variant="destructive" size="sm" onClick={signOut}>
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/employee/profile">
+                <Settings className="h-4 w-4 mr-2" />
+                Profile
+              </Link>
+            </Button>
+            <Button variant="destructive" size="sm" onClick={handleSignOut}>
               <LogOut className="h-4 w-4 mr-2" />
               Sign Out
             </Button>
@@ -55,8 +81,26 @@ const EmployeeDashboard = () => {
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Sitemap - Available to all employees */}
+          {/* Order Management - Available to all employees */}
           <Card className="hover:shadow-md transition-shadow border-t-4 border-t-primary">
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <ClipboardList className="h-5 w-5 mr-2" />
+                Order Management
+              </CardTitle>
+              <CardDescription>
+                View and manage all orders
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild className="w-full">
+                <Link to="/employee/orders">Manage Orders</Link>
+              </Button>
+            </CardContent>
+          </Card>
+          
+          {/* Sitemap - Available to all employees */}
+          <Card className="hover:shadow-md transition-shadow">
             <CardHeader>
               <CardTitle className="flex items-center">
                 <MapPin className="h-5 w-5 mr-2" />
