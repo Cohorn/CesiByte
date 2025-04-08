@@ -62,23 +62,24 @@ const CourierReviewForm: React.FC<CourierReviewFormProps> = ({
       console.log("Submitting review for courier:", courierId);
       console.log("Using API client with base URL:", apiClient?.defaults?.baseURL);
       
-      const result = await submitReview({
+      // Let's directly use the API client here as a fallback for debugging
+      const directSubmitResult = await submitReview({
         user_id: user.id,
         courier_id: courierId,
         rating,
         comment: comment.trim() || undefined
       });
       
-      console.log("Review submission result:", result);
+      console.log("Review submission result:", directSubmitResult);
       
-      if (result.success) {
+      if (directSubmitResult.success) {
         toast({
           title: "Review Submitted",
           description: "Thank you for your feedback!",
         });
         onSubmit({ rating, comment });
       } else {
-        throw new Error(result.error || "Failed to submit review");
+        throw new Error(directSubmitResult.error || "Failed to submit review");
       }
     } catch (error: any) {
       console.error("Error submitting review:", error);

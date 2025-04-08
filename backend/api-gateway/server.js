@@ -409,14 +409,22 @@ app.get('/ping-order', async (req, res) => {
   }
 });
 
+// Routes for review service
 app.use('/reviews', authenticateJWT, createProxyMiddleware({
   target: REVIEW_SERVICE_URL,
   changeOrigin: true,
   pathRewrite: {
-    '^/reviews': ''
+    '^/reviews': '/reviews'  // Don't remove the /reviews path
   },
   onProxyReq: (proxyReq, req, res) => {
-    console.log(`[${new Date().toISOString()}] Proxying ${req.method} review request to: ${REVIEW_SERVICE_URL}${req.url.replace(/^\/reviews/, '')}`);
+    console.log(`[${new Date().toISOString()}] Proxying ${req.method} review request to: ${REVIEW_SERVICE_URL}${req.url}`);
+    console.log('Forwarding review request with auth token:', req.headers.authorization ? 'Yes' : 'No');
+    
+    // Make sure auth header is forwarded
+    if (req.headers.authorization) {
+      proxyReq.setHeader('Authorization', req.headers.authorization);
+    }
+    
     handleProxyRequest(proxyReq, req, res);
   },
   onProxyRes: (proxyRes, req, res) => {
@@ -441,7 +449,15 @@ app.use('/reviews', authenticateJWT, createProxyMiddleware({
   },
   onError: (err, req, res) => {
     console.error(`Review service proxy error: ${err.message}`);
-    res.status(500).json({ error: 'Review service unavailable' });
+    console.error('Error details:', err.code, err.stack);
+    
+    if (err.code === 'ECONNREFUSED') {
+      res.status(503).json({ error: 'Review service unavailable', details: 'Connection refused' });
+    } else if (err.code === 'ETIMEDOUT') {
+      res.status(504).json({ error: 'Review service timeout', details: 'Request timed out' });
+    } else {
+      res.status(500).json({ error: 'Review service error', details: err.message });
+    }
   }
 }));
 

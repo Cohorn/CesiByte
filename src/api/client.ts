@@ -30,9 +30,11 @@ apiClient.interceptors.request.use(
       console.log('No auth token available for request');
     }
     
-    // Log the request for debugging
-    console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`, 
-      config.params ? `Params: ${JSON.stringify(config.params)}` : '');
+    // Log the complete URL being requested for debugging
+    const fullUrl = config.baseURL + config.url?.replace(/^\//, '');
+    console.log(`API Request: ${config.method?.toUpperCase()} ${fullUrl}`, 
+      config.params ? `Params: ${JSON.stringify(config.params)}` : '',
+      config.data ? `Data: ${JSON.stringify(config.data)}` : '');
     
     return config;
   },
@@ -55,6 +57,10 @@ apiClient.interceptors.response.use(
       // Server responded with an error status code
       console.error(`API Error ${error.response.status} from ${error.config.url}:`, error.response.data);
       console.error('Request details:', error.config);
+      
+      // Log the full URL that was requested
+      const fullUrl = error.config.baseURL + error.config.url?.replace(/^\//, '');
+      console.error(`Full requested URL was: ${fullUrl}`);
     } else if (error.request) {
       // Request was made but no response received
       console.error('API No Response Error:', error.request);

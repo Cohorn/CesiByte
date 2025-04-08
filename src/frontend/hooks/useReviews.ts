@@ -34,7 +34,7 @@ export const useReviews = (filters: ReviewFilters = {}) => {
   // Fetch reviews based on filters
   useEffect(() => {
     const fetchReviews = async () => {
-      if (!filters.restaurantId && !filters.courierId) {
+      if (!filters.restaurantId && !filters.courierId && !filters.userId) {
         return;
       }
       
@@ -75,7 +75,7 @@ export const useReviews = (filters: ReviewFilters = {}) => {
     setError(null);
     
     try {
-      console.log('Submitting review:', reviewData);
+      console.log('Submitting review in useReviews hook:', reviewData);
       
       // Validate required fields
       if (!reviewData.user_id) {
@@ -91,56 +91,61 @@ export const useReviews = (filters: ReviewFilters = {}) => {
       }
       
       // Check if user has already reviewed this restaurant/courier
-      const alreadyExists = await reviewApi.checkExistingReview(
-        reviewData.user_id,
-        reviewData.restaurant_id,
-        reviewData.courier_id
-      );
-      
-      console.log('Check for existing review:', alreadyExists);
-      
-      let result;
-      
-      if (alreadyExists.exists && alreadyExists.existingId) {
-        console.log('Updating existing review with ID:', alreadyExists.existingId);
-        
-        // Update existing review
-        result = await reviewApi.updateReview(alreadyExists.existingId, {
-          rating: reviewData.rating,
-          comment: reviewData.comment
-        });
-      } else {
-        // Create new review
-        console.log('Creating new review');
-        result = await reviewApi.createReview(reviewData);
-      }
-      
-      console.log('Review submission result:', result);
-      
-      // Refresh the review list if we're viewing a specific entity's reviews
-      if ((reviewData.restaurant_id && reviewData.restaurant_id === filters.restaurantId) ||
-          (reviewData.courier_id && reviewData.courier_id === filters.courierId)) {
-        const updatedReviews = [...reviews];
-        const existingIndex = updatedReviews.findIndex(r => 
-          r.user_id === reviewData.user_id && 
-          ((reviewData.restaurant_id && r.restaurant_id === reviewData.restaurant_id) ||
-           (reviewData.courier_id && r.courier_id === reviewData.courier_id))
+      try {
+        const alreadyExists = await reviewApi.checkExistingReview(
+          reviewData.user_id,
+          reviewData.restaurant_id,
+          reviewData.courier_id
         );
         
-        if (existingIndex >= 0) {
-          updatedReviews[existingIndex] = result;
+        console.log('Check for existing review:', alreadyExists);
+        
+        let result;
+        
+        if (alreadyExists.exists && alreadyExists.existingId) {
+          console.log('Updating existing review with ID:', alreadyExists.existingId);
+          
+          // Update existing review
+          result = await reviewApi.updateReview(alreadyExists.existingId, {
+            rating: reviewData.rating,
+            comment: reviewData.comment
+          });
         } else {
-          updatedReviews.push(result);
+          // Create new review
+          console.log('Creating new review');
+          result = await reviewApi.createReview(reviewData);
         }
         
-        setReviews(updatedReviews);
+        console.log('Review submission result:', result);
+        
+        // Refresh the review list if we're viewing a specific entity's reviews
+        if ((reviewData.restaurant_id && reviewData.restaurant_id === filters.restaurantId) ||
+            (reviewData.courier_id && reviewData.courier_id === filters.courierId)) {
+          const updatedReviews = [...reviews];
+          const existingIndex = updatedReviews.findIndex(r => 
+            r.user_id === reviewData.user_id && 
+            ((reviewData.restaurant_id && r.restaurant_id === reviewData.restaurant_id) ||
+             (reviewData.courier_id && r.courier_id === reviewData.courier_id))
+          );
+          
+          if (existingIndex >= 0) {
+            updatedReviews[existingIndex] = result;
+          } else {
+            updatedReviews.push(result);
+          }
+          
+          setReviews(updatedReviews);
+        }
+        
+        setIsLoading(false);
+        return {
+          success: true,
+          data: result
+        };
+      } catch (requestError: any) {
+        console.error('Error in submitReview API call:', requestError);
+        throw new Error(requestError.message || 'Failed to communicate with review service');
       }
-      
-      setIsLoading(false);
-      return {
-        success: true,
-        data: result
-      };
     } catch (err: any) {
       console.error('Error submitting review:', err);
       setError(err.message || 'Failed to submit review');

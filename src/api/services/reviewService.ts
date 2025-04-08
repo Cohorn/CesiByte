@@ -40,8 +40,9 @@ export const reviewApi = {
       if (filters.courierId) params.append('courierId', filters.courierId);
       
       console.log(`Fetching reviews with filters: ${params.toString()}`);
-      // Make sure we're requesting from the review service endpoint
-      const response = await apiClient.get(`/api/reviews?${params.toString()}`);
+      
+      // Important fix: Use the correct path for the reviews endpoint
+      const response = await apiClient.get(`/reviews?${params.toString()}`);
       console.log(`Retrieved ${response.data?.length || 0} reviews`);
       
       // Cache the response
@@ -60,7 +61,8 @@ export const reviewApi = {
   getReviewById: async (id: string) => {
     try {
       console.log(`Fetching review with ID: ${id}`);
-      const response = await apiClient.get(`/api/reviews/${id}`);
+      // Fix: Use the correct path
+      const response = await apiClient.get(`/reviews/${id}`);
       return response.data;
     } catch (error) {
       console.error(`Error fetching review with ID ${id}:`, error);
@@ -71,7 +73,8 @@ export const reviewApi = {
   createReview: async (reviewData: Omit<Review, 'id' | 'created_at'>) => {
     try {
       console.log('Creating new review with data:', reviewData);
-      const response = await apiClient.post('/api/reviews', reviewData);
+      // Fix: Use the correct path
+      const response = await apiClient.post('/reviews', reviewData);
       
       // Clear cache for related filters
       reviewApi.clearCache({
@@ -90,7 +93,8 @@ export const reviewApi = {
   updateReview: async (id: string, reviewData: Partial<Review>) => {
     try {
       console.log('Updating review with id:', id, 'and data:', reviewData);
-      const response = await apiClient.put(`/api/reviews/${id}`, reviewData);
+      // Fix: Use the correct path
+      const response = await apiClient.put(`/reviews/${id}`, reviewData);
       
       // Invalidate all cache since we don't know which filters this affects
       reviewApi.clearCache();
@@ -105,7 +109,8 @@ export const reviewApi = {
   deleteReview: async (id: string) => {
     try {
       console.log(`Deleting review with ID: ${id}`);
-      const response = await apiClient.delete(`/api/reviews/${id}`);
+      // Fix: Use the correct path
+      const response = await apiClient.delete(`/reviews/${id}`);
       
       // Invalidate all cache since we don't know which filters this affects
       reviewApi.clearCache();
@@ -125,7 +130,8 @@ export const reviewApi = {
       if (courierId) params.append('courierId', courierId);
       
       console.log(`Checking existing review with params: ${params.toString()}`);
-      const response = await apiClient.get(`/api/reviews/check?${params.toString()}`);
+      // Fix: Use the correct path
+      const response = await apiClient.get(`/reviews/check?${params.toString()}`);
       console.log(`Check existing review response:`, response.data);
       return response.data;
     } catch (error) {
@@ -142,7 +148,8 @@ export const reviewApi = {
       if (filters.courierId) params.append('courierId', filters.courierId);
       
       console.log(`Fetching average rating with params: ${params.toString()}`);
-      const response = await apiClient.get(`/api/reviews/average?${params.toString()}`);
+      // Fix: Use the correct path
+      const response = await apiClient.get(`/reviews/average?${params.toString()}`);
       return response.data;
     } catch (error) {
       console.error('Error fetching average rating:', error);
