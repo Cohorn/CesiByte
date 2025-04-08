@@ -4,12 +4,15 @@ import { useOrders } from '@/hooks/useOrders';
 import { useAuth } from '@/lib/AuthContext';
 import NavBar from '@/components/NavBar';
 import { OrderWithRestaurant } from '@/types/order';
-import { OrderStatus, Restaurant, OrderItem } from '@/lib/database.types';
+import { OrderStatus, Restaurant } from '@/lib/database.types';
 import { Card } from '@/components/ui/card';
 import { Navigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import OrdersList from '@/components/OrdersList';
+import { useReviews } from '@/hooks/useReviews';
+import { useToast } from '@/hooks/use-toast';
 
 // Define the function first before using it in useEffect
 const processOrdersWithRestaurants = (data: any[]): OrderWithRestaurant[] => {
@@ -23,7 +26,7 @@ const processOrdersWithRestaurants = (data: any[]): OrderWithRestaurant[] => {
       restaurant_id: order.restaurant_id,
       courier_id: order.courier_id,
       status: order.status as OrderStatus,
-      items: order.items as OrderItem[],
+      items: order.items,
       total_price: order.total_price,
       delivery_address: order.delivery_address,
       delivery_lat: order.delivery_lat,
@@ -52,6 +55,8 @@ const CustomerOrders: React.FC = () => {
   });
   const [processedOrders, setProcessedOrders] = useState<OrderWithRestaurant[]>([]);
   const [authError, setAuthError] = useState<boolean>(false);
+  const { submitReview } = useReviews();
+  const { toast } = useToast();
 
   useEffect(() => {
     if (orders) {
@@ -81,14 +86,40 @@ const CustomerOrders: React.FC = () => {
     }
   }, [error]);
 
-  const groupOrdersByStatus = (orders: OrderWithRestaurant[]) => {
-    return orders.reduce((acc: { [key in OrderStatus]?: OrderWithRestaurant[] }, order) => {
-      if (!acc[order.status]) {
-        acc[order.status] = [];
+  // Create map of restaurant IDs to names
+  const restaurantNames = processedOrders.reduce((acc, order) => {
+    if (order.restaurant && order.restaurant.name) {
+      acc[order.restaurant_id] = order.restaurant.name;
+    }
+    return acc;
+  }, {} as Record<string, string>);
+
+  // Handle courier review submission
+  const handleReviewCourier = async (orderId: string, courierId: string) => {
+    if (!user) return;
+    
+    try {
+      const result = await submitReview({
+        user_id: user.id,
+        courier_id: courierId,
+        rating: 5, // Default rating is handled in the form
+        comment: ''
+      });
+      
+      if (result.success) {
+        toast({
+          title: "Review Submitted",
+          description: "Thank you for reviewing your courier",
+        });
       }
-      acc[order.status]?.push(order);
-      return acc;
-    }, {});
+    } catch (error) {
+      console.error("Error submitting review:", error);
+      toast({
+        title: "Error",
+        description: "Failed to submit review",
+        variant: "destructive"
+      });
+    }
   };
 
   // Redirect to login if not authenticated or auth error
@@ -146,7 +177,6 @@ const CustomerOrders: React.FC = () => {
     );
   }
 
-  const groupedOrders = groupOrdersByStatus(processedOrders);
   const hasOrders = processedOrders.length > 0;
 
   return (
@@ -161,32 +191,16 @@ const CustomerOrders: React.FC = () => {
             <p className="text-gray-500">Start ordering from your favorite restaurants!</p>
           </Card>
         ) : (
-          Object.entries(groupedOrders).map(([status, orders]) => (
-            <div key={status} className="mb-6">
-              <h2 className="text-xl font-semibold mb-2">{status.replace(/_/g, ' ')}</h2>
-              {!orders || orders.length === 0 ? (
-                <p>No orders with this status.</p>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {orders?.map(order => (
-                    <div key={order.id} className="bg-white rounded-md shadow-sm p-4">
-                      <h3 className="font-semibold">{order.restaurant.name}</h3>
-                      <p className="text-gray-500">{order.delivery_address}</p>
-                      <p className="text-sm">Total: ${order.total_price.toFixed(2)}</p>
-                      <p className="text-sm">Delivery Pin: {order.delivery_pin}</p>
-                      <ul className="mt-2">
-                        {order.items.map((item, index) => (
-                          <li key={`${item.menu_item_id || 'item'}-${index}`} className="text-sm">
-                            {item.name} x{item.quantity} - ${(item.price * item.quantity).toFixed(2)}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))
+          <Card className="p-6">
+            <OrdersList 
+              orders={processedOrders}
+              onUpdateStatus={() => Promise.resolve({ success: false })} // Customers don't update status
+              isCurrentOrders={false}
+              restaurantNames={restaurantNames}
+              showTabs={true}
+              onReviewCourier={handleReviewCourier}
+            />
+          </Card>
         )}
       </div>
     </div>

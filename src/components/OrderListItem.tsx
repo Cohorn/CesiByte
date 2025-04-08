@@ -1,27 +1,46 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { Order, OrderStatus } from '@/lib/database.types';
 import OrderItemCard from '@/components/OrderItemCard';
 import OrderStatusUpdate from '@/components/OrderStatusUpdate';
 import { useAuth } from '@/lib/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import CourierReviewForm from '@/components/CourierReviewForm';
 
 interface OrderListItemProps {
   order: Order;
   onUpdateStatus: (orderId: string, status: OrderStatus) => Promise<{ success: boolean, error?: any }>;
   isCurrentOrder?: boolean;
-  restaurantName?: string; // Add restaurant name as an optional prop
+  restaurantName?: string;
+  onReviewCourier?: (orderId: string, courierId: string) => void;
 }
 
 const OrderListItem: React.FC<OrderListItemProps> = ({ 
   order, 
   onUpdateStatus,
   isCurrentOrder = true,
-  restaurantName
+  restaurantName,
+  onReviewCourier
 }) => {
   const { user } = useAuth();
   const isCustomer = user?.id === order.user_id;
   const showDeliveryPin = isCustomer && ['ready_for_pickup', 'picked_up', 'on_the_way'].includes(order.status);
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  
+  // Check if order is completed and has a courier assigned
+  const canReviewCourier = isCustomer && 
+                          order.status === 'completed' && 
+                          order.courier_id && 
+                          onReviewCourier;
+
+  const handleReviewSubmit = (data: { rating: number; comment: string }) => {
+    if (onReviewCourier && order.courier_id) {
+      onReviewCourier(order.id, order.courier_id);
+    }
+    setReviewDialogOpen(false);
+  };
 
   return (
     <div className="bg-white rounded shadow p-4">
@@ -76,6 +95,31 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
           currentStatus={order.status}
           onStatusUpdate={onUpdateStatus}
         />
+      )}
+      
+      {canReviewCourier && (
+        <div className="mt-4">
+          <Button 
+            onClick={() => setReviewDialogOpen(true)}
+            variant="outline"
+            className="w-full"
+          >
+            Review Courier
+          </Button>
+          
+          <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Review Your Courier</DialogTitle>
+              </DialogHeader>
+              <CourierReviewForm 
+                courierId={order.courier_id as string}
+                orderId={order.id}
+                onSubmit={handleReviewSubmit}
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
       )}
     </div>
   );

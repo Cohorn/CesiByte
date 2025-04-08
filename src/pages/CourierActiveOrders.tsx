@@ -1,177 +1,174 @@
-import React, { useState, useCallback } from 'react';
-import { Navigate } from 'react-router-dom';
+
+import React, { useState } from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import NavBar from '@/components/NavBar';
-import LoadingState from '@/components/restaurant/LoadingState';
-import ReviewStats from '@/components/ReviewStats';
-import ReviewList from '@/components/ReviewList';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import ActiveOrderCard from '@/components/courier/ActiveOrderCard';
-import CourierMapLocations from '@/components/courier/CourierMapLocations';
 import { useCourierActiveOrders } from '@/hooks/useCourierActiveOrders';
+import NavBar from '@/components/NavBar';
+import { OrderStatus } from '@/lib/database.types';
+import ActiveOrderCard from '@/components/courier/ActiveOrderCard';
+import { Card } from '@/components/ui/card';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import CourierRatingDisplay from '@/components/courier/CourierRatingDisplay';
-import { Skeleton } from '@/components/ui/skeleton';
+import DeliveryPinInput from '@/components/courier/DeliveryPinInput';
 import { useOrders } from '@/hooks/useOrders';
-import { useToast } from '@/hooks/use-toast';
 
-const CourierActiveOrders = () => {
+const CourierActiveOrders: React.FC = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<string>('active');
-  const { toast } = useToast();
+  const { activeOrders, isLoading, error, refetch, updateOrderStatus } = useCourierActiveOrders();
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [verifyingPin, setVerifyingPin] = useState(false);
   
+  // Fetch past orders separately
   const { 
-    activeOrders, 
-    restaurants, 
-    reviews, 
-    reviewers, 
-    averageRating,
-    loading, 
-    error,
-    updateOrderStatus,
-    refetch
-  } = useCourierActiveOrders(user?.id);
-  
-  const { verifyDeliveryPin } = useOrders({ courierId: user?.id });
+    orders: pastOrders, 
+    isLoading: pastOrdersLoading, 
+    error: pastOrdersError 
+  } = useOrders({
+    courierId: user?.id,
+    status: ['delivered', 'completed'] as OrderStatus[]
+  });
 
-  const handleVerifyPin = useCallback(async (orderId: string, pin: string) => {
+  const handlePinSubmit = async (pin: string) => {
+    if (!selectedOrderId) return;
+    
+    setVerifyingPin(true);
+    
     try {
-      console.log(`Verifying PIN for order ${orderId} with value ${pin}`);
-      
-      const result = await verifyDeliveryPin(orderId, pin);
-      console.log('PIN verification result:', result);
-      
-      if (result.success) {
-        refetch();
-        return { success: true, message: "Delivery confirmed" };
+      const { verifyDeliveryPin } = useOrders();
+      if (verifyDeliveryPin) {
+        const result = await verifyDeliveryPin(selectedOrderId, pin);
+        if (result.success) {
+          // Handle success
+          refetch();
+        }
       } else {
-        return { success: false, message: result.message || "Invalid PIN" };
+        console.error("verifyDeliveryPin function not available");
       }
-    } catch (err) {
-      const error = err as Error;
+    } catch (error) {
       console.error("Error verifying PIN:", error);
-      return { success: false, message: "Error: " + error.message };
+    } finally {
+      setVerifyingPin(false);
+      setSelectedOrderId(null);
     }
-  }, [verifyDeliveryPin, refetch]);
+  };
+  
+  const handleMarkDelivered = (orderId: string) => {
+    setSelectedOrderId(orderId);
+  };
 
-  if (!user || user.user_type !== 'courier') {
-    return <Navigate to="/" />;
+  if (isLoading || pastOrdersLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <NavBar />
+        <div className="container mx-auto py-8">
+          <h1 className="text-2xl font-bold mb-4">Your Active Deliveries</h1>
+          <Card className="p-8 text-center">
+            <p className="text-gray-500">Loading orders...</p>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || pastOrdersError) {
+    const displayError = error || pastOrdersError;
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <NavBar />
+        <div className="container mx-auto py-8">
+          <h1 className="text-2xl font-bold mb-4">Your Active Deliveries</h1>
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>
+              {displayError?.message}
+              <div className="mt-2">
+                <Button 
+                  onClick={() => refetch()} 
+                  variant="outline"
+                  className="mt-2"
+                >
+                  Try Again
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen bg-gray-50">
       <NavBar />
-
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl font-bold">Courier Dashboard</h1>
-          {loading && !averageRating ? (
-            <Skeleton className="h-8 w-24" />
-          ) : (
-            averageRating !== null && (
-              <CourierRatingDisplay rating={averageRating} />
-            )
-          )}
-        </div>
-
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-4">
-            <TabsTrigger value="active">Active Orders</TabsTrigger>
-            <TabsTrigger value="reviews">Your Reviews</TabsTrigger>
+      <div className="container mx-auto py-8">
+        <h1 className="text-2xl font-bold mb-4">Your Deliveries</h1>
+        
+        <Tabs defaultValue="active" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsTrigger value="active">Active Deliveries ({activeOrders.length})</TabsTrigger>
+            <TabsTrigger value="past">Past Deliveries ({pastOrders?.length || 0})</TabsTrigger>
           </TabsList>
           
           <TabsContent value="active">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Active Orders</h2>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => refetch()}
-                disabled={loading}
-                className="flex items-center gap-1"
-              >
-                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
-            </div>
-
-            {error && (
-              <Alert variant="destructive" className="mb-4">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{error.message}</AlertDescription>
-              </Alert>
-            )}
-
-            {loading && activeOrders.length === 0 && reviews.length === 0 ? (
-              <LoadingState message="Loading your active orders..." />
-            ) : activeOrders.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-1">
-                  {activeOrders.map(order => (
-                    <ActiveOrderCard
-                      key={order.id}
-                      id={order.id}
-                      restaurantName={order.restaurant_name}
-                      restaurantAddress={order.restaurant_address}
-                      restaurantLat={order.restaurant_lat}
-                      restaurantLng={order.restaurant_lng}
-                      deliveryAddress={order.delivery_address}
-                      deliveryLat={order.delivery_lat}
-                      deliveryLng={order.delivery_lng}
-                      status={order.status}
-                      createdAt={order.created_at}
-                      userLat={user?.lat || 0}
-                      userLng={user?.lng || 0}
-                      onStatusUpdate={updateOrderStatus}
-                      onVerifyPin={handleVerifyPin}
-                    />
-                  ))}
-                </div>
-
-                <div className="md:col-span-1">
-                  <CourierMapLocations 
-                    activeOrders={activeOrders}
-                    restaurants={restaurants || []}
-                    userLocation={{ lat: user.lat || 0, lng: user.lng || 0 }}
-                  />
-                </div>
-              </div>
+            {activeOrders.length === 0 ? (
+              <Card className="p-8 text-center">
+                <p className="text-gray-500">You don't have any active deliveries.</p>
+                <p className="text-gray-500 mt-2">Check the available orders to pick up new deliveries.</p>
+              </Card>
             ) : (
-              <div className="bg-white shadow rounded-lg p-6 text-center">
-                <p className="text-gray-500 mb-4">You don't have any active orders at the moment.</p>
-                <Button variant="outline" onClick={() => refetch()}>
-                  Check for new assignments
-                </Button>
+              <div className="space-y-4">
+                {activeOrders.map(order => (
+                  <ActiveOrderCard 
+                    key={order.id}
+                    order={order}
+                    onUpdateStatus={updateOrderStatus}
+                    onMarkDelivered={handleMarkDelivered}
+                  />
+                ))}
               </div>
             )}
           </TabsContent>
           
-          <TabsContent value="reviews">
-            <h2 className="text-xl font-semibold mb-4">Your Reviews</h2>
-            
-            {loading && activeOrders.length === 0 && reviews.length === 0 ? (
-              <LoadingState message="Loading your reviews..." />
-            ) : error ? (
-              <Alert variant="destructive" className="mb-4">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{error.message}</AlertDescription>
-              </Alert>
-            ) : reviews && reviews.length > 0 ? (
-              <div className="mb-6">
-                <ReviewStats reviews={reviews} />
-                <ReviewList reviews={reviews} reviewers={reviewers || []} />
-              </div>
+          <TabsContent value="past">
+            {!pastOrders || pastOrders.length === 0 ? (
+              <Card className="p-8 text-center">
+                <p className="text-gray-500">You don't have any past deliveries.</p>
+              </Card>
             ) : (
-              <div className="bg-white shadow rounded-lg p-6 text-center">
-                <p className="text-gray-500">You haven't received any reviews yet.</p>
+              <div className="space-y-4">
+                {pastOrders.map(order => (
+                  <Card key={order.id} className="p-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-semibold">Order #{order.id.substring(0, 8)}</h3>
+                        <p className="text-sm text-gray-600">Delivered to: {order.delivery_address}</p>
+                        <p className="text-sm text-gray-600">Status: <span className="capitalize">{order.status.replace(/_/g, ' ')}</span></p>
+                        <p className="text-sm font-medium mt-2">Amount: ${order.total_price.toFixed(2)}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className="inline-block px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">
+                          Completed
+                        </span>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
               </div>
             )}
           </TabsContent>
         </Tabs>
+
+        {/* PIN verification dialog */}
+        {selectedOrderId && (
+          <DeliveryPinInput
+            open={!!selectedOrderId}
+            onClose={() => setSelectedOrderId(null)}
+            onSubmit={handlePinSubmit}
+            isVerifying={verifyingPin}
+          />
+        )}
       </div>
     </div>
   );
