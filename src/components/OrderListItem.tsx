@@ -38,6 +38,7 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [statusChanged, setStatusChanged] = useState(false);
+  const [notificationVisible, setNotificationVisible] = useState(false);
   
   // Updated condition: Check if order is completed or delivered and has a courier assigned
   const canReviewCourier = isCustomer && 
@@ -49,6 +50,7 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
   useEffect(() => {
     if (previousStatus && previousStatus !== order.status) {
       setStatusChanged(true);
+      setNotificationVisible(true);
       
       // Show toast notification for status change
       if (isCustomer) {
@@ -63,7 +65,15 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
         setStatusChanged(false);
       }, 5000);
       
-      return () => clearTimeout(timer);
+      // Reset notification visibility after 8 seconds
+      const notificationTimer = setTimeout(() => {
+        setNotificationVisible(false);
+      }, 8000);
+      
+      return () => {
+        clearTimeout(timer);
+        clearTimeout(notificationTimer);
+      };
     }
   }, [order.status, previousStatus, isCustomer, toast]);
 
@@ -114,6 +124,10 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
     }
   };
 
+  const dismissNotification = () => {
+    setNotificationVisible(false);
+  };
+
   // Format the time remaining in hours and minutes
   const formatTimeRemaining = (minutes: number): string => {
     if (minutes <= 0) return "Order will be auto-completed soon";
@@ -129,7 +143,22 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
   };
 
   return (
-    <div className={`bg-white rounded shadow p-4 ${statusChanged ? 'ring-2 ring-blue-500 animate-pulse' : ''}`}>
+    <div className={`bg-white rounded shadow p-4 relative ${statusChanged ? 'ring-2 ring-blue-500 animate-pulse' : ''}`}>
+      {/* Status update notification */}
+      {notificationVisible && (
+        <div className="absolute -top-2 -right-2 bg-blue-500 text-white px-3 py-1 rounded-full text-sm font-medium shadow-lg flex items-center gap-1 z-10 animate-bounce">
+          <Bell className="h-3 w-3" />
+          <span>Status Updated</span>
+          <button 
+            onClick={dismissNotification}
+            className="ml-1 hover:bg-blue-600 rounded-full h-4 w-4 flex items-center justify-center"
+            aria-label="Dismiss notification"
+          >
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+      )}
+      
       <div className="flex items-center justify-between mb-2">
         <h2 className="text-lg font-semibold">Order #{order.id.substring(0, 8)}</h2>
         <span className="text-sm text-gray-600">
