@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
+import { apiClient } from '@/api/client';
 
 interface CourierReviewFormProps {
   courierId: string;
