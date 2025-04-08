@@ -35,7 +35,7 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
   const canReviewCourier = isCustomer && 
                           order.status === 'completed' && 
                           order.courier_id && 
-                          onReviewCourier;
+                          onReviewCourier !== undefined;
 
   const handleReviewSubmit = (data: { rating: number; comment: string }) => {
     if (onReviewCourier && order.courier_id) {
