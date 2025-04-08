@@ -12,7 +12,7 @@ interface OrdersListProps {
   emptyMessage?: string;
   restaurantNames?: Record<string, string>;
   showTabs?: boolean;
-  onReviewCourier?: (orderId: string, courierId: string) => void;
+  onReviewCourier?: (orderId: string, courierId: string, data: { rating: number; comment: string }) => void;
   canUpdateStatus?: boolean;
 }
 

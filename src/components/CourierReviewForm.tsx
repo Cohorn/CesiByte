@@ -1,8 +1,11 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StarRating } from '@/components/ui/star-rating';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { useReviews } from '@/hooks/useReviews';
+import { useAuth } from '@/lib/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 
 interface CourierReviewFormProps {
   courierId: string;
@@ -18,15 +21,53 @@ const CourierReviewForm: React.FC<CourierReviewFormProps> = ({
   const [rating, setRating] = useState<number>(5);
   const [comment, setComment] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const { reviews, submitReview } = useReviews({ courierId, userId: user?.id });
+  
+  // Check if user has already reviewed this courier
+  useEffect(() => {
+    if (reviews && reviews.length > 0) {
+      // User has already reviewed this courier, pre-fill the form
+      const existingReview = reviews[0];
+      setRating(existingReview.rating);
+      if (existingReview.comment) {
+        setComment(existingReview.comment);
+      }
+    }
+  }, [reviews]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     
     try {
-      onSubmit({
+      if (!user) {
+        throw new Error("You must be logged in to submit a review");
+      }
+      
+      const result = await submitReview({
+        user_id: user.id,
+        courier_id: courierId,
         rating,
-        comment
+        comment: comment.trim() || undefined
+      });
+      
+      if (result.success) {
+        toast({
+          title: "Review Submitted",
+          description: "Thank you for your feedback!",
+        });
+        onSubmit({ rating, comment });
+      } else {
+        throw new Error(result.error || "Failed to submit review");
+      }
+    } catch (error) {
+      console.error("Error submitting review:", error);
+      toast({
+        title: "Submission Failed",
+        description: "There was an error submitting your review. Please try again.",
+        variant: "destructive",
       });
     } finally {
       setIsSubmitting(false);

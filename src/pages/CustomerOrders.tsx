@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useOrders } from '@/hooks/useOrders';
 import { useAuth } from '@/lib/AuthContext';
@@ -19,13 +18,10 @@ const processOrdersWithRestaurants = (data: any[]): OrderWithRestaurant[] => {
   return data.map(order => {
     const delivery_pin = order.delivery_pin || '0000';
     
-    // Properly extract restaurant data, handle both formats
     let restaurant: Restaurant;
     if (order.restaurant) {
-      // Already has embedded restaurant object
       restaurant = order.restaurant;
     } else {
-      // Create a default restaurant object
       restaurant = {
         id: order.restaurant_id || '',
         name: 'Unknown Restaurant',
@@ -68,7 +64,6 @@ const CustomerOrders: React.FC = () => {
   const { toast } = useToast();
   const [restaurantNames, setRestaurantNames] = useState<Record<string, string>>({});
 
-  // Fetch restaurant data for orders
   useEffect(() => {
     const fetchRestaurantNames = async () => {
       if (!orders || orders.length === 0) return;
@@ -107,7 +102,6 @@ const CustomerOrders: React.FC = () => {
       const ordersWithRestaurants = processOrdersWithRestaurants(orders);
       setProcessedOrders(ordersWithRestaurants);
       
-      // Check for completed orders with couriers
       const completedWithCourier = ordersWithRestaurants.filter(
         order => order.status === 'completed' && order.courier_id
       );
@@ -133,17 +127,17 @@ const CustomerOrders: React.FC = () => {
     }
   }, [error]);
 
-  const handleReviewCourier = async (orderId: string, courierId: string) => {
+  const handleReviewCourier = async (orderId: string, courierId: string, data: { rating: number; comment: string }) => {
     if (!user) return;
     
-    console.log(`Handling review for courier ${courierId} on order ${orderId}`);
+    console.log(`Handling review for courier ${courierId} on order ${orderId} with data:`, data);
     
     try {
       const result = await submitReview({
         user_id: user.id,
         courier_id: courierId,
-        rating: 5,
-        comment: ''
+        rating: data.rating,
+        comment: data.comment || ''
       });
       
       if (result.success) {

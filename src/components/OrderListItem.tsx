@@ -8,13 +8,14 @@ import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import CourierReviewForm from '@/components/CourierReviewForm';
+import { useToast } from '@/hooks/use-toast';
 
 interface OrderListItemProps {
   order: Order;
   onUpdateStatus: (orderId: string, status: OrderStatus) => Promise<{ success: boolean, error?: any }>;
   isCurrentOrder?: boolean;
   restaurantName?: string;
-  onReviewCourier?: (orderId: string, courierId: string) => void;
+  onReviewCourier?: (orderId: string, courierId: string, data: { rating: number; comment: string }) => void;
   canUpdateStatus?: boolean;
 }
 
@@ -27,6 +28,7 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
   canUpdateStatus = false
 }) => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const isCustomer = user?.id === order.user_id;
   const showDeliveryPin = isCustomer && ['ready_for_pickup', 'picked_up', 'on_the_way'].includes(order.status);
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
@@ -39,9 +41,13 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
 
   const handleReviewSubmit = (data: { rating: number; comment: string }) => {
     if (onReviewCourier && order.courier_id) {
-      onReviewCourier(order.id, order.courier_id);
+      onReviewCourier(order.id, order.courier_id, data);
+      setReviewDialogOpen(false);
+      toast({
+        title: "Review Submitted",
+        description: "Thank you for reviewing your courier!"
+      });
     }
-    setReviewDialogOpen(false);
   };
 
   // Debug log to check why the review button might not be showing
