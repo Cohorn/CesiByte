@@ -43,6 +43,9 @@ const RestaurantMenu = () => {
   const [distance, setDistance] = useState<number | null>(null);
   const [estimatedTime, setEstimatedTime] = useState<string | null>(null);
   
+  // Check if current user is the restaurant owner
+  const isRestaurantOwner = user?.user_type === 'restaurant';
+  
   // Fetch reviewers
   useEffect(() => {
     const fetchReviewers = async () => {
@@ -75,9 +78,9 @@ const RestaurantMenu = () => {
     fetchReviewers();
   }, [reviews]);
   
-  // Calculate distance and estimated time
+  // Calculate distance and estimated time (only for customers)
   useEffect(() => {
-    if (restaurant && user) {
+    if (restaurant && user && !isRestaurantOwner) {
       const dist = calculateDistance(
         user.lat,
         user.lng,
@@ -95,7 +98,7 @@ const RestaurantMenu = () => {
       
       setEstimatedTime(`${format(estimatedDelivery, 'h:mm a')} (approx. ${totalMinutes} min)`);
     }
-  }, [restaurant, user]);
+  }, [restaurant, user, isRestaurantOwner]);
   
   const calculateTotal = () => {
     return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
@@ -154,6 +157,8 @@ const RestaurantMenu = () => {
   };
   
   const handleAddToCart = (item: MenuItem) => {
+    if (isRestaurantOwner) return; // Restaurant owners can't add to cart
+    
     const quantity = getCartItemQuantity(item.id);
     
     if (quantity === 0) {
@@ -192,7 +197,7 @@ const RestaurantMenu = () => {
           <p className="mt-1 font-bold">${item.price.toFixed(2)}</p>
         </div>
         <div>
-          {item.available ? (
+          {item.available && !isRestaurantOwner ? (
             <div className="flex items-center space-x-2">
               {getCartItemQuantity(item.id) > 0 && (
                 <>
@@ -217,8 +222,12 @@ const RestaurantMenu = () => {
               </Button>
             </div>
           ) : (
-            <Button variant="outline" disabled className="text-sm">
-              Unavailable
+            <Button 
+              variant="outline" 
+              disabled={!item.available || isRestaurantOwner}
+              className="text-sm"
+            >
+              {!item.available ? "Unavailable" : (isRestaurantOwner ? "Edit" : "Add")}
             </Button>
           )}
         </div>
@@ -273,20 +282,20 @@ const RestaurantMenu = () => {
       
       <div className="container mx-auto px-4 py-6">
         <div className="flex flex-col md:flex-row gap-6">
-          <div className="md:w-2/3">
+          <div className={isRestaurantOwner ? "w-full" : "md:w-2/3"}>
             <Card>
               <CardHeader>
                 <CardTitle className="text-2xl">{restaurant.name}</CardTitle>
                 <CardDescription className="flex items-center gap-2">
                   <MapPin className="h-4 w-4 text-gray-500" />
                   <span>{restaurant.address}</span>
-                  {distance !== null && (
+                  {distance !== null && !isRestaurantOwner && (
                     <span className="text-sm text-gray-500 ml-2">
                       ({formatDistance(distance)} away)
                     </span>
                   )}
                 </CardDescription>
-                {estimatedTime && (
+                {estimatedTime && !isRestaurantOwner && (
                   <div className="flex items-center mt-2 text-sm text-gray-600">
                     <Clock className="h-4 w-4 mr-1" />
                     <span>Estimated delivery: {estimatedTime}</span>
@@ -332,72 +341,75 @@ const RestaurantMenu = () => {
             </Card>
           </div>
           
-          <div className="md:w-1/3">
-            <Card className="sticky top-4">
-              <CardHeader>
-                <CardTitle>Your Order</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {cart.length === 0 ? (
-                  <p className="text-gray-500">Your cart is empty</p>
-                ) : (
-                  <>
-                    <div className="space-y-3 mb-4">
-                      {cart.map(item => (
-                        <div key={item.menu_item_id} className="flex justify-between">
-                          <div>
-                            <span className="font-medium">{item.name}</span>
-                            <div className="flex items-center mt-1">
-                              <Button 
-                                variant="outline" 
-                                size="icon" 
-                                onClick={() => handleRemoveFromCart(item.menu_item_id)}
-                                className="h-6 w-6 text-xs"
-                              >
-                                -
-                              </Button>
-                              <span className="mx-2">{item.quantity}</span>
-                              <Button 
-                                variant="outline" 
-                                size="icon" 
-                                onClick={() => updateCartItemQuantity(item.menu_item_id, item.quantity + 1)}
-                                className="h-6 w-6 text-xs"
-                              >
-                                +
-                              </Button>
+          {/* Only show the cart if user is not a restaurant owner */}
+          {!isRestaurantOwner && (
+            <div className="md:w-1/3">
+              <Card className="sticky top-4">
+                <CardHeader>
+                  <CardTitle>Your Order</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {cart.length === 0 ? (
+                    <p className="text-gray-500">Your cart is empty</p>
+                  ) : (
+                    <>
+                      <div className="space-y-3 mb-4">
+                        {cart.map(item => (
+                          <div key={item.menu_item_id} className="flex justify-between">
+                            <div>
+                              <span className="font-medium">{item.name}</span>
+                              <div className="flex items-center mt-1">
+                                <Button 
+                                  variant="outline" 
+                                  size="icon" 
+                                  onClick={() => handleRemoveFromCart(item.menu_item_id)}
+                                  className="h-6 w-6 text-xs"
+                                >
+                                  -
+                                </Button>
+                                <span className="mx-2">{item.quantity}</span>
+                                <Button 
+                                  variant="outline" 
+                                  size="icon" 
+                                  onClick={() => updateCartItemQuantity(item.menu_item_id, item.quantity + 1)}
+                                  className="h-6 w-6 text-xs"
+                                >
+                                  +
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p>${(item.price * item.quantity).toFixed(2)}</p>
                             </div>
                           </div>
-                          <div className="text-right">
-                            <p>${(item.price * item.quantity).toFixed(2)}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    
-                    <Separator className="my-4" />
-                    
-                    <div className="flex justify-between font-bold mb-4">
-                      <span>Total:</span>
-                      <span>${calculateTotal().toFixed(2)}</span>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Button className="w-full" onClick={handleCheckout}>
-                        Checkout
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        className="w-full" 
-                        onClick={clearCart}
-                      >
-                        Clear Cart
-                      </Button>
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+                        ))}
+                      </div>
+                      
+                      <Separator className="my-4" />
+                      
+                      <div className="flex justify-between font-bold mb-4">
+                        <span>Total:</span>
+                        <span>${calculateTotal().toFixed(2)}</span>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Button className="w-full" onClick={handleCheckout}>
+                          Checkout
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          className="w-full" 
+                          onClick={clearCart}
+                        >
+                          Clear Cart
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </div>
       </div>
     </div>
