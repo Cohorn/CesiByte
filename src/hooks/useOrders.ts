@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { orderApi } from '@/api/services/orderService';
 import { Order, OrderStatus } from '@/lib/database.types';
@@ -113,10 +114,10 @@ export const useOrders = (options: OrdersOptions = {}) => {
 
       // Create relevant notifications for all parties involved
       if (user) {
-        const updatedOrder = result.order || orders.find(o => o.id === orderId);
+        // Access the updated order correctly
+        const updatedOrder = result && result.data ? result.data : orders.find(o => o.id === orderId);
         
         if (updatedOrder) {
-          // Find the order to get related information
           // For customer notification
           if (updatedOrder.user_id && updatedOrder.user_id !== user.id) {
             const { title, message } = generateOrderStatusNotification(status, 'customer');

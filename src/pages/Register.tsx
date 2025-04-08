@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
@@ -40,7 +39,6 @@ const Register = () => {
   const { toast } = useToast();
   const { createRestaurant } = useRestaurant();
 
-  // Check if user type is employee, dev, or com_agent
   const isStaffRole = userType === 'employee' || userType === 'dev' || userType === 'com_agent';
 
   useEffect(() => {
@@ -52,7 +50,6 @@ const Register = () => {
   const validateCoordinates = () => {
     const errors: {[key: string]: string} = {};
     
-    // Only validate coordinates for users who need to provide location
     if (!isStaffRole) {
       if (isNaN(lat) || lat < -90 || lat > 90) {
         errors.lat = "Latitude must be between -90 and 90.";
@@ -167,6 +164,10 @@ const Register = () => {
     }
   };
 
+  const isValidUserType = async (userType: UserType) => {
+    return validUserTypes.includes(userType);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -189,6 +190,13 @@ const Register = () => {
           setIsSubmitting(false);
           return;
         }
+      }
+      
+      const isValid = await isValidUserType(userType);
+      if (!isValid) {
+        setErrorMessage(`Invalid user type: ${userType}`);
+        setIsSubmitting(false);
+        return;
       }
       
       let userData: any = {
