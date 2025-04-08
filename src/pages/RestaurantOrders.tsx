@@ -27,6 +27,7 @@ const RestaurantOrders = () => {
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   
   const REFRESH_COOLDOWN = 10000; // 10 seconds
+  const STALE_CHECK_INTERVAL = 5 * 60 * 1000; // Check for stale orders every 5 minutes
 
   // Initialize orders state regardless of restaurant
   const { 
@@ -85,6 +86,18 @@ const RestaurantOrders = () => {
       });
     }
   }, [restaurant, initialLoadComplete, refetch]);
+
+  // Periodically check for stale orders
+  useEffect(() => {
+    if (!restaurant) return;
+    
+    const checkStaleOrdersInterval = setInterval(() => {
+      console.log("Checking for stale orders...");
+      refetch(true);
+    }, STALE_CHECK_INTERVAL);
+    
+    return () => clearInterval(checkStaleOrdersInterval);
+  }, [restaurant, refetch]);
 
   const canRefresh = useCallback(() => {
     if (!lastRefreshTime) return true;

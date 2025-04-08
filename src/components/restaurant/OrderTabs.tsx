@@ -1,9 +1,9 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Order, OrderStatus } from '@/lib/database.types';
 import OrdersList from '@/components/OrdersList';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { isCurrentOrder } from '@/utils/orderUtils';
+import { isCurrentOrder, isStaleOrder, processStaleOrders } from '@/utils/orderUtils';
 
 interface OrderTabsProps {
   orders: Order[];
@@ -16,9 +16,25 @@ const OrderTabs: React.FC<OrderTabsProps> = ({
   onUpdateStatus,
   canUpdateStatus = true
 }) => {
+  // Process orders to handle stale ones
+  const processedOrders = processStaleOrders(orders);
+  
+  // Auto-update stale orders in the database
+  useEffect(() => {
+    const staleOrders = orders.filter(isStaleOrder);
+    
+    // Update each stale order status to completed
+    staleOrders.forEach(order => {
+      console.log(`Auto-cancelling stale order ${order.id} (last updated: ${order.updated_at})`);
+      onUpdateStatus(order.id, 'completed').catch(error => {
+        console.error(`Failed to auto-cancel order ${order.id}:`, error);
+      });
+    });
+  }, [orders, onUpdateStatus]);
+  
   // Split orders by status
-  const activeOrders = orders.filter(order => isCurrentOrder(order.status));
-  const completedOrders = orders.filter(order => !isCurrentOrder(order.status));
+  const activeOrders = processedOrders.filter(order => isCurrentOrder(order.status) && !isStaleOrder(order));
+  const completedOrders = processedOrders.filter(order => !isCurrentOrder(order.status) || isStaleOrder(order));
   
   return (
     <Tabs defaultValue="active" className="w-full">

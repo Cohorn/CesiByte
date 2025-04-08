@@ -1,5 +1,5 @@
 
-import { OrderStatus } from '@/lib/database.types';
+import { OrderStatus, Order } from '@/lib/database.types';
 
 export const isCurrentOrder = (status: OrderStatus): boolean => {
   const currentOrderStatuses: OrderStatus[] = [
@@ -46,4 +46,33 @@ export const getNextOrderStatuses = (currentStatus: OrderStatus): OrderStatus[] 
     default:
       return [];
   }
+};
+
+// Check if an order is stale (not updated for 45 minutes)
+export const isStaleOrder = (order: Order): boolean => {
+  // If order is already completed or delivered, it's not stale
+  if (order.status === 'completed' || order.status === 'delivered') {
+    return false;
+  }
+  
+  // Calculate time difference in minutes
+  const updatedAt = new Date(order.updated_at);
+  const now = new Date();
+  const diffInMinutes = (now.getTime() - updatedAt.getTime()) / (1000 * 60);
+  
+  // Order is stale if it hasn't been updated in 45 minutes
+  return diffInMinutes >= 45;
+};
+
+// Process orders to mark stale ones as cancelled/completed
+export const processStaleOrders = (orders: Order[]): Order[] => {
+  return orders.map(order => {
+    if (isStaleOrder(order)) {
+      return {
+        ...order,
+        status: 'completed', // Mark stale orders as completed
+      };
+    }
+    return order;
+  });
 };
