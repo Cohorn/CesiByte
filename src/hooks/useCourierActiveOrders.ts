@@ -1,4 +1,3 @@
-
 // This is a simplified version for demonstration
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -61,6 +60,7 @@ export function useCourierActiveOrders(courierId: string | null) {
 
   const fetchActiveOrders = useCallback(async () => {
     if (!courierId) {
+      console.log('No courier ID provided, skipping active orders fetch');
       setActiveOrders([]);
       setLoading(false);
       return [];
@@ -72,6 +72,10 @@ export function useCourierActiveOrders(courierId: string | null) {
     try {
       console.log(`Fetching active orders for courier: ${courierId}`);
       
+      // Use specific order statuses that qualify as "active"
+      const activeStatuses = ['picked_up', 'on_the_way'];
+      console.log(`Using active statuses: ${activeStatuses.join(', ')}`);
+      
       const { data, error } = await supabase
         .from('orders')
         .select(`
@@ -79,7 +83,7 @@ export function useCourierActiveOrders(courierId: string | null) {
           restaurants:restaurant_id(id, name, address, lat, lng, user_id)
         `)
         .eq('courier_id', courierId)
-        .in('status', ['picked_up', 'on_the_way']);
+        .in('status', activeStatuses);
       
       if (error) {
         console.error('Error fetching active orders:', error);
@@ -89,6 +93,7 @@ export function useCourierActiveOrders(courierId: string | null) {
       console.log(`Retrieved ${data?.length || 0} active orders`);
       
       if (!data) {
+        console.log('No data returned from active orders query');
         setActiveOrders([]);
         setRestaurants([]);
         setLoading(false);
@@ -97,6 +102,7 @@ export function useCourierActiveOrders(courierId: string | null) {
       
       // Process to add restaurant data to main object
       const processedOrders = data.map(order => {
+        console.log(`Processing order: ${order.id}, status: ${order.status}`);
         // Create a new object with all order properties and additional needed properties
         return {
           ...order,
@@ -220,10 +226,12 @@ export function useCourierActiveOrders(courierId: string | null) {
 
   useEffect(() => {
     if (courierId) {
+      console.log(`Initial fetch for courier ${courierId} active orders`);
       fetchActiveOrders();
       fetchReviews();
     } else {
       // Reset state if courier ID is null
+      console.log('No courier ID, resetting active orders state');
       setActiveOrders([]);
       setLoading(false);
       setError(null);

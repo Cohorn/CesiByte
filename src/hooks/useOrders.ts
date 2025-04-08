@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { orderApi } from '@/api/services/orderService';
 import { Order, OrderStatus } from '@/lib/database.types';
@@ -18,6 +17,7 @@ export const useOrders = (options: OrdersOptions = {}) => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
   const [hasFetched, setHasFetched] = useState<boolean>(false);
+  const [retryCount, setRetryCount] = useState(0);
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -42,18 +42,25 @@ export const useOrders = (options: OrdersOptions = {}) => {
         fetchedOrders = await orderApi.getOrdersByRestaurant(options.restaurantId, forceRefresh);
       } else if (options.courierId && options.status) {
         console.log(`Fetching orders for courier ID: ${options.courierId} with status: ${options.status}`);
+        
         try {
-          // When status is specified with courier ID, use the getOrdersByStatus method
+          // First try using the getOrdersByStatus method and then filter
+          console.log('Trying to fetch by status first...');
           const allOrdersWithStatus = await orderApi.getOrdersByStatus(options.status);
+          
           // Filter orders by courier ID
           fetchedOrders = allOrdersWithStatus.filter(order => order.courier_id === options.courierId);
           console.log(`Filtered to ${fetchedOrders.length} orders for courier ${options.courierId}`);
         } catch (err) {
           console.error("Error fetching orders by status for courier:", err);
-          // Fallback to getting all courier orders and filtering by status
+          
+          // Fallback: Get all courier orders and filter by status client-side
+          console.log('Falling back to getting all courier orders and filtering by status');
           const allCourierOrders = await orderApi.getOrdersByCourier(options.courierId);
+          
           const statusArray = Array.isArray(options.status) ? options.status : [options.status];
           fetchedOrders = allCourierOrders.filter(order => statusArray.includes(order.status));
+          
           console.log(`Fallback: Filtered to ${fetchedOrders.length} orders for courier ${options.courierId}`);
         }
       } else if (options.courierId) {
@@ -72,21 +79,26 @@ export const useOrders = (options: OrdersOptions = {}) => {
       setOrders(fetchedOrders || []);
       setHasFetched(true);
       setIsLoading(false);
+      setRetryCount(0); // Reset retry count on successful fetch
       return fetchedOrders || [];
     } catch (err: any) {
       console.error("Error fetching orders:", err);
       setError(err instanceof Error ? err : new Error(err.message || 'Failed to fetch orders'));
       
-      toast({
-        title: "Error",
-        description: "Could not fetch orders",
-        variant: "destructive"
-      });
+      // Don't show a toast for every retry attempt
+      if (retryCount === 0) {
+        toast({
+          title: "Error",
+          description: "Could not fetch orders. You can try again using the retry button.",
+          variant: "destructive"
+        });
+      }
       
       setIsLoading(false);
+      setRetryCount(prev => prev + 1);
       return [];
     }
-  }, [options.userId, options.restaurantId, options.courierId, options.status, user, toast]);
+  }, [options.userId, options.restaurantId, options.courierId, options.status, user, toast, retryCount]);
 
   const updateOrderStatus = useCallback(async (orderId: string, status: OrderStatus) => {
     try {
@@ -265,6 +277,7 @@ export const useOrders = (options: OrdersOptions = {}) => {
     refetch: fetchOrders,
     updateOrderStatus,
     assignCourier,
-    verifyDeliveryPin
+    verifyDeliveryPin,
+    retryCount
   };
 };

@@ -80,6 +80,13 @@ const CourierActiveOrders: React.FC = () => {
     }
   };
 
+  // Fix for the TypeScript error - create a proper event handler
+  const handleRefetchPastOrders = () => {
+    refetchPastOrders(true).catch(err => {
+      console.error("Error when retrying past orders fetch:", err);
+    });
+  };
+
   // Show loading state
   if (loading && !isRefetching) {
     return (
@@ -215,7 +222,7 @@ const CourierActiveOrders: React.FC = () => {
                 <AlertDescription>
                   Could not load past deliveries. Please try again.
                   <div className="mt-2">
-                    <Button onClick={refetchPastOrders} variant="outline" size="sm">
+                    <Button onClick={handleRefetchPastOrders} variant="outline" size="sm">
                       Retry
                     </Button>
                   </div>
