@@ -8,13 +8,15 @@ interface OrdersListProps {
   onUpdateStatus: (orderId: string, status: OrderStatus) => Promise<{ success: boolean, error?: any }>;
   isCurrentOrders?: boolean;
   emptyMessage?: string;
+  restaurantNames?: Record<string, string>; // Add map of restaurant IDs to names
 }
 
 const OrdersList: React.FC<OrdersListProps> = ({ 
   orders, 
   onUpdateStatus,
   isCurrentOrders = true,
-  emptyMessage = "No orders found."
+  emptyMessage = "No orders found.",
+  restaurantNames = {} // Default to empty object
 }) => {
   if (orders.length === 0) {
     return (
@@ -32,6 +34,7 @@ const OrdersList: React.FC<OrdersListProps> = ({
           order={order} 
           onUpdateStatus={onUpdateStatus}
           isCurrentOrder={isCurrentOrders}
+          restaurantName={restaurantNames[order.restaurant_id]}
         />
       ))}
     </div>
