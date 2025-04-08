@@ -53,7 +53,10 @@ export type OrderStatus =
   | 'picked_up' 
   | 'on_the_way' 
   | 'delivered' 
-  | 'completed';
+  | 'completed'
+  | 'pending'
+  | 'confirmed'
+  | 'out_for_delivery';
 
 export type Order = {
   id: string;
@@ -69,6 +72,7 @@ export type Order = {
   created_at: string;
   updated_at: string;
   delivery_pin: string;
+  isStale?: boolean;
 };
 
 export type OrderItem = {
