@@ -1,3 +1,4 @@
+
 // This is a simplified version for demonstration
 import { apiClient } from '../client';
 import { Order, OrderStatus } from '@/lib/database.types';
@@ -113,28 +114,28 @@ export const orderApi = {
     }
   },
   
-  getOrdersByStatus: async (status: OrderStatus | OrderStatus[]): Promise<Order[]> => {
+  getOrdersByStatus: async (status: OrderStatus | OrderStatus[] | 'all'): Promise<Order[]> => {
     // Create a cache key based on the status(es)
-    const statusArray = Array.isArray(status) ? status : [status];
-    const cacheKey = statusArray.join(',');
+    const statusArray = status === 'all' ? [] : Array.isArray(status) ? status : [status];
+    const cacheKey = status === 'all' ? 'all' : statusArray.join(',');
     
     try {
       // Check cache first
       const cachedOrders = orderCacheService.getCached('byStatus', cacheKey);
       if (cachedOrders) return cachedOrders;
 
-      let url = '/orders/status';
+      let url = '/orders';
       
-      // Handle array of statuses by using query parameters
-      if (Array.isArray(status)) {
-        // Convert status array to query string format
-        const statusParams = status.map(s => `status=${s}`).join('&');
-        url = `/orders/status?${statusParams}`;
-        console.log(`Fetching orders with multiple statuses: ${url}`);
-      } else {
-        // Single status - use the simpler path format
-        url = `/orders/status/${status}`;
-        console.log(`Fetching orders with single status: ${url}`);
+      if (status !== 'all') {
+        // Handle array of statuses by using query parameters
+        if (Array.isArray(status)) {
+          // Convert status array to query string format
+          const statusParams = status.map(s => `status=${s}`).join('&');
+          url = `/orders/status?${statusParams}`;
+        } else {
+          // Single status - use the simpler path format
+          url = `/orders/status/${status}`;
+        }
       }
 
       const response = await apiClient.get(url);
@@ -150,7 +151,7 @@ export const orderApi = {
       
       // If the backend doesn't support the query parameter format,
       // try fetching all orders and filter client-side as a fallback
-      if (Array.isArray(status) && error.response?.status === 400) {
+      if (status !== 'all' && Array.isArray(status) && error.response?.status === 400) {
         console.log('Falling back to fetching all orders and filtering client-side');
         try {
           const allOrdersResponse = await apiClient.get('/orders');
@@ -189,6 +190,7 @@ export const orderApi = {
               orderData.delivery_lat,
               orderData.delivery_lng
             );
+            console.log('Estimated delivery time calculated:', orderData.estimated_delivery_time);
           }
         } catch (error) {
           console.error('Error fetching restaurant for delivery time calculation:', error);

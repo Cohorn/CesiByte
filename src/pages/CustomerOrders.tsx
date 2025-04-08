@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useOrders } from '@/hooks/useOrders';
 import { useAuth } from '@/lib/AuthContext';
@@ -48,7 +49,8 @@ const processOrdersWithRestaurants = (data: any[]): OrderWithRestaurant[] => {
       created_at: order.created_at,
       updated_at: order.updated_at,
       delivery_pin: delivery_pin,
-      restaurant: restaurant
+      restaurant: restaurant,
+      estimated_delivery_time: order.estimated_delivery_time
     };
   });
 };
@@ -66,8 +68,6 @@ const CustomerOrders: React.FC = () => {
   const [restaurantNames, setRestaurantNames] = useState<Record<string, string>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
   
-  // Removed lastRefreshTime and REFRESH_COOLDOWN
-
   useEffect(() => {
     const fetchRestaurantNames = async () => {
       if (!orders || orders.length === 0) return;
@@ -158,7 +158,6 @@ const CustomerOrders: React.FC = () => {
   }, [error]);
   
   const handleRefresh = async () => {
-    // Removed canRefresh check
     setIsRefreshing(true);
     
     try {

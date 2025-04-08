@@ -1,579 +1,340 @@
+
 import React, { useState, useEffect } from 'react';
-import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { authApi } from '@/api/services/authService';
 import { useAuth } from '@/lib/AuthContext';
-import NavBar from '@/components/NavBar';
+import { Loader2, MapPin } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { UserType } from '@/lib/database.types';
 import { useToast } from '@/hooks/use-toast';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, Upload, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { supabase } from '@/lib/supabase';
-import { useRestaurant } from '@/frontend/hooks';
-import { validateReferralCode } from '@/utils/referralUtils';
+import Map from '@/components/Map';
+import { registerUserWithReferral } from '@/utils/userRegistrationFix';
+
+const formSchema = z.object({
+  name: z.string().min(2, {
+    message: 'Name must be at least 2 characters.',
+  }),
+  email: z.string().email({
+    message: 'Please enter a valid email address.',
+  }),
+  password: z.string().min(6, {
+    message: 'Password must be at least 6 characters.',
+  }),
+  address: z.string().min(5, {
+    message: 'Please enter a valid address.',
+  }),
+  userType: z.enum(['customer', 'restaurant', 'courier', 'employee']),
+  referralCode: z.string().optional(),
+});
 
 const Register = () => {
-  const [searchParams] = useSearchParams();
-  const defaultType = searchParams.get('type') as UserType || 'customer';
-  
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [address, setAddress] = useState('');
-  const [lat, setLat] = useState(0);
-  const [lng, setLng] = useState(0);
-  const [userType, setUserType] = useState<UserType>(defaultType);
+  const { user, isLoading: authLoading } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [referralCode, setReferralCode] = useState('');
-  const [isValidatingReferral, setIsValidatingReferral] = useState(false);
-  const [referralError, setReferralError] = useState<string | null>(null);
-  
-  const { signUp, user, isLoading } = useAuth();
-  const navigate = useNavigate();
+  const [userType, setUserType] = useState<UserType>('customer');
+  const [userLocation, setUserLocation] = useState({ lat: 40.7128, lng: -74.0060 });
+  const [isMapLoaded, setIsMapLoaded] = useState(false);
   const { toast } = useToast();
-  const { createRestaurant } = useRestaurant();
-
-  const isStaffRole = userType === 'employee' || userType === 'dev' || userType === 'com_agent';
-
+  const navigate = useNavigate();
+  
+  // Initialize referral code from URL if present
+  const [referralCode, setReferralCode] = useState('');
   useEffect(() => {
-    if (errorMessage) {
-      setErrorMessage(null);
+    const queryParams = new URLSearchParams(window.location.search);
+    const code = queryParams.get('code');
+    if (code) {
+      setReferralCode(code);
     }
-  }, [email, password, name, address, userType]);
+  }, []);
 
-  const validateCoordinates = () => {
-    const errors: {[key: string]: string} = {};
-    
-    if (!isStaffRole) {
-      if (isNaN(lat) || lat < -90 || lat > 90) {
-        errors.lat = "Latitude must be between -90 and 90.";
-      }
-      
-      if (isNaN(lng) || lng < -180 || lng > 180) {
-        errors.lng = "Longitude must be between -180 and 180.";
-      }
-    }
-    
-    setValidationErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
+  // Define user type options based on environment
+  const allowEmployeeRegistration = import.meta.env.VITE_ALLOW_EMPLOYEE_REGISTRATION === 'true';
+  const allowDevRegistration = import.meta.env.VITE_ALLOW_DEV_REGISTRATION === 'true';
+  const allowComAgentRegistration = import.meta.env.VITE_ALLOW_COM_AGENT_REGISTRATION === 'true';
 
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    
-    if (file.size > 5 * 1024 * 1024) {
-      toast({
-        title: "Error",
-        description: "Image file is too large (maximum 5MB)",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    if (!validTypes.includes(file.type)) {
-      toast({
-        title: "Error",
-        description: "Invalid file type. Please upload a JPG, PNG, GIF or WEBP image.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    setIsUploading(true);
-    
-    try {
-      await ensureStorageBucket();
-      
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random().toString(36).substring(2, 15)}-${Date.now()}.${fileExt}`;
-      const filePath = `${fileName}`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from('restaurant_images')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: true
-        });
-      
-      if (uploadError) {
-        console.error('Error uploading image:', uploadError);
-        throw uploadError;
-      }
-      
-      const { data: { publicUrl } } = supabase.storage
-        .from('restaurant_images')
-        .getPublicUrl(filePath);
-      
-      setImagePreview(publicUrl);
-      
-      toast({
-        title: "Success",
-        description: "Image uploaded successfully",
-      });
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      toast({
-        title: "Error",
-        description: "Failed to upload image. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsUploading(false);
-    }
-  };
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: '',
+      email: '',
+      password: '',
+      address: '',
+      userType: 'customer',
+      referralCode: referralCode,
+    },
+  });
 
-  const removeImage = () => {
-    setImagePreview(null);
-  };
+  // Update form when referral code changes
+  useEffect(() => {
+    form.setValue('referralCode', referralCode);
+  }, [referralCode, form]);
 
-  const ensureStorageBucket = async () => {
-    try {
-      console.log('Checking if restaurant_images bucket exists');
-      const { data: buckets, error } = await supabase
-        .storage
-        .listBuckets();
-        
-      if (error) throw error;
-      
-      const bucketExists = buckets.some(bucket => bucket.name === 'restaurant_images');
-      
-      if (!bucketExists) {
-        console.log('Creating restaurant_images bucket');
-        const { error: createError } = await supabase.storage.createBucket('restaurant_images', {
-          public: true
-        });
-        
-        if (createError) throw createError;
-        console.log('Bucket created successfully');
-      } else {
-        console.log('Bucket already exists');
-      }
-      
-      return true;
-    } catch (error) {
-      console.error('Error ensuring storage bucket exists:', error);
-      return false;
-    }
-  };
-
-  const isValidUserType = async (userType: UserType) => {
-    return validUserTypes.includes(userType);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!validateCoordinates()) {
-      return;
-    }
-    
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsSubmitting(true);
-    setErrorMessage(null);
-    setReferralError(null);
     
     try {
-      if (referralCode) {
-        setIsValidatingReferral(true);
-        const isValid = await validateReferralCode(referralCode);
-        setIsValidatingReferral(false);
-        
-        if (!isValid) {
-          setReferralError('Invalid referral code');
-          setIsSubmitting(false);
-          return;
-        }
-      }
-      
-      const isValid = await isValidUserType(userType);
-      if (!isValid) {
-        setErrorMessage(`Invalid user type: ${userType}`);
-        setIsSubmitting(false);
-        return;
-      }
-      
-      let userData: any = {
-        email,
-        password,
-        name,
-        user_type: userType,
-        referral_code: referralCode || undefined
-      };
-      
-      if (!isStaffRole) {
-        userData.address = address;
-        userData.lat = lat;
-        userData.lng = lng;
-      } else {
-        userData.address = '';
-        userData.lat = 0;
-        userData.lng = 0;
-      }
-      
-      console.log('Registration data being sent:', userData);
-      
-      const { error } = await signUp(email, password, userData);
-      
-      if (error) {
-        console.error("Registration error:", error);
-        let errorMsg = error.message || "Registration failed";
-        
-        if (error.response && error.response.data && error.response.data.error) {
-          errorMsg += `: ${error.response.data.error}`;
-        }
-        
-        setErrorMessage(errorMsg);
+      const { success, error } = await registerUserWithReferral({
+        name: values.name,
+        email: values.email, 
+        password: values.password,
+        address: values.address,
+        lat: userLocation.lat,
+        lng: userLocation.lng,
+        userType: values.userType as UserType,
+        referralCode: values.referralCode
+      });
+
+      if (success) {
         toast({
-          title: "Error",
-          description: errorMsg,
-          variant: "destructive"
+          title: "Registration successful!",
+          description: "You have been registered successfully.",
         });
+        
+        navigate('/login');
       } else {
-        if (userType === 'restaurant') {
-          try {
-            setTimeout(async () => {
-              try {
-                const { data: { session } } = await supabase.auth.getSession();
-                if (session?.user) {
-                  const restaurantData = {
-                    name,
-                    address,
-                    lat,
-                    lng,
-                    user_id: session.user.id,
-                    image_url: imagePreview
-                  };
-                  
-                  console.log('Creating restaurant for new user:', restaurantData);
-                  await createRestaurant(restaurantData);
-                  
-                  toast({
-                    title: "Success",
-                    description: "Restaurant account created successfully!",
-                  });
-                  
-                  navigate('/restaurant/menu');
-                }
-              } catch (restError) {
-                console.error("Error creating restaurant:", restError);
-                toast({
-                  title: "Warning",
-                  description: "Account created but restaurant setup failed. Please try setting up your restaurant again.",
-                  variant: "destructive"
-                });
-                navigate('/restaurant/setup');
-              }
-            }, 1000);
-          } catch (restError) {
-            console.error("Error in restaurant creation:", restError);
-          }
-        } else {
-          toast({
-            title: "Success",
-            description: "Your account has been created"
-          });
-          
-          setTimeout(() => {
-            if (userType === 'employee') {
-              navigate('/employee/dashboard');
-            } else if (userType === 'courier') {
-              navigate('/courier/available');
-            } else if (userType === 'dev') {
-              navigate('/employee/dashboard');
-            } else if (userType === 'com_agent') {
-              navigate('/employee/dashboard');
-            } else {
-              navigate('/');
-            }
-          }, 500);
-        }
+        toast({
+          title: "Registration failed",
+          description: error || "An unknown error occurred.",
+          variant: "destructive",
+        });
       }
     } catch (error: any) {
-      console.error("Unexpected registration error:", error);
-      setErrorMessage("An unexpected error occurred during registration");
+      console.error("Registration error:", error);
+      
       toast({
-        title: "Error",
-        description: "An unexpected error occurred during registration",
-        variant: "destructive"
+        title: "Registration failed",
+        description: error.message || "An unknown error occurred.",
+        variant: "destructive",
       });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const validUserTypes = ['customer', 'restaurant', 'courier', 'employee', 'dev', 'com_agent'];
+  const handleUserTypeChange = (value: UserType) => {
+    setUserType(value);
+    form.setValue('userType', value);
+  };
 
-  if (user && !isLoading) {
-    return <Navigate to="/" />;
+  const handleLocationSelected = (lat: number, lng: number, address: string) => {
+    setUserLocation({ lat, lng });
+    form.setValue('address', address);
+  };
+
+  const handleMapLoad = () => {
+    setIsMapLoaded(true);
+  };
+
+  if (!authLoading && user) {
+    // User is already authenticated, redirect to appropriate page
+    if (user.user_type === 'employee') {
+      return <Navigate to="/employee" />;
+    } else if (user.user_type === 'restaurant') {
+      return <Navigate to="/restaurant/orders" />;
+    } else if (user.user_type === 'courier') {
+      return <Navigate to="/courier/orders" />;
+    } else {
+      return <Navigate to="/" />;
+    }
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
-      <NavBar />
-      
-      <div className="container mx-auto px-4 py-8 flex-grow flex items-center justify-center">
-        <Card className="w-full max-w-md">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-center">Create an Account</CardTitle>
-            <CardDescription className="text-center">
-              Register to start using our service
-            </CardDescription>
-          </CardHeader>
-          
-          <CardContent>
-            {errorMessage && (
-              <Alert variant="destructive" className="mb-4">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{errorMessage}</AlertDescription>
-              </Alert>
-            )}
-            
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label>I am a:</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  <Button
-                    type="button"
-                    className={`p-2 ${userType === 'customer' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}
-                    onClick={() => setUserType('customer')}
-                    variant={userType === 'customer' ? "default" : "outline"}
-                  >
-                    Customer
-                  </Button>
-                  <Button
-                    type="button"
-                    className={`p-2 ${userType === 'restaurant' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}
-                    onClick={() => setUserType('restaurant')}
-                    variant={userType === 'restaurant' ? "default" : "outline"}
-                  >
-                    Restaurant
-                  </Button>
-                  <Button
-                    type="button"
-                    className={`p-2 ${userType === 'courier' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}
-                    onClick={() => setUserType('courier')}
-                    variant={userType === 'courier' ? "default" : "outline"}
-                  >
-                    Courier
-                  </Button>
-                </div>
-                <div className="grid grid-cols-3 gap-2 mt-2">
-                  <Button
-                    type="button"
-                    className={`p-2 ${userType === 'employee' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}
-                    onClick={() => setUserType('employee')}
-                    variant={userType === 'employee' ? "default" : "outline"}
-                  >
-                    Employee
-                  </Button>
-                  <Button
-                    type="button"
-                    className={`p-2 ${userType === 'dev' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}
-                    onClick={() => setUserType('dev')}
-                    variant={userType === 'dev' ? "default" : "outline"}
-                  >
-                    Dev
-                  </Button>
-                  <Button
-                    type="button"
-                    className={`p-2 ${userType === 'com_agent' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}
-                    onClick={() => setUserType('com_agent')}
-                    variant={userType === 'com_agent' ? "default" : "outline"}
-                  >
-                    Com Agent
-                  </Button>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email address"
-                  required
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Choose a secure password"
-                  required
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <Input
-                  id="name"
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Enter your full name"
-                  required
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="referralCode">Referral Code (Optional)</Label>
-                <Input
-                  id="referralCode"
-                  type="text"
-                  value={referralCode}
-                  onChange={(e) => {
-                    setReferralCode(e.target.value);
-                    setReferralError(null);
-                  }}
-                  placeholder="Enter referral code if you have one"
-                  className={referralError ? "border-red-500" : ""}
-                  disabled={isValidatingReferral}
-                />
-                {referralError && (
-                  <p className="text-sm text-red-500">{referralError}</p>
+    <div className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md mx-auto bg-white rounded-xl shadow-md overflow-hidden md:max-w-2xl">
+        <div className="p-8">
+          <div className="text-center mb-6">
+            <h1 className="text-2xl font-bold">Create your account</h1>
+            <p className="text-gray-600 mt-2">Join our food delivery platform</p>
+          </div>
+
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Full Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="John Doe" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
                 )}
-              </div>
-              
-              {!isStaffRole && (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="address">Address</Label>
-                    <Input
-                      id="address"
-                      type="text"
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      placeholder="Enter your address"
-                      required
-                    />
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="lat">Latitude</Label>
-                      <Input
-                        id="lat"
-                        type="number"
-                        step="any"
-                        value={lat || ''}
-                        onChange={(e) => setLat(parseFloat(e.target.value) || 0)}
-                        placeholder="Latitude coordinate"
-                        min="-90"
-                        max="90"
-                        required
-                        className={validationErrors.lat ? "border-red-500" : ""}
-                      />
-                      {validationErrors.lat && (
-                        <p className="text-sm text-red-500">{validationErrors.lat}</p>
-                      )}
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="lng">Longitude</Label>
-                      <Input
-                        id="lng"
-                        type="number"
-                        step="any"
-                        value={lng || ''}
-                        onChange={(e) => setLng(parseFloat(e.target.value) || 0)}
-                        placeholder="Longitude coordinate"
-                        min="-180"
-                        max="180"
-                        required
-                        className={validationErrors.lng ? "border-red-500" : ""}
-                      />
-                      {validationErrors.lng && (
-                        <p className="text-sm text-red-500">{validationErrors.lng}</p>
-                      )}
-                    </div>
-                  </div>
-                </>
-              )}
-              
-              {userType === 'restaurant' && (
-                <div className="space-y-2">
-                  <Label>Restaurant Cover Image (Optional)</Label>
-                  {imagePreview ? (
-                    <div className="relative w-full aspect-video mb-2 rounded-md overflow-hidden bg-gray-100">
-                      <img 
-                        src={imagePreview} 
-                        alt="Restaurant" 
-                        className="w-full h-full object-cover"
-                      />
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="icon"
-                        className="absolute top-2 right-2 rounded-full"
-                        onClick={removeImage}
+              />
+
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input type="email" placeholder="you@example.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input type="password" placeholder="••••••••" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="userType"
+                render={({ field }) => (
+                  <FormItem className="space-y-3">
+                    <FormLabel>I am a...</FormLabel>
+                    <FormControl>
+                      <RadioGroup
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        className="flex flex-col space-y-1"
                       >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="border-2 border-dashed border-gray-300 rounded-md p-4 text-center">
-                      <Input 
-                        id="image" 
-                        type="file" 
-                        accept="image/*"
-                        className="hidden" 
-                        onChange={handleImageUpload}
-                        disabled={isUploading}
-                      />
-                      <label 
-                        htmlFor="image"
-                        className="cursor-pointer flex flex-col items-center justify-center py-4"
-                      >
-                        <Upload className="h-10 w-10 text-gray-400 mb-2" />
-                        <span className="text-sm text-gray-600">
-                          {isUploading ? 'Uploading...' : 'Upload restaurant photo (optional)'}
-                        </span>
-                        <span className="text-xs text-gray-400 mt-1">
-                          JPG, PNG, GIF up to 5MB
-                        </span>
-                      </label>
-                    </div>
-                  )}
-                </div>
-              )}
-              
+                        <FormItem className="flex items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <RadioGroupItem value="customer" />
+                          </FormControl>
+                          <FormLabel className="font-normal">
+                            Customer
+                          </FormLabel>
+                        </FormItem>
+
+                        <FormItem className="flex items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <RadioGroupItem value="restaurant" />
+                          </FormControl>
+                          <FormLabel className="font-normal">
+                            Restaurant Owner
+                          </FormLabel>
+                        </FormItem>
+
+                        <FormItem className="flex items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <RadioGroupItem value="courier" />
+                          </FormControl>
+                          <FormLabel className="font-normal">
+                            Delivery Courier
+                          </FormLabel>
+                        </FormItem>
+
+                        {allowEmployeeRegistration && (
+                          <FormItem className="flex items-center space-x-3 space-y-0">
+                            <FormControl>
+                              <RadioGroupItem value="employee" />
+                            </FormControl>
+                            <FormLabel className="font-normal">
+                              Employee
+                            </FormLabel>
+                          </FormItem>
+                        )}
+                      </RadioGroup>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="address"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Address</FormLabel>
+                    <FormControl>
+                      <div className="space-y-2">
+                        <div className="relative">
+                          <MapPin className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+                          <Input
+                            placeholder="123 Main St, City"
+                            className="pl-8"
+                            {...field}
+                          />
+                        </div>
+                        <div className="h-48 rounded-md overflow-hidden border border-gray-300">
+                          <Map
+                            lat={userLocation.lat}
+                            lng={userLocation.lng}
+                            onLocationSelected={handleLocationSelected}
+                            onMapLoad={handleMapLoad}
+                          />
+                        </div>
+                        <p className="text-xs text-gray-500">
+                          {isMapLoaded
+                            ? "Click on the map to set your location"
+                            : "Loading map..."}
+                        </p>
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="referralCode"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Referral Code (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter referral code" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               <Button
                 type="submit"
                 className="w-full"
-                disabled={isSubmitting || isValidatingReferral}
+                disabled={isSubmitting}
               >
-                {isSubmitting ? 'Creating Account...' : 'Register'}
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating account...
+                  </>
+                ) : (
+                  "Create Account"
+                )}
               </Button>
+
+              <div className="text-center text-sm">
+                <p className="text-gray-600">
+                  Already have an account?{" "}
+                  <Link to="/login" className="text-blue-600 hover:underline">
+                    Sign in
+                  </Link>
+                </p>
+              </div>
             </form>
-          </CardContent>
-          
-          <CardFooter className="flex justify-center">
-            <p className="text-sm text-muted-foreground">
-              Already have an account?{' '}
-              <Button 
-                onClick={() => navigate('/login')}
-                variant="link"
-                className="p-0 h-auto font-normal"
-              >
-                Login
-              </Button>
-            </p>
-          </CardFooter>
-        </Card>
+          </Form>
+        </div>
       </div>
     </div>
   );

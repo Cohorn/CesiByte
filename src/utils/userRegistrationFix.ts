@@ -1,25 +1,53 @@
 
-import { supabase } from '@/lib/supabase';
+import { authApi } from '@/api/services/authService';
 import { UserType } from '@/lib/database.types';
+import { notificationService } from '@/services/notificationService';
 
-/**
- * Performs a direct database check to verify if a user type is valid
- * This utility is used to validate user types during registration
- */
-export const isValidUserType = async (userType: string): Promise<boolean> => {
-  // If it's a standard type, no need to check the database
-  if (['customer', 'restaurant', 'courier', 'employee'].includes(userType)) {
-    return true;
-  }
-  
-  // For advanced types like 'dev' and 'com_agent', check if they're valid
+interface RegisterUserParams {
+  name: string;
+  email: string;
+  password: string;
+  address: string;
+  lat: number;
+  lng: number;
+  userType: UserType;
+  referralCode?: string;
+}
+
+export const registerUserWithReferral = async (params: RegisterUserParams): Promise<{ 
+  success: boolean; 
+  error?: string;
+}> => {
   try {
-    // Check if the user type exists in allowed types
-    const allowedTypes: UserType[] = ['customer', 'restaurant', 'courier', 'employee', 'dev', 'com_agent'];
-    
-    return allowedTypes.includes(userType as UserType);
-  } catch (error) {
-    console.error("Error verifying user type:", error);
-    return false;
+    // Register the user with the API
+    const { success, error } = await authApi.register({
+      email: params.email,
+      password: params.password,
+      name: params.name,
+      address: params.address,
+      lat: params.lat,
+      lng: params.lng,
+      user_type: params.userType,
+      referral_code: params.referralCode
+    });
+
+    // If registration was successful and a referral code was provided
+    if (success && params.referralCode) {
+      try {
+        // Create a notification for the user who made the referral
+        await notificationService.createReferralNotification(params.referralCode, params.email);
+      } catch (notificationError) {
+        console.error("Error creating referral notification:", notificationError);
+        // Continue anyway, as the registration was successful
+      }
+    }
+
+    return { success, error };
+  } catch (error: any) {
+    console.error("Error in user registration:", error);
+    return { 
+      success: false, 
+      error: error.message || "Failed to register user" 
+    };
   }
 };
