@@ -1,25 +1,20 @@
-
 // This is a simplified version for demonstration
 import { apiClient } from '../client';
 import { Order, OrderStatus } from '@/lib/database.types';
 import { orderCacheService } from './orderCache';
-import { orderDataProcessor } from './orderDataProcessor';
 import { mqttClient } from '@/lib/mqtt-client';
+
+// Import order data processor functions
+import { processOrders, processOrderItems } from './orderDataProcessor';
 
 // Event listeners for order updates
 const orderUpdateCallbacks: ((order: Order) => void)[] = [];
-
-// Process orders from API response
-const processOrders = (data: any[]): Order[] => {
-  if (!data || !Array.isArray(data)) return [];
-  return orderDataProcessor.processOrdersData(data);
-};
 
 export const orderApi = {
   getOrdersByUser: async (userId: string): Promise<Order[]> => {
     try {
       // Check cache first
-      const cachedOrders = orderCacheService.getCache('byUser', userId);
+      const cachedOrders = orderCacheService.getCached('byUser', userId);
       if (cachedOrders) return cachedOrders;
 
       const response = await apiClient.get(`/orders/user/${userId}`);
@@ -39,7 +34,7 @@ export const orderApi = {
     try {
       // Check cache first if not forcing refresh
       if (!forceRefresh) {
-        const cachedOrders = orderCacheService.getCache('byRestaurant', restaurantId);
+        const cachedOrders = orderCacheService.getCached('byRestaurant', restaurantId);
         if (cachedOrders) return cachedOrders;
       }
 
@@ -56,22 +51,64 @@ export const orderApi = {
     }
   },
   
-  getOrdersByCourier: async (courierId: string): Promise<Order[]> => {
+  getOrdersByCourier: async (courierId: string, status?: OrderStatus | OrderStatus[]): Promise<Order[]> => {
     try {
+      // Create a cache key
+      let cacheKey = courierId;
+      if (status) {
+        const statusStr = Array.isArray(status) ? status.join(',') : status;
+        cacheKey = `${courierId}:${statusStr}`;
+      }
+      
       // Check cache first
-      const cachedOrders = orderCacheService.getCache('byCourier', courierId);
+      const cachedOrders = orderCacheService.getCached('byCourier', cacheKey);
       if (cachedOrders) return cachedOrders;
 
-      const response = await apiClient.get(`/orders/courier/${courierId}`);
+      // Use the new query endpoint if status is provided
+      let response;
+      if (status) {
+        // Convert status to string format for the query
+        const statusStr = Array.isArray(status) ? status.join(',') : status;
+        console.log(`Fetching courier orders with status filter: ${statusStr}`);
+        
+        try {
+          // First try the query endpoint which is more flexible
+          response = await apiClient.get('/orders/query', {
+            params: {
+              courier_id: courierId,
+              status: statusStr
+            }
+          });
+          console.log(`Successfully fetched ${response.data.length} courier orders with status from query endpoint`);
+        } catch (queryError) {
+          console.error('Error using query endpoint:', queryError);
+          
+          // Fallback to the courier-specific endpoint with status parameter
+          console.log('Falling back to courier endpoint with status parameter');
+          response = await apiClient.get(`/orders/courier/${courierId}`, {
+            params: {
+              status: statusStr
+            }
+          });
+          console.log(`Successfully fetched ${response.data.length} courier orders with status from courier endpoint`);
+        }
+      } else {
+        // No status filter, use the standard endpoint
+        response = await apiClient.get(`/orders/courier/${courierId}`);
+      }
+      
       const orders = processOrders(response.data);
       
       // Cache the results
-      orderCacheService.setCache('byCourier', courierId, orders);
+      orderCacheService.setCache('byCourier', cacheKey, orders);
       
       return orders;
     } catch (error) {
       console.error('Error fetching courier orders:', error);
-      throw error;
+      console.error('Error details:', error.response?.data || error.message);
+      
+      // Return empty array instead of throwing to provide graceful degradation
+      return [];
     }
   },
   
@@ -82,7 +119,7 @@ export const orderApi = {
     
     try {
       // Check cache first
-      const cachedOrders = orderCacheService.getCache('byStatus', cacheKey);
+      const cachedOrders = orderCacheService.getCached('byStatus', cacheKey);
       if (cachedOrders) return cachedOrders;
 
       let url = '/orders/status';
@@ -150,7 +187,7 @@ export const orderApi = {
       const response = await apiClient.put(`/orders/${orderId}/status`, { status });
       
       // Clear any cached data when an order is updated
-      orderCacheService.clearAllCaches();
+      orderCacheService.clearCache();
       
       return response.data;
     } catch (error) {
@@ -164,7 +201,7 @@ export const orderApi = {
       const response = await apiClient.put(`/orders/${orderId}/courier`, { courier_id: courierId });
       
       // Clear any cached data when a courier is assigned
-      orderCacheService.clearAllCaches();
+      orderCacheService.clearCache();
       
       return response.data;
     } catch (error) {
@@ -178,7 +215,7 @@ export const orderApi = {
       const response = await apiClient.post(`/orders/${orderId}/verify-pin`, { pin });
       
       // Clear any cached data when delivery is verified
-      orderCacheService.clearAllCaches();
+      orderCacheService.clearCache();
       
       return response.data;
     } catch (error) {
@@ -217,21 +254,21 @@ export const orderApi = {
 // Set up MQTT event handling if client is available
 if (mqttClient) {
   // Subscribe to order updates from MQTT
-  mqttClient.onMessage((topic, message) => {
-    if (topic.includes('/orders/')) {
-      try {
-        const orderData = JSON.parse(message);
+  mqttClient.subscribe(`foodapp/orders/events/#`, (message) => {
+    try {
+      if (message && typeof message === 'object') {
+        const orderData = message.order || message;
         if (orderData && orderData.id) {
           // Process and notify subscribers
-          const processedOrder = orderDataProcessor.processSingleOrder(orderData);
+          const processedOrder = processOrderItems(orderData);
           orderApi.notifyOrderUpdate(processedOrder);
           
           // Clear relevant caches
-          orderCacheService.clearCacheForOrder(processedOrder);
+          orderCacheService.clearCache();
         }
-      } catch (error) {
-        console.error('Error processing MQTT order update:', error);
       }
+    } catch (error) {
+      console.error('Error processing MQTT order update:', error);
     }
   });
 }

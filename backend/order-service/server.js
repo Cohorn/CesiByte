@@ -316,6 +316,77 @@ app.get('/status/:status', authenticateJWT, async (req, res) => {
   }
 });
 
+app.get('/query', authenticateJWT, async (req, res) => {
+  try {
+    const { courier_id, status, restaurant_id, user_id } = req.query;
+    console.log('Query params received:', req.query);
+    
+    let query = supabase.from('orders').select('*');
+    
+    // Apply filters
+    if (courier_id) {
+      query = query.eq('courier_id', courier_id);
+      console.log(`Filtering by courier_id: ${courier_id}`);
+    }
+    
+    if (restaurant_id) {
+      query = query.eq('restaurant_id', restaurant_id);
+      console.log(`Filtering by restaurant_id: ${restaurant_id}`);
+    }
+    
+    if (user_id) {
+      query = query.eq('user_id', user_id);
+      console.log(`Filtering by user_id: ${user_id}`);
+    }
+    
+    if (status) {
+      const statusArray = status.split(',');
+      query = query.in('status', statusArray);
+      console.log(`Filtering by statuses: ${statusArray.join(', ')}`);
+    }
+    
+    // Order by creation date, most recent first
+    query = query.order('created_at', { ascending: false });
+    
+    const { data, error } = await query;
+    
+    if (error) {
+      console.error('Error querying orders:', error);
+      return res.status(400).json({ error: error.message });
+    }
+    
+    console.log(`Found ${data?.length || 0} orders matching query`);
+    
+    // Process orders to ensure items are properly formatted
+    const processedOrders = (data || []).map(order => {
+      let parsedItems = [];
+      
+      try {
+        if (typeof order.items === 'string') {
+          parsedItems = JSON.parse(order.items);
+        } else if (Array.isArray(order.items)) {
+          parsedItems = order.items;
+        } else if (order.items && typeof order.items === 'object') {
+          // If it's already a JSON object but not an array
+          parsedItems = [order.items];
+        }
+      } catch (e) {
+        console.error(`Error parsing items for order ${order.id}:`, e);
+      }
+      
+      return {
+        ...order,
+        items: parsedItems
+      };
+    });
+    
+    res.status(200).json(processedOrders);
+  } catch (error) {
+    console.error('Error querying orders:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+});
+
 // Generate a random 4-digit PIN
 const generatePin = () => {
   return Math.floor(1000 + Math.random() * 9000).toString();

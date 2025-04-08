@@ -1,8 +1,9 @@
 
 // Data processing for orders
+import { Order } from '@/lib/database.types';
 
 // Process order items to ensure they're in the correct format
-export const processOrderItems = (order) => {
+export const processOrderItems = (order: any): Order => {
   if (!order) return order;
   
   try {
@@ -28,7 +29,7 @@ export const processOrderItems = (order) => {
 };
 
 // Process a batch of orders
-export const processOrders = (orders) => {
+export const processOrders = (orders: any[]): Order[] => {
   if (!orders) return [];
   return orders.map(processOrderItems);
 };
