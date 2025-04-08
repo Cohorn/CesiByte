@@ -4,7 +4,7 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
 interface MapProps {
-  locations: {
+  locations?: {
     id: string;
     lat: number;
     lng: number;
@@ -13,9 +13,22 @@ interface MapProps {
   }[];
   center?: [number, number];
   height?: string;
+  // New props for Register.tsx
+  lat?: number;
+  lng?: number;
+  onLocationSelected?: (lat: number, lng: number, address: string) => void;
+  onLoad?: () => void;
 }
 
-const Map: React.FC<MapProps> = ({ locations, center, height = '400px' }) => {
+const Map: React.FC<MapProps> = ({ 
+  locations = [], 
+  center, 
+  height = '400px',
+  lat,
+  lng,
+  onLocationSelected,
+  onLoad
+}) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
@@ -24,6 +37,65 @@ const Map: React.FC<MapProps> = ({ locations, center, height = '400px' }) => {
 
   // France's approximate center coordinates
   const FRANCE_CENTER: [number, number] = [2.2137, 46.2276];
+  
+  // Create clickable map marker functionality for Register page
+  useEffect(() => {
+    if (!map.current || !mapInitialized || !onLocationSelected) return;
+    
+    // Add click event for location selection
+    const clickMarker = new mapboxgl.Marker({ color: '#3898ff', draggable: true });
+    
+    // If lat/lng are provided, show marker at that position
+    if (lat && lng && typeof lat === 'number' && typeof lng === 'number') {
+      clickMarker.setLngLat([lng, lat]).addTo(map.current);
+    }
+    
+    // Set up click handler for map
+    map.current.on('click', async (e) => {
+      const { lng, lat } = e.lngLat;
+      
+      // Place or move marker
+      clickMarker.setLngLat([lng, lat]).addTo(map.current!);
+      
+      // Get address using reverse geocoding
+      try {
+        const response = await fetch(
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxToken}`
+        );
+        const data = await response.json();
+        const address = data.features[0]?.place_name || 'Unknown location';
+        
+        // Call the callback function with coordinates and address
+        onLocationSelected(lat, lng, address);
+      } catch (error) {
+        console.error('Error fetching address:', error);
+        onLocationSelected(lat, lng, 'Address not found');
+      }
+    });
+    
+    // Set up drag end handler for the marker
+    clickMarker.on('dragend', async () => {
+      const lngLat = clickMarker.getLngLat();
+      
+      try {
+        const response = await fetch(
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${lngLat.lng},${lngLat.lat}.json?access_token=${mapboxToken}`
+        );
+        const data = await response.json();
+        const address = data.features[0]?.place_name || 'Unknown location';
+        
+        // Call the callback function with coordinates and address
+        onLocationSelected(lngLat.lat, lngLat.lng, address);
+      } catch (error) {
+        console.error('Error fetching address:', error);
+        onLocationSelected(lngLat.lat, lngLat.lng, 'Address not found');
+      }
+    });
+    
+    return () => {
+      clickMarker.remove();
+    };
+  }, [lat, lng, mapInitialized, onLocationSelected]);
 
   // Initialize map only once
   useEffect(() => {
@@ -74,6 +146,11 @@ const Map: React.FC<MapProps> = ({ locations, center, height = '400px' }) => {
       }
       
       setMapInitialized(true);
+      
+      // Call onLoad callback if provided
+      if (onLoad) {
+        onLoad();
+      }
     });
 
     return () => {
@@ -90,7 +167,7 @@ const Map: React.FC<MapProps> = ({ locations, center, height = '400px' }) => {
 
   // Update markers when locations or center changes and map is initialized
   useEffect(() => {
-    if (!map.current || !mapInitialized) return;
+    if (!map.current || !mapInitialized || locations.length === 0) return;
 
     // Remove existing markers
     markersRef.current.forEach(marker => marker.remove());

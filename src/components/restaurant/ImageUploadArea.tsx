@@ -26,7 +26,7 @@ const ImageUploadArea: React.FC<ImageUploadAreaProps> = ({
       />
       <label 
         htmlFor="image"
-        className={`cursor-pointer flex flex-col items-center justify-center py-4 ${(!bucketReady || isUploading) ? 'opacity-50' : ''}`}
+        className={`cursor-pointer flex flex-col items-center justify-center py-4 ${(!bucketReady || isUploading) ? 'opacity-50 pointer-events-none' : ''}`}
       >
         {isUploading ? (
           <Loader2 className="h-10 w-10 text-gray-400 mb-2 animate-spin" />

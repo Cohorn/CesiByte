@@ -80,6 +80,10 @@ function App() {
       element: <CustomerOrders />
     },
     {
+      path: '/courier',
+      element: <CourierDashboard />
+    },
+    {
       path: '/courier/orders',
       element: <CourierDashboard />
     },

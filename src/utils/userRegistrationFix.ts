@@ -48,7 +48,7 @@ export const registerUserWithReferral = async (params: RegisterUserParams): Prom
             user_id: params.referralCode, // Using the referral code as the user ID for now
             title: 'New Referral',
             message: `User ${params.email} has signed up using your referral code!`,
-            type: 'referral',
+            type: 'referral' as 'referral' | 'order' | 'system', // Explicitly type this to match Notification type
             created_at: new Date().toISOString(),
             is_read: false  // Changed 'read' to 'is_read' to match Notification type
           };
