@@ -59,6 +59,7 @@ const CourierReviewForm: React.FC<CourierReviewFormProps> = ({
       }
       
       console.log("Submitting review for courier:", courierId);
+      console.log("Using API client with base URL:", apiClient?.defaults?.baseURL);
       
       const result = await submitReview({
         user_id: user.id,
