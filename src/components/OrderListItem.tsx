@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { Order, OrderStatus } from '@/lib/database.types';
 import OrderItemCard from '@/components/OrderItemCard';
@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import CourierReviewForm from '@/components/CourierReviewForm';
 import { useToast } from '@/hooks/use-toast';
+import { Clock } from 'lucide-react';
+import { isStaleOrder } from '@/utils/orderUtils';
 
 interface OrderListItemProps {
   order: Order;
@@ -32,12 +34,49 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
   const isCustomer = user?.id === order.user_id;
   const showDeliveryPin = isCustomer && ['ready_for_pickup', 'picked_up', 'on_the_way'].includes(order.status);
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   
   // Updated condition: Check if order is completed or delivered and has a courier assigned
   const canReviewCourier = isCustomer && 
                           (order.status === 'completed' || order.status === 'delivered') && 
                           order.courier_id && 
                           onReviewCourier !== undefined;
+
+  // Calculate time remaining before order becomes stale
+  useEffect(() => {
+    if (!isCurrentOrder || order.status === 'completed' || order.status === 'delivered') {
+      return;
+    }
+
+    const calculateTimeRemaining = () => {
+      const updatedAt = new Date(order.updated_at);
+      const now = new Date();
+      const diffInMinutes = (now.getTime() - updatedAt.getTime()) / (1000 * 60);
+      const remainingMinutes = Math.max(0, 45 - diffInMinutes);
+      
+      if (remainingMinutes <= 0 && !isStaleOrder(order)) {
+        // Refresh on timer expiration to update UI
+        window.location.reload();
+        return 0;
+      }
+      
+      return remainingMinutes;
+    };
+
+    setTimeRemaining(calculateTimeRemaining());
+    
+    const timer = setInterval(() => {
+      const remaining = calculateTimeRemaining();
+      setTimeRemaining(remaining);
+      
+      // Clear interval if order is about to expire
+      if (remaining <= 0) {
+        clearInterval(timer);
+      }
+    }, 60000); // Update every minute
+    
+    return () => clearInterval(timer);
+  }, [order, isCurrentOrder]);
 
   const handleReviewSubmit = (data: { rating: number; comment: string }) => {
     if (onReviewCourier && order.courier_id) {
@@ -50,14 +89,19 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
     }
   };
 
-  // Debug log to check why the review button might not be showing
-  console.log(`Order ${order.id} review conditions:`, {
-    isCustomer,
-    status: order.status,
-    hasCourierId: !!order.courier_id,
-    hasReviewCallback: !!onReviewCourier,
-    canReviewCourier
-  });
+  // Format the time remaining in hours and minutes
+  const formatTimeRemaining = (minutes: number): string => {
+    if (minutes <= 0) return "Order will be auto-completed soon";
+    
+    const hours = Math.floor(minutes / 60);
+    const mins = Math.floor(minutes % 60);
+    
+    if (hours > 0) {
+      return `${hours}h ${mins}m remaining`;
+    } else {
+      return `${mins} minutes remaining`;
+    }
+  };
 
   return (
     <div className="bg-white rounded shadow p-4">
@@ -82,6 +126,17 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
       <div className="mb-2">
         <strong>Status:</strong> <span className="capitalize">{order.status.replace(/_/g, ' ')}</span>
       </div>
+      
+      {/* Show countdown timer for active orders */}
+      {isCurrentOrder && timeRemaining !== null && (
+        <div className={`mb-2 p-2 rounded flex items-center gap-2 
+          ${timeRemaining < 15 ? 'bg-red-50 text-red-800 border border-red-200' : 
+            timeRemaining < 30 ? 'bg-yellow-50 text-yellow-800 border border-yellow-200' : 
+            'bg-blue-50 text-blue-800 border border-blue-200'}`}>
+          <Clock className="h-4 w-4" />
+          <span>{formatTimeRemaining(timeRemaining)}</span>
+        </div>
+      )}
       
       {/* Show delivery PIN only to customers for relevant order statuses */}
       {showDeliveryPin && (

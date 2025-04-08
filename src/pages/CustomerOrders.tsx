@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useOrders } from '@/hooks/useOrders';
 import { useAuth } from '@/lib/AuthContext';
@@ -7,7 +8,7 @@ import { OrderStatus, Restaurant } from '@/lib/database.types';
 import { Card } from '@/components/ui/card';
 import { Navigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import OrdersList from '@/components/OrdersList';
 import { useReviews } from '@/hooks/useReviews';
@@ -63,6 +64,10 @@ const CustomerOrders: React.FC = () => {
   const { submitReview } = useReviews();
   const { toast } = useToast();
   const [restaurantNames, setRestaurantNames] = useState<Record<string, string>>({});
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState<number | null>(null);
+  
+  const REFRESH_COOLDOWN = 10000; // 10 seconds cooldown
 
   useEffect(() => {
     const fetchRestaurantNames = async () => {
@@ -126,6 +131,44 @@ const CustomerOrders: React.FC = () => {
       }
     }
   }, [error]);
+
+  const canRefresh = () => {
+    if (!lastRefreshTime) return true;
+    
+    const timeSinceLastRefresh = Date.now() - lastRefreshTime;
+    return timeSinceLastRefresh >= REFRESH_COOLDOWN;
+  };
+  
+  const handleRefresh = async () => {
+    if (!canRefresh()) {
+      const remainingTime = Math.ceil((REFRESH_COOLDOWN - (Date.now() - (lastRefreshTime || 0))) / 1000);
+      toast({
+        title: "Please wait",
+        description: `You can refresh again in ${remainingTime} seconds`,
+      });
+      return;
+    }
+
+    setIsRefreshing(true);
+    setLastRefreshTime(Date.now());
+    
+    try {
+      await refetch(true);
+      toast({
+        title: "Refreshed",
+        description: "Your orders have been updated",
+      });
+    } catch (error) {
+      console.error("Error refreshing orders:", error);
+      toast({
+        title: "Error",
+        description: "Could not refresh orders",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const handleReviewCourier = async (orderId: string, courierId: string, data: { rating: number; comment: string }) => {
     if (!user) return;
@@ -218,7 +261,18 @@ const CustomerOrders: React.FC = () => {
     <div className="min-h-screen bg-gray-50">
       <NavBar />
       <div className="container mx-auto py-8">
-        <h1 className="text-2xl font-bold mb-4">Your Orders</h1>
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">Your Orders</h1>
+          <Button 
+            onClick={handleRefresh} 
+            variant="outline" 
+            size="sm"
+            disabled={isRefreshing || !canRefresh()}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
         
         {!hasOrders ? (
           <Card className="p-8 text-center bg-white">
