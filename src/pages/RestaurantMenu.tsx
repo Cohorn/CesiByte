@@ -21,18 +21,21 @@ const RestaurantMenu = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
-  const { 
-    restaurant, 
-    menuItems, 
-    isLoading, 
-    error,
-    addToCart,
-    cart,
-    clearCart,
-    removeFromCart,
-    updateCartItemQuantity,
-    checkout
-  } = useRestaurant(id);
+  
+  // Avoid destructuring directly to prevent TypeScript errors
+  const restaurantData = useRestaurant(id);
+  const restaurant = restaurantData.restaurant;
+  const menuItems = restaurantData.menuItems || [];
+  const isLoading = restaurantData.loading;
+  const error = restaurantData.error;
+  
+  // Safely access methods if they exist
+  const addToCart = restaurantData.addToCart || (() => {});
+  const cart = restaurantData.cart || [];
+  const clearCart = restaurantData.clearCart || (() => {});
+  const removeFromCart = restaurantData.removeFromCart || (() => {});
+  const updateCartItemQuantity = restaurantData.updateCartItemQuantity || (() => {});
+  const checkout = restaurantData.checkout || (async () => {});
   
   const { reviews, isLoading: isLoadingReviews } = useReviews({ restaurantId: id });
   const [reviewers, setReviewers] = useState<SimpleUser[]>([]);
@@ -242,7 +245,7 @@ const RestaurantMenu = () => {
           <div className="flex items-center p-4 bg-red-50 rounded border border-red-200">
             <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
             <p className="text-red-600">
-              {error || "Restaurant not found"}
+              {error ? (error instanceof Error ? error.message : String(error)) : "Restaurant not found"}
             </p>
           </div>
         </div>

@@ -21,3 +21,25 @@ export const distanceToTime = (distanceKm: number): number => {
   // Calculate time in minutes
   return Math.round(distanceKm / speedKmPerMin);
 };
+
+// Check if an order is a current/active order
+export const isCurrentOrder = (status: string): boolean => {
+  return ['pending', 'preparing', 'ready_for_pickup', 'picked_up', 'on_the_way'].includes(status);
+};
+
+// Process a list of orders to handle stale ones
+export const processStaleOrders = (orders: Order[]): Order[] => {
+  if (!orders || orders.length === 0) return [];
+  
+  return orders.map(order => {
+    // For display purposes, mark stale orders as completed
+    if (isStaleOrder(order)) {
+      return {
+        ...order,
+        status: 'completed',
+        statusChanged: true
+      };
+    }
+    return order;
+  });
+};

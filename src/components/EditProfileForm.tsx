@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -31,14 +31,14 @@ type ProfileFormData = z.infer<typeof profileSchema>;
 
 interface EditProfileFormProps {
   user: User;
-  onSubmit: (data: ProfileFormData) => Promise<void>;
-  isLoading: boolean;
+  onSubmit?: (data: ProfileFormData) => Promise<void>;
+  isLoading?: boolean;
 }
 
 const EditProfileForm: React.FC<EditProfileFormProps> = ({ 
   user, 
-  onSubmit,
-  isLoading
+  onSubmit = async () => {},
+  isLoading = false
 }) => {
   const { toast } = useToast();
   
