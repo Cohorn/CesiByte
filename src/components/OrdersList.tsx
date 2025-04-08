@@ -1,107 +1,133 @@
 
 import React, { useState } from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Order, OrderStatus } from '@/lib/database.types';
-import OrderListItem from '@/components/OrderListItem';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { isCurrentOrder } from '@/utils/orderUtils';
+import OrderListItem from './OrderListItem';
+import { isCurrentOrder, processStaleOrders } from '@/utils/orderUtils';
 
 interface OrdersListProps {
   orders: Order[];
   onUpdateStatus: (orderId: string, status: OrderStatus) => Promise<{ success: boolean, error?: any }>;
   isCurrentOrders?: boolean;
-  emptyMessage?: string;
   restaurantNames?: Record<string, string>;
   showTabs?: boolean;
   onReviewCourier?: (orderId: string, courierId: string, data: { rating: number; comment: string }) => void;
   canUpdateStatus?: boolean;
+  previousOrderStatuses?: Record<string, OrderStatus>;
 }
 
-const OrdersList: React.FC<OrdersListProps> = ({
-  orders,
-  onUpdateStatus,
+const OrdersList: React.FC<OrdersListProps> = ({ 
+  orders, 
+  onUpdateStatus, 
   isCurrentOrders = true,
-  emptyMessage = "No orders found",
-  restaurantNames,
+  restaurantNames = {},
   showTabs = false,
   onReviewCourier,
-  canUpdateStatus = true
+  canUpdateStatus = false,
+  previousOrderStatuses = {}
 }) => {
-  const [activeTab, setActiveTab] = useState<'active' | 'completed'>(isCurrentOrders ? 'active' : 'completed');
+  const [activeTab, setActiveTab] = useState("active");
   
-  // If no orders, show the empty message
-  if (!orders || orders.length === 0) {
+  // Process orders to handle stale ones
+  const processedOrders = processStaleOrders(orders);
+  
+  // Filter orders based on active tab
+  const currentOrders = processedOrders.filter(order => 
+    isCurrentOrder(order.status)
+  );
+  
+  const pastOrders = processedOrders.filter(order => 
+    !isCurrentOrder(order.status)
+  );
+  
+  // If there are no tabs, just render all orders
+  if (!showTabs) {
     return (
-      <div className="p-4 text-center text-gray-500">
-        {emptyMessage}
+      <div className="space-y-4">
+        {processedOrders.length === 0 ? (
+          <p className="text-center text-gray-500 my-8">No orders found</p>
+        ) : (
+          processedOrders.map(order => (
+            <OrderListItem 
+              key={order.id} 
+              order={order} 
+              onUpdateStatus={onUpdateStatus}
+              isCurrentOrder={isCurrentOrders}
+              restaurantName={restaurantNames[order.restaurant_id]}
+              onReviewCourier={onReviewCourier}
+              canUpdateStatus={canUpdateStatus}
+              previousStatus={previousOrderStatuses[order.id]}
+            />
+          ))
+        )}
       </div>
     );
   }
-
-  // For tabbed view, split orders into active and completed
-  if (showTabs) {
-    const activeOrders = orders.filter(order => isCurrentOrder(order.status));
-    const completedOrders = orders.filter(order => !isCurrentOrder(order.status));
-    
-    return (
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'active' | 'completed')}>
-        <TabsList className="grid w-full grid-cols-2 mb-4">
-          <TabsTrigger value="active">Active Orders ({activeOrders.length})</TabsTrigger>
-          <TabsTrigger value="completed">Completed Orders ({completedOrders.length})</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="active" className="space-y-4">
-          {activeOrders.length === 0 ? (
-            <div className="p-4 text-center text-gray-500">No active orders</div>
+  
+  // With tabs, render active and past orders separately
+  return (
+    <Tabs defaultValue="active" value={activeTab} onValueChange={setActiveTab}>
+      <TabsList className="grid w-full grid-cols-2 mb-6">
+        <TabsTrigger value="active" className="text-center">
+          Active Orders
+          {currentOrders.length > 0 && (
+            <span className="ml-2 bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-semibold">
+              {currentOrders.length}
+            </span>
+          )}
+        </TabsTrigger>
+        <TabsTrigger value="completed" className="text-center">
+          Completed Orders
+          {pastOrders.length > 0 && (
+            <span className="ml-2 bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-semibold">
+              {pastOrders.length}
+            </span>
+          )}
+        </TabsTrigger>
+      </TabsList>
+      
+      <TabsContent value="active" className="mt-0">
+        <div className="space-y-4">
+          {currentOrders.length === 0 ? (
+            <p className="text-center text-gray-500 my-8">No active orders</p>
           ) : (
-            activeOrders.map(order => (
-              <OrderListItem
-                key={order.id}
-                order={order}
+            currentOrders.map(order => (
+              <OrderListItem 
+                key={order.id} 
+                order={order} 
                 onUpdateStatus={onUpdateStatus}
                 isCurrentOrder={true}
-                restaurantName={restaurantNames?.[order.restaurant_id]}
+                restaurantName={restaurantNames[order.restaurant_id]}
+                onReviewCourier={onReviewCourier}
                 canUpdateStatus={canUpdateStatus}
+                previousStatus={previousOrderStatuses[order.id]}
               />
             ))
           )}
-        </TabsContent>
-        
-        <TabsContent value="completed" className="space-y-4">
-          {completedOrders.length === 0 ? (
-            <div className="p-4 text-center text-gray-500">No completed orders</div>
+        </div>
+      </TabsContent>
+      
+      <TabsContent value="completed" className="mt-0">
+        <div className="space-y-4">
+          {pastOrders.length === 0 ? (
+            <p className="text-center text-gray-500 my-8">No completed orders</p>
           ) : (
-            completedOrders.map(order => (
-              <OrderListItem
-                key={order.id}
-                order={order}
+            pastOrders.map(order => (
+              <OrderListItem 
+                key={order.id} 
+                order={order} 
                 onUpdateStatus={onUpdateStatus}
                 isCurrentOrder={false}
-                restaurantName={restaurantNames?.[order.restaurant_id]}
+                restaurantName={restaurantNames[order.restaurant_id]}
                 onReviewCourier={onReviewCourier}
                 canUpdateStatus={false}
+                previousStatus={previousOrderStatuses[order.id]}
               />
             ))
           )}
-        </TabsContent>
-      </Tabs>
-    );
-  }
-  
-  // Non-tabbed view, just show the list
-  return (
-    <div className="space-y-4">
-      {orders.map(order => (
-        <OrderListItem
-          key={order.id}
-          order={order}
-          onUpdateStatus={onUpdateStatus}
-          isCurrentOrder={isCurrentOrders}
-          restaurantName={restaurantNames?.[order.restaurant_id]}
-          onReviewCourier={onReviewCourier}
-          canUpdateStatus={canUpdateStatus}
-        />
-      ))}
-    </div>
+        </div>
+      </TabsContent>
+    </Tabs>
   );
 };
 

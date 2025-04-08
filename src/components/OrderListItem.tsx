@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import CourierReviewForm from '@/components/CourierReviewForm';
 import { useToast } from '@/hooks/use-toast';
-import { Clock } from 'lucide-react';
+import { Clock, Bell } from 'lucide-react';
 import { isStaleOrder } from '@/utils/orderUtils';
 
 interface OrderListItemProps {
@@ -19,6 +19,7 @@ interface OrderListItemProps {
   restaurantName?: string;
   onReviewCourier?: (orderId: string, courierId: string, data: { rating: number; comment: string }) => void;
   canUpdateStatus?: boolean;
+  previousStatus?: OrderStatus;
 }
 
 const OrderListItem: React.FC<OrderListItemProps> = ({ 
@@ -27,7 +28,8 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
   isCurrentOrder = true,
   restaurantName,
   onReviewCourier,
-  canUpdateStatus = false
+  canUpdateStatus = false,
+  previousStatus
 }) => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -35,12 +37,36 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
   const showDeliveryPin = isCustomer && ['ready_for_pickup', 'picked_up', 'on_the_way'].includes(order.status);
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+  const [statusChanged, setStatusChanged] = useState(false);
   
   // Updated condition: Check if order is completed or delivered and has a courier assigned
   const canReviewCourier = isCustomer && 
                           (order.status === 'completed' || order.status === 'delivered') && 
                           order.courier_id && 
                           onReviewCourier !== undefined;
+
+  // Detect status changes and show notification
+  useEffect(() => {
+    if (previousStatus && previousStatus !== order.status) {
+      setStatusChanged(true);
+      
+      // Show toast notification for status change
+      if (isCustomer) {
+        toast({
+          title: "Order Status Updated",
+          description: `Your order is now ${order.status.replace(/_/g, ' ')}`,
+          icon: <Bell className="h-4 w-4" />
+        });
+      }
+      
+      // Reset the status changed flag after 5 seconds
+      const timer = setTimeout(() => {
+        setStatusChanged(false);
+      }, 5000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [order.status, previousStatus, isCustomer, toast]);
 
   // Calculate time remaining before order becomes stale
   useEffect(() => {
@@ -104,7 +130,7 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
   };
 
   return (
-    <div className="bg-white rounded shadow p-4">
+    <div className={`bg-white rounded shadow p-4 ${statusChanged ? 'ring-2 ring-blue-500 animate-pulse' : ''}`}>
       <div className="flex items-center justify-between mb-2">
         <h2 className="text-lg font-semibold">Order #{order.id.substring(0, 8)}</h2>
         <span className="text-sm text-gray-600">
@@ -124,7 +150,11 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
       </div>
       
       <div className="mb-2">
-        <strong>Status:</strong> <span className="capitalize">{order.status.replace(/_/g, ' ')}</span>
+        <strong>Status:</strong> 
+        <span className={`capitalize ${statusChanged ? 'font-bold text-blue-600' : ''}`}>
+          {order.status.replace(/_/g, ' ')}
+          {statusChanged && <Bell className="h-4 w-4 inline ml-1 text-blue-600" />}
+        </span>
       </div>
       
       {/* Show countdown timer for active orders */}

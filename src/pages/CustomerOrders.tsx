@@ -1,19 +1,19 @@
-
 import React, { useState, useEffect } from 'react';
 import { useOrders } from '@/hooks/useOrders';
 import { useAuth } from '@/lib/AuthContext';
 import NavBar from '@/components/NavBar';
 import { OrderWithRestaurant } from '@/types/order';
-import { OrderStatus, Restaurant } from '@/lib/database.types';
+import { OrderStatus, Restaurant, Order } from '@/lib/database.types';
 import { Card } from '@/components/ui/card';
 import { Navigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, RefreshCw, Bell } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import OrdersList from '@/components/OrdersList';
 import { useReviews } from '@/hooks/useReviews';
 import { useToast } from '@/hooks/use-toast';
 import { restaurantApi } from '@/api/services/restaurantService';
+import { Toaster } from '@/components/ui/toaster';
 
 const processOrdersWithRestaurants = (data: any[]): OrderWithRestaurant[] => {
   return data.map(order => {
@@ -60,6 +60,7 @@ const CustomerOrders: React.FC = () => {
     userId: user?.id
   });
   const [processedOrders, setProcessedOrders] = useState<OrderWithRestaurant[]>([]);
+  const [previousOrderStatuses, setPreviousOrderStatuses] = useState<Record<string, OrderStatus>>({});
   const [authError, setAuthError] = useState<boolean>(false);
   const { submitReview } = useReviews();
   const { toast } = useToast();
@@ -94,7 +95,6 @@ const CustomerOrders: React.FC = () => {
       }
       
       setRestaurantNames(namesMap);
-      console.log("Restaurant names mapping:", namesMap);
     };
     
     if (orders && orders.length > 0) {
@@ -104,14 +104,32 @@ const CustomerOrders: React.FC = () => {
 
   useEffect(() => {
     if (orders) {
+      const newStatusMap: Record<string, OrderStatus> = {};
+      
+      orders.forEach((order: Order) => {
+        if (!previousOrderStatuses[order.id]) {
+          newStatusMap[order.id] = order.status as OrderStatus;
+        } else {
+          newStatusMap[order.id] = previousOrderStatuses[order.id];
+        }
+      });
+      
+      setPreviousOrderStatuses(prev => ({...prev, ...newStatusMap}));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (orders) {
       const ordersWithRestaurants = processOrdersWithRestaurants(orders);
       setProcessedOrders(ordersWithRestaurants);
       
-      const completedWithCourier = ordersWithRestaurants.filter(
-        order => order.status === 'completed' && order.courier_id
-      );
+      const newStatusMap: Record<string, OrderStatus> = {};
       
-      console.log('Customer has completed orders with couriers:', completedWithCourier.length);
+      orders.forEach((order: Order) => {
+        newStatusMap[order.id] = order.status as OrderStatus;
+      });
+      
+      setPreviousOrderStatuses(newStatusMap);
     } else {
       setProcessedOrders([]);
     }
@@ -172,8 +190,6 @@ const CustomerOrders: React.FC = () => {
 
   const handleReviewCourier = async (orderId: string, courierId: string, data: { rating: number; comment: string }) => {
     if (!user) return;
-    
-    console.log(`Handling review for courier ${courierId} on order ${orderId} with data:`, data);
     
     try {
       const result = await submitReview({
@@ -289,10 +305,12 @@ const CustomerOrders: React.FC = () => {
               showTabs={true}
               onReviewCourier={handleReviewCourier}
               canUpdateStatus={false}
+              previousOrderStatuses={previousOrderStatuses}
             />
           </Card>
         )}
       </div>
+      <Toaster />
     </div>
   );
 };
