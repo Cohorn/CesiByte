@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, InfoIcon } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 
 interface RestaurantAlertsProps {
   restaurantError: Error | null;
@@ -14,41 +14,35 @@ const RestaurantAlerts: React.FC<RestaurantAlertsProps> = ({
   ordersError,
   restaurantExists
 }) => {
-  if (!restaurantError && !ordersError) return null;
+  if (restaurantError) {
+    return (
+      <Alert variant="destructive" className="mb-6">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle>Restaurant Error</AlertTitle>
+        <AlertDescription>
+          {restaurantError instanceof Error 
+            ? restaurantError.message 
+            : "Could not load restaurant data"}
+        </AlertDescription>
+      </Alert>
+    );
+  }
   
-  return (
-    <div className="space-y-4 mb-4">
-      {restaurantError && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4 mr-2" />
-          <AlertTitle>Restaurant Error</AlertTitle>
-          <AlertDescription>
-            {restaurantError.message || 'There was an error loading your restaurant data'}
-          </AlertDescription>
-        </Alert>
-      )}
-      
-      {ordersError && restaurantExists && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4 mr-2" />
-          <AlertTitle>Orders Error</AlertTitle>
-          <AlertDescription>
-            {ordersError.message || 'There was an error loading your orders'}
-          </AlertDescription>
-        </Alert>
-      )}
-      
-      {restaurantExists && (
-        <Alert>
-          <InfoIcon className="h-4 w-4 mr-2" />
-          <AlertTitle>Need Help?</AlertTitle>
-          <AlertDescription>
-            If you're having trouble viewing your restaurant information, try refreshing the page or checking your internet connection.
-          </AlertDescription>
-        </Alert>
-      )}
-    </div>
-  );
+  if (ordersError && restaurantExists) {
+    return (
+      <Alert variant="destructive" className="mb-6">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle>Orders Error</AlertTitle>
+        <AlertDescription>
+          {ordersError instanceof Error 
+            ? ordersError.message 
+            : "Could not load orders data"}
+        </AlertDescription>
+      </Alert>
+    );
+  }
+  
+  return null;
 };
 
 export default RestaurantAlerts;

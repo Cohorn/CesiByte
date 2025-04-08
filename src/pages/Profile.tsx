@@ -1,195 +1,364 @@
 
-import React, { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
+import { useRestaurant } from '@/frontend/hooks';
+import Map from '@/components/Map';
 import NavBar from '@/components/NavBar';
-import EditProfileForm from '@/components/EditProfileForm';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
+import { RefreshCw, Edit, X, User, Store, Image } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Separator } from '@/components/ui/separator';
+import EditProfileForm from '@/components/EditProfileForm';
 import DeleteAccountDialog from '@/components/DeleteAccountDialog';
-import { UserType } from '@/lib/database.types';
-import { Copy, Bell } from 'lucide-react';
+import RestaurantImageUpload from '@/components/restaurant/RestaurantImageUpload';
+import { userApi } from '@/api/services/userService';
 
 const Profile = () => {
-  const { user, isLoading, signOut, clearAuthError } = useAuth();
+  const { user, updateProfile, signOut } = useAuth();
   const { toast } = useToast();
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [notifications, setNotifications] = useState([
-    { id: 1, content: "Welcome to your profile! Here you can edit your details and manage your account.", timestamp: new Date() }
-  ]);
+  const [loading, setLoading] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const { restaurant, fetchRestaurant, updateRestaurant } = useRestaurant();
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-  // Generate a referral code if one doesn't exist
-  const referralCode = user?.referral_code || (user ? 
-    Math.random().toString(36).substring(2, 8).toUpperCase() : '');
+  useEffect(() => {
+    if (user && user.user_type === 'restaurant') {
+      fetchRestaurant(undefined, true);
+    }
+  }, [user, fetchRestaurant]);
 
-  const handleCopyReferral = () => {
-    navigator.clipboard.writeText(referralCode);
-    toast({
-      title: "Copied!",
-      description: "Referral code copied to clipboard"
-    });
+  useEffect(() => {
+    if (restaurant?.image_url) {
+      setImagePreview(restaurant.image_url);
+    }
+  }, [restaurant]);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    window.location.reload();
   };
 
-  // If still loading, show a loading message
-  if (isLoading) {
+  const handleUpdateProfile = async (formData: any) => {
+    setLoading(true);
+    try {
+      await updateProfile(formData);
+      toast({
+        title: "Profile updated",
+        description: "Your profile has been successfully updated.",
+      });
+      setIsEditing(false);
+    } catch (error: any) {
+      toast({
+        title: "Update failed",
+        description: error.message || "Failed to update your profile.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    
+    try {
+      await userApi.deleteUser(user.id);
+      toast({
+        title: "Account deleted",
+        description: "Your account has been successfully deleted.",
+      });
+      await signOut();
+    } catch (error: any) {
+      toast({
+        title: "Delete failed",
+        description: error.message || "Failed to delete your account.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleImageUpload = async (url: string) => {
+    if (!restaurant) return;
+    
+    try {
+      await updateRestaurant({
+        image_url: url
+      });
+      toast({
+        title: "Success",
+        description: "Restaurant image updated successfully.",
+      });
+    } catch (error) {
+      console.error('Error updating restaurant image:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update restaurant image.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const removeImage = async () => {
+    if (!restaurant) return;
+    
+    try {
+      await updateRestaurant({
+        image_url: null
+      });
+      setImagePreview(null);
+      toast({
+        title: "Success",
+        description: "Restaurant image removed successfully.",
+      });
+    } catch (error) {
+      console.error('Error removing restaurant image:', error);
+      toast({
+        title: "Error",
+        description: "Failed to remove restaurant image.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  if (loading && !user) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <NavBar />
-        <div className="container mx-auto px-4 py-8">
-          <div className="text-center">
-            <p>Loading your profile...</p>
-          </div>
-        </div>
+      <div className="min-h-screen flex flex-col items-center justify-center">
+        <p>Loading profile...</p>
       </div>
     );
   }
 
-  // If not logged in, redirect to login page
-  if (!user && !isLoading) {
+  if (!user) {
+    toast({
+      title: "Authentication required",
+      description: "Please log in to view your profile",
+      variant: "destructive",
+    });
     return <Navigate to="/login" />;
   }
 
+  // Check if user has valid location data
+  const hasValidLocation = user.lat != null && !isNaN(user.lat) && 
+                          user.lng != null && !isNaN(user.lng);
+  
+  // Inside the Profile component
+  const mapLocations = hasValidLocation ? [
+    {
+      id: user.id,
+      lat: user.lat,
+      lng: user.lng,
+      type: 'user' as const,
+      name: user.name
+    }
+  ] : [];
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen flex flex-col bg-gray-100">
       <NavBar />
+      
       <div className="container mx-auto px-4 py-8">
-        <Tabs defaultValue="profile">
-          <TabsList className="mb-6">
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="notifications">
-              Notifications
-              <span className="ml-1 bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs">
-                {notifications.length}
-              </span>
-            </TabsTrigger>
-          </TabsList>
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">Your Profile</h1>
+          <div className="flex space-x-2">
+            <Button 
+              onClick={() => setIsEditing(!isEditing)} 
+              variant={isEditing ? "destructive" : "outline"}
+              size="sm"
+            >
+              {isEditing ? (
+                <>
+                  <X className="h-4 w-4 mr-2" />
+                  Cancel
+                </>
+              ) : (
+                <>
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit Profile
+                </>
+              )}
+            </Button>
+            <Button 
+              onClick={handleRefresh} 
+              variant="outline" 
+              size="sm"
+              disabled={isRefreshing}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
+        </div>
 
-          <TabsContent value="profile">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="md:col-span-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Edit Profile</CardTitle>
-                    <CardDescription>
-                      Update your profile information
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <EditProfileForm user={user!} />
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Account Info</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <h3 className="text-sm font-medium">Email</h3>
-                      <p className="text-sm text-gray-600">{user?.email}</p>
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-medium">Account Type</h3>
-                      <p className="text-sm text-gray-600 capitalize">{user?.user_type}</p>
-                    </div>
-                    
-                    {/* Referral Code Section */}
-                    <div className="pt-2 border-t">
-                      <h3 className="text-sm font-medium mb-2">Your Referral Code</h3>
-                      <div className="flex items-center">
-                        <div className="bg-gray-100 px-3 py-2 rounded font-mono text-sm flex-1">
-                          {referralCode}
-                        </div>
-                        <Button 
-                          variant="outline" 
-                          size="icon" 
-                          className="ml-2"
-                          onClick={handleCopyReferral}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Share this code with friends to invite them to join
-                      </p>
-                    </div>
-                    
-                    {user?.referred_by && (
-                      <div>
-                        <h3 className="text-sm font-medium">Referred By</h3>
-                        <p className="text-sm text-gray-600 font-mono">{user.referred_by}</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Actions</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <Button 
-                      variant="outline" 
-                      className="w-full justify-start"
-                      onClick={signOut}
-                    >
-                      Sign Out
-                    </Button>
-                    <Button 
-                      variant="destructive" 
-                      className="w-full justify-start"
-                      onClick={() => setShowDeleteDialog(true)}
-                    >
-                      Delete Account
-                    </Button>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="notifications">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="md:col-span-1">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center">
-                  <Bell className="mr-2 h-5 w-5" />
-                  Your Notifications
+                  <User className="h-5 w-5 mr-2" />
+                  {user.name || 'User'}
                 </CardTitle>
                 <CardDescription>
-                  Stay updated with important information
+                  {user.email}
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {notifications.length > 0 ? (
-                  <div className="space-y-4">
-                    {notifications.map(notification => (
-                      <div 
-                        key={notification.id} 
-                        className="p-3 border rounded bg-gray-50"
-                      >
-                        <p className="text-sm">{notification.content}</p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {notification.timestamp.toLocaleString()}
-                        </p>
-                      </div>
-                    ))}
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-sm font-medium">User Type</p>
+                    <p className="text-gray-500 capitalize">{user.user_type}</p>
                   </div>
-                ) : (
-                  <p className="text-sm text-gray-500">You have no notifications</p>
-                )}
+                  <div>
+                    <p className="text-sm font-medium">Address</p>
+                    <p className="text-gray-500">{user.address || 'Not provided'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Coordinates</p>
+                    <p className="text-gray-500">
+                      {hasValidLocation ? `${user.lat}, ${user.lng}` : 'Not available'}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter className="flex flex-col">
+                <Separator className="my-4" />
+                <DeleteAccountDialog onConfirm={handleDeleteAccount} />
+              </CardFooter>
+            </Card>
+
+            {user.user_type === 'restaurant' && restaurant && (
+              <Card className="mt-6">
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Store className="h-5 w-5 mr-2" />
+                    Restaurant Profile
+                  </CardTitle>
+                  <CardDescription>
+                    Manage your restaurant
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-sm font-medium">Name</p>
+                      <p className="text-gray-500">{restaurant.name}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Address</p>
+                      <p className="text-gray-500">{restaurant.address}</p>
+                    </div>
+                    <div className="pt-2">
+                      <p className="text-sm font-medium mb-2">Restaurant Image</p>
+                      <RestaurantImageUpload 
+                        currentImageUrl={imagePreview}
+                        onImageUpload={handleImageUpload}
+                        onImageRemove={removeImage}
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <Link to="/restaurant/setup" className="w-full">
+                    <Button 
+                      variant="outline" 
+                      className="w-full flex items-center"
+                    >
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit Restaurant Profile
+                    </Button>
+                  </Link>
+                </CardFooter>
+              </Card>
+            )}
+          </div>
+
+          <div className="md:col-span-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  {isEditing ? 'Edit Your Information' : 'Your Information'}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Tabs defaultValue={isEditing ? "edit" : "view"} value={isEditing ? "edit" : "view"}>
+                  <TabsList className="mb-4">
+                    <TabsTrigger value="view" disabled={isEditing}>View</TabsTrigger>
+                    <TabsTrigger value="edit" disabled={!isEditing}>Edit</TabsTrigger>
+                    <TabsTrigger value="location" disabled={!hasValidLocation}>Location</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="view" className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm font-medium">Name</p>
+                        <p className="text-gray-500">{user.name || 'Not provided'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">Email</p>
+                        <p className="text-gray-500">{user.email || 'Not provided'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">Address</p>
+                        <p className="text-gray-500">{user.address || 'Not provided'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">User Type</p>
+                        <p className="text-gray-500 capitalize">{user.user_type || 'Not specified'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">Latitude</p>
+                        <p className="text-gray-500">{hasValidLocation ? user.lat : 'Not available'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">Longitude</p>
+                        <p className="text-gray-500">{hasValidLocation ? user.lng : 'Not available'}</p>
+                      </div>
+                    </div>
+
+                    {hasValidLocation && (
+                      <div className="pt-4">
+                        <h3 className="text-lg font-semibold mb-2">Your Location</h3>
+                        <Map 
+                          locations={mapLocations} 
+                          center={[user.lng, user.lat]} 
+                          height="300px" 
+                        />
+                      </div>
+                    )}
+                  </TabsContent>
+                  
+                  <TabsContent value="edit">
+                    <EditProfileForm 
+                      user={user} 
+                      onSubmit={handleUpdateProfile} 
+                      isLoading={loading}
+                    />
+                  </TabsContent>
+                  
+                  <TabsContent value="location">
+                    {hasValidLocation ? (
+                      <div>
+                        <h3 className="text-lg font-semibold mb-2">Your Location</h3>
+                        <Map 
+                          locations={mapLocations} 
+                          center={[user.lng, user.lat]} 
+                          height="300px" 
+                        />
+                      </div>
+                    ) : (
+                      <div className="text-amber-600 p-3 bg-amber-50 rounded">
+                        Location data is not available or invalid.
+                      </div>
+                    )}
+                  </TabsContent>
+                </Tabs>
               </CardContent>
             </Card>
-          </TabsContent>
-        </Tabs>
-
-        <DeleteAccountDialog 
-          open={showDeleteDialog} 
-          onOpenChange={setShowDeleteDialog}
-        />
+          </div>
+        </div>
       </div>
     </div>
   );
