@@ -5,6 +5,7 @@ import { OrderStatus } from '@/lib/database.types';
 import { useToast } from '@/hooks/use-toast';
 import { AlertTriangle } from 'lucide-react';
 import { useOrderMQTT } from '@/hooks/useMQTT';
+import { useAuth } from '@/lib/AuthContext';
 
 interface OrderStatusUpdateProps {
   orderId: string;
@@ -21,18 +22,39 @@ const restaurantStatusFlow: OrderStatus[] = [
   'ready_for_pickup'
 ];
 
+// Order status progression for couriers
+const courierStatusFlow: OrderStatus[] = [
+  'ready_for_pickup',
+  'picked_up',
+  'on_the_way',
+  'delivered'
+];
+
 // Get the next logical status in the workflow
-const getNextStatus = (currentStatus: OrderStatus): OrderStatus | null => {
-  const currentIndex = restaurantStatusFlow.indexOf(currentStatus);
-  if (currentIndex === -1 || currentIndex === restaurantStatusFlow.length - 1) {
+const getNextStatus = (currentStatus: OrderStatus, userType: string): OrderStatus | null => {
+  const statusFlow = userType === 'restaurant' ? restaurantStatusFlow : courierStatusFlow;
+  const currentIndex = statusFlow.indexOf(currentStatus);
+  
+  if (currentIndex === -1 || currentIndex === statusFlow.length - 1) {
     return null;
   }
-  return restaurantStatusFlow[currentIndex + 1];
+  
+  return statusFlow[currentIndex + 1];
 };
 
 // Check if the status is a "current" order status
 export const isCurrentOrder = (status: OrderStatus): boolean => {
   return status !== 'completed' && status !== 'delivered';
+};
+
+// Check if user can update this order status
+const canUserUpdateStatus = (userType: string, currentStatus: OrderStatus): boolean => {
+  if (userType === 'restaurant') {
+    return restaurantStatusFlow.includes(currentStatus);
+  } else if (userType === 'courier') {
+    return courierStatusFlow.includes(currentStatus);
+  }
+  return false;
 };
 
 const OrderStatusUpdate: React.FC<OrderStatusUpdateProps> = ({
@@ -44,6 +66,7 @@ const OrderStatusUpdate: React.FC<OrderStatusUpdateProps> = ({
   const [isUpdating, setIsUpdating] = useState(false);
   const [localStatus, setLocalStatus] = useState<OrderStatus>(currentStatus);
   const { toast } = useToast();
+  const { user } = useAuth();
   
   // Subscribe to MQTT updates for this order
   const { orderStatus } = useOrderMQTT(orderId);
@@ -62,14 +85,14 @@ const OrderStatusUpdate: React.FC<OrderStatusUpdateProps> = ({
     }
   }, [currentStatus, localStatus]);
 
-  // If the order is already at "ready_for_pickup" or beyond, don't show any update options
-  if (
-    localStatus === 'ready_for_pickup' ||
-    localStatus === 'picked_up' ||
-    localStatus === 'on_the_way' ||
-    localStatus === 'delivered' ||
-    localStatus === 'completed'
-  ) {
+  // Check if user can update this order's status
+  if (!user || !canUserUpdateStatus(user.user_type, localStatus)) {
+    return null;
+  }
+
+  // If the order is already at the final status for this user type, don't show any update options
+  const nextStatus = getNextStatus(localStatus, user.user_type);
+  if (!nextStatus) {
     return null;
   }
 
@@ -99,9 +122,6 @@ const OrderStatusUpdate: React.FC<OrderStatusUpdateProps> = ({
 
   // For simplified view, just show the next possible status
   if (showOnlyNextStatus) {
-    const nextStatus = getNextStatus(localStatus);
-    if (!nextStatus) return null;
-
     return (
       <Button 
         onClick={() => handleUpdateStatus(nextStatus)}
@@ -113,14 +133,16 @@ const OrderStatusUpdate: React.FC<OrderStatusUpdateProps> = ({
     );
   }
 
-  // For complete view, show all possible next statuses
+  // For complete view, show all possible next statuses based on user type
+  const statusFlow = user.user_type === 'restaurant' ? restaurantStatusFlow : courierStatusFlow;
+  const startIndex = statusFlow.indexOf(localStatus);
+  const availableStatuses = statusFlow.slice(startIndex + 1);
+  
   return (
     <div className="mt-4 space-y-2">
       <p className="text-sm font-medium">Update Order Status:</p>
       <div className="flex flex-wrap gap-2">
-        {restaurantStatusFlow.slice(
-          restaurantStatusFlow.indexOf(localStatus) + 1
-        ).map(status => (
+        {availableStatuses.map(status => (
           <Button
             key={status}
             variant="outline"

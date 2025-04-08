@@ -15,7 +15,7 @@ import { useOrders } from '@/hooks/useOrders';
 
 const CourierActiveOrders: React.FC = () => {
   const { user } = useAuth();
-  const { activeOrders, loading, error, refetch, updateOrderStatus } = useCourierActiveOrders();
+  const { activeOrders, loading, error, refetch, updateOrderStatus } = useCourierActiveOrders(user?.id || '');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [verifyingPin, setVerifyingPin] = useState(false);
   
@@ -30,23 +30,28 @@ const CourierActiveOrders: React.FC = () => {
     status: ['delivered', 'completed'] as OrderStatus[]
   });
 
-  const handlePinSubmit = async (pin: string) => {
-    if (!selectedOrderId) return;
+  const handlePinSubmit = async (orderId: string, pin: string) => {
+    if (!orderId) return { success: false, message: "No order selected" };
     
     setVerifyingPin(true);
     
     try {
       if (verifyDeliveryPin) {
-        const result = await verifyDeliveryPin(selectedOrderId, pin);
+        const result = await verifyDeliveryPin(orderId, pin);
         if (result.success) {
           // Handle success
           refetch();
+          return { success: true };
+        } else {
+          return { success: false, message: result.message || "Invalid PIN" };
         }
       } else {
         console.error("verifyDeliveryPin function not available");
+        return { success: false, message: "Verification not available" };
       }
     } catch (error) {
       console.error("Error verifying PIN:", error);
+      return { success: false, message: "Verification failed" };
     } finally {
       setVerifyingPin(false);
       setSelectedOrderId(null);

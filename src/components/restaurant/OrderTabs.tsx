@@ -1,46 +1,49 @@
 
 import React from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Order, OrderStatus } from '@/lib/database.types';
 import OrdersList from '@/components/OrdersList';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { isCurrentOrder } from '@/utils/orderUtils';
 
 interface OrderTabsProps {
   orders: Order[];
   onUpdateStatus: (orderId: string, status: OrderStatus) => Promise<{ success: boolean, error?: any }>;
+  canUpdateStatus?: boolean;
 }
 
-const OrderTabs: React.FC<OrderTabsProps> = ({ orders, onUpdateStatus }) => {
-  // Filter orders into current and past
-  const currentOrders = orders.filter(order => isCurrentOrder(order.status));
-  const pastOrders = orders.filter(order => !isCurrentOrder(order.status));
+const OrderTabs: React.FC<OrderTabsProps> = ({ 
+  orders, 
+  onUpdateStatus,
+  canUpdateStatus = true
+}) => {
+  // Split orders by status
+  const activeOrders = orders.filter(order => isCurrentOrder(order.status));
+  const completedOrders = orders.filter(order => !isCurrentOrder(order.status));
   
   return (
-    <Tabs defaultValue="current" className="w-full">
-      <TabsList className="mb-4">
-        <TabsTrigger value="current">
-          Current Orders ({currentOrders.length})
-        </TabsTrigger>
-        <TabsTrigger value="past">
-          Past Orders ({pastOrders.length})
-        </TabsTrigger>
+    <Tabs defaultValue="active" className="w-full">
+      <TabsList className="grid w-full grid-cols-2 mb-4">
+        <TabsTrigger value="active">Active Orders ({activeOrders.length})</TabsTrigger>
+        <TabsTrigger value="completed">Completed Orders ({completedOrders.length})</TabsTrigger>
       </TabsList>
       
-      <TabsContent value="current">
+      <TabsContent value="active" className="space-y-4">
         <OrdersList 
-          orders={currentOrders} 
+          orders={activeOrders} 
           onUpdateStatus={onUpdateStatus}
           isCurrentOrders={true}
-          emptyMessage="No current orders."
+          emptyMessage="No active orders found"
+          canUpdateStatus={canUpdateStatus}
         />
       </TabsContent>
       
-      <TabsContent value="past">
+      <TabsContent value="completed" className="space-y-4">
         <OrdersList 
-          orders={pastOrders} 
+          orders={completedOrders} 
           onUpdateStatus={onUpdateStatus}
           isCurrentOrders={false}
-          emptyMessage="No past orders."
+          emptyMessage="No completed orders found"
+          canUpdateStatus={false} // Never allow updating completed orders
         />
       </TabsContent>
     </Tabs>

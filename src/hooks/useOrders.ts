@@ -20,9 +20,7 @@ export const useOrders = (options: OrdersOptions = {}) => {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // Determine which API method to use based on the options
   const fetchOrders = useCallback(async (forceRefresh: boolean = false) => {
-    // Skip fetching if we don't have the necessary IDs or user is not authenticated
     if ((!options.restaurantId && !options.userId && !options.courierId && !options.status && !user) || !localStorage.getItem('auth_token')) {
       console.log('No user, auth token, or specific ID provided for fetching orders');
       setIsLoading(false);
@@ -48,14 +46,12 @@ export const useOrders = (options: OrdersOptions = {}) => {
         console.log(`Fetching orders by status: ${options.status}`);
         fetchedOrders = await orderApi.getOrdersByStatus(options.status);
       } else if (user) {
-        // Default to current user's orders if no specific option is provided
         console.log(`Fetching orders for current user: ${user.id}`);
         fetchedOrders = await orderApi.getOrdersByUser(user.id);
       }
 
       console.log(`Fetched ${fetchedOrders?.length || 0} orders`);
       
-      // Update state with fetched orders
       setOrders(fetchedOrders || []);
       setHasFetched(true);
       setIsLoading(false);
@@ -79,20 +75,17 @@ export const useOrders = (options: OrdersOptions = {}) => {
     try {
       const result = await orderApi.updateOrderStatus(orderId, status);
       
-      // Success handling
       toast({
         title: "Status Updated",
         description: `Order status has been updated to ${status.replace(/_/g, ' ')}`,
       });
 
-      // Fetch latest orders after update
       fetchOrders(true);
       
       return { success: true, data: result };
     } catch (err) {
       console.error("Error updating order status:", err);
       
-      // Error handling
       toast({
         title: "Update Failed",
         description: "Could not update the order status",
@@ -107,7 +100,6 @@ export const useOrders = (options: OrdersOptions = {}) => {
     try {
       const result = await orderApi.assignCourier(orderId, courierId);
       
-      // Fetch latest orders after assignment
       fetchOrders(true);
       
       return { success: true, data: result };
@@ -117,7 +109,6 @@ export const useOrders = (options: OrdersOptions = {}) => {
     }
   }, [fetchOrders]);
 
-  // Add the verify delivery pin function
   const verifyDeliveryPin = useCallback(async (orderId: string, pin: string) => {
     try {
       console.log(`Sending verification request for order ${orderId} with PIN ${pin}`);
@@ -129,7 +120,6 @@ export const useOrders = (options: OrdersOptions = {}) => {
           description: "PIN verified successfully. Delivery completed!"
         });
         
-        // Fetch latest orders
         fetchOrders(true);
       } else {
         toast({
@@ -156,9 +146,7 @@ export const useOrders = (options: OrdersOptions = {}) => {
     }
   }, [fetchOrders, toast]);
 
-  // Initial fetch - with proper dependency tracking
   useEffect(() => {
-    // Only fetch if we have some relevant ID to fetch by and user is authenticated
     const hasRelevantId = options.restaurantId || options.courierId || options.userId || user?.id;
     const isAuthenticated = !!localStorage.getItem('auth_token');
     
@@ -181,11 +169,9 @@ export const useOrders = (options: OrdersOptions = {}) => {
     hasFetched
   ]);
 
-  // Subscribe to real-time updates
   useEffect(() => {
     console.log('Setting up real-time order updates subscription');
     
-    // Set up MQTT subscriptions
     if (mqttClient && (options.restaurantId || options.userId || options.courierId)) {
       if (options.restaurantId) {
         console.log(`Subscribing to restaurant orders: ${options.restaurantId}`);
@@ -203,11 +189,9 @@ export const useOrders = (options: OrdersOptions = {}) => {
       }
     }
     
-    // Subscribe to order updates via the orderApi
     const unsubscribe = orderApi.subscribeToOrderUpdates((updatedOrder) => {
       console.log('Received order update:', updatedOrder);
       
-      // Check if this update is relevant to our current filter
       let isRelevant = false;
       
       if (options.restaurantId && updatedOrder.restaurant_id === options.restaurantId) {
@@ -225,16 +209,13 @@ export const useOrders = (options: OrdersOptions = {}) => {
       
       if (isRelevant) {
         setOrders(currentOrders => {
-          // Check if we already have this order
           const orderIndex = currentOrders.findIndex(order => order.id === updatedOrder.id);
           
           if (orderIndex >= 0) {
-            // Update existing order
             const newOrders = [...currentOrders];
             newOrders[orderIndex] = updatedOrder;
             return newOrders;
           } else {
-            // Add new order
             return [updatedOrder, ...currentOrders];
           }
         });
@@ -242,7 +223,6 @@ export const useOrders = (options: OrdersOptions = {}) => {
     });
 
     return () => {
-      // Clean up MQTT subscriptions
       if (mqttClient) {
         if (options.restaurantId) {
           mqttClient.unsubscribe(`foodapp/restaurants/${options.restaurantId}/orders/#`);
@@ -257,7 +237,6 @@ export const useOrders = (options: OrdersOptions = {}) => {
         }
       }
       
-      // Unsubscribe from order updates
       unsubscribe();
     };
   }, [options.restaurantId, options.userId, options.courierId, options.status]);

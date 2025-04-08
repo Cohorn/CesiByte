@@ -182,6 +182,7 @@ const RestaurantOrders = () => {
           <OrderTabs 
             orders={orders} 
             onUpdateStatus={handleUpdateOrderStatus}
+            canUpdateStatus={true}
           />
         )}
       </div>

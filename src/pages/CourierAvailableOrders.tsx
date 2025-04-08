@@ -65,6 +65,7 @@ const CourierAvailableOrders = () => {
             restaurants={restaurants}
             userLocation={{ lat: user.lat, lng: user.lng }}
             onAcceptOrder={handleAcceptOrder}
+            canUpdateStatus={true}
           />
         )}
       </div>
