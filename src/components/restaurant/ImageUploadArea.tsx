@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Input } from '@/components/ui/input';
-import { Upload, Loader2 } from 'lucide-react';
+import { Upload } from 'lucide-react';
 
 interface ImageUploadAreaProps {
   isUploading: boolean;
@@ -26,13 +26,9 @@ const ImageUploadArea: React.FC<ImageUploadAreaProps> = ({
       />
       <label 
         htmlFor="image"
-        className={`cursor-pointer flex flex-col items-center justify-center py-4 ${(!bucketReady || isUploading) ? 'opacity-50 pointer-events-none' : ''}`}
+        className={`cursor-pointer flex flex-col items-center justify-center py-4 ${!bucketReady ? 'opacity-50' : ''}`}
       >
-        {isUploading ? (
-          <Loader2 className="h-10 w-10 text-gray-400 mb-2 animate-spin" />
-        ) : (
-          <Upload className="h-10 w-10 text-gray-400 mb-2" />
-        )}
+        <Upload className="h-10 w-10 text-gray-400 mb-2" />
         <span className="text-sm text-gray-600">
           {isUploading ? 'Uploading...' : 'Upload restaurant photo (optional)'}
         </span>

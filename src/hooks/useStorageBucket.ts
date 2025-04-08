@@ -27,7 +27,7 @@ export const useStorageBucket = (bucketName: string) => {
         }
         
         // Check if our target bucket exists
-        const targetBucket = buckets?.find(bucket => bucket.name === bucketName);
+        const targetBucket = buckets.find(bucket => bucket.name === bucketName);
         
         if (targetBucket) {
           console.log(`"${bucketName}" bucket found`);
@@ -81,7 +81,7 @@ export const useStorageBucket = (bucketName: string) => {
       // Try one more time to check if the bucket exists
       const { data: buckets, error: listError } = await supabase.storage.listBuckets();
       
-      if (listError || !buckets?.some(bucket => bucket.name === bucketName)) {
+      if (listError || !buckets.some(bucket => bucket.name === bucketName)) {
         throw new Error(`Cannot upload: "${bucketName}" bucket not accessible.`);
       }
       
