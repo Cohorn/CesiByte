@@ -1,10 +1,11 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import ImageUploadPreview from './ImageUploadPreview';
 import ImageUploadArea from './ImageUploadArea';
 import { useStorageBucket } from '@/hooks/useStorageBucket';
 import { supabase } from '@/lib/supabase';
+import { restaurantApi } from '@/api/services/restaurantService';
 
 // Define the bucket name as a constant
 const RESTAURANT_IMAGES_BUCKET = 'Restaurant Images';
@@ -21,8 +22,31 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
   onImageRemove
 }) => {
   const [isUploading, setIsUploading] = useState(false);
-  const { bucketReady, verifyBucketAccess } = useStorageBucket(RESTAURANT_IMAGES_BUCKET);
+  const [bucketReady, setBucketReady] = useState(false);
   const { toast } = useToast();
+
+  // Check if bucket exists on component mount
+  useEffect(() => {
+    const checkBucket = async () => {
+      try {
+        const bucketExists = await restaurantApi.ensureStorageBucket();
+        setBucketReady(bucketExists);
+        if (!bucketExists) {
+          console.error(`"${RESTAURANT_IMAGES_BUCKET}" bucket not found or not accessible`);
+          toast({
+            title: "Storage Error",
+            description: "Image upload is currently unavailable. Please try again later.",
+            variant: "destructive"
+          });
+        }
+      } catch (error) {
+        console.error('Error checking bucket:', error);
+        setBucketReady(false);
+      }
+    };
+    
+    checkBucket();
+  }, [toast]);
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -54,10 +78,11 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
     try {
       // Verify bucket exists before proceeding
       if (!bucketReady) {
-        const isAccessible = await verifyBucketAccess();
-        if (!isAccessible) {
+        const bucketExists = await restaurantApi.ensureStorageBucket();
+        if (!bucketExists) {
           throw new Error(`Cannot upload: "${RESTAURANT_IMAGES_BUCKET}" bucket not accessible.`);
         }
+        setBucketReady(true);
       }
       
       // Create a unique file name
