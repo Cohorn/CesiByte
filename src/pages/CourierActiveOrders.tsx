@@ -32,6 +32,7 @@ const CourierActiveOrders: React.FC = () => {
     orders: pastOrders, 
     isLoading: pastOrdersLoading, 
     error: pastOrdersError,
+    refetch: refetchPastOrders,
     verifyDeliveryPin 
   } = useOrders({
     courierId: user?.id,
@@ -73,6 +74,7 @@ const CourierActiveOrders: React.FC = () => {
     setIsRefetching(true);
     try {
       await refetch();
+      await refetchPastOrders();
     } finally {
       setIsRefetching(false);
     }
@@ -212,6 +214,11 @@ const CourierActiveOrders: React.FC = () => {
                 <AlertTitle>Error</AlertTitle>
                 <AlertDescription>
                   Could not load past deliveries. Please try again.
+                  <div className="mt-2">
+                    <Button onClick={refetchPastOrders} variant="outline" size="sm">
+                      Retry
+                    </Button>
+                  </div>
                 </AlertDescription>
               </Alert>
             ) : !pastOrders || pastOrders.length === 0 ? (

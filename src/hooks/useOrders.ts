@@ -42,10 +42,20 @@ export const useOrders = (options: OrdersOptions = {}) => {
         fetchedOrders = await orderApi.getOrdersByRestaurant(options.restaurantId, forceRefresh);
       } else if (options.courierId && options.status) {
         console.log(`Fetching orders for courier ID: ${options.courierId} with status: ${options.status}`);
-        // When status is specified with courier ID, use the getOrdersByStatus method
-        fetchedOrders = await orderApi.getOrdersByStatus(options.status);
-        // Filter orders by courier ID
-        fetchedOrders = fetchedOrders.filter(order => order.courier_id === options.courierId);
+        try {
+          // When status is specified with courier ID, use the getOrdersByStatus method
+          const allOrdersWithStatus = await orderApi.getOrdersByStatus(options.status);
+          // Filter orders by courier ID
+          fetchedOrders = allOrdersWithStatus.filter(order => order.courier_id === options.courierId);
+          console.log(`Filtered to ${fetchedOrders.length} orders for courier ${options.courierId}`);
+        } catch (err) {
+          console.error("Error fetching orders by status for courier:", err);
+          // Fallback to getting all courier orders and filtering by status
+          const allCourierOrders = await orderApi.getOrdersByCourier(options.courierId);
+          const statusArray = Array.isArray(options.status) ? options.status : [options.status];
+          fetchedOrders = allCourierOrders.filter(order => statusArray.includes(order.status));
+          console.log(`Fallback: Filtered to ${fetchedOrders.length} orders for courier ${options.courierId}`);
+        }
       } else if (options.courierId) {
         console.log(`Fetching orders for courier ID: ${options.courierId}`);
         fetchedOrders = await orderApi.getOrdersByCourier(options.courierId);

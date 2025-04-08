@@ -1,4 +1,3 @@
-
 // This is a simplified version for demonstration
 import { apiClient } from '../client';
 import { Order, OrderStatus } from '@/lib/database.types';
@@ -149,6 +148,28 @@ export const orderApi = {
     } catch (error) {
       console.error('Error fetching orders by status:', error);
       console.error('Error details:', error.response?.data || error.message);
+      
+      // If the backend doesn't support the query parameter format,
+      // try fetching all orders and filter client-side as a fallback
+      if (Array.isArray(status) && error.response?.status === 400) {
+        console.log('Falling back to fetching all orders and filtering client-side');
+        try {
+          const allOrdersResponse = await apiClient.get('/orders');
+          const allOrders = processOrders(allOrdersResponse.data);
+          const filteredOrders = allOrders.filter(order => 
+            status.includes(order.status as OrderStatus)
+          );
+          
+          // Cache the results
+          orderCacheService.setCache('byStatus', cacheKey, filteredOrders);
+          
+          return filteredOrders;
+        } catch (fallbackError) {
+          console.error('Error in fallback order fetch:', fallbackError);
+          throw fallbackError;
+        }
+      }
+      
       throw error;
     }
   },
