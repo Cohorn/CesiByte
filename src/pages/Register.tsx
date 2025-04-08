@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -49,7 +48,6 @@ const Register = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   
-  // Initialize referral code from URL if present
   const [referralCode, setReferralCode] = useState('');
   useEffect(() => {
     const queryParams = new URLSearchParams(window.location.search);
@@ -59,7 +57,6 @@ const Register = () => {
     }
   }, []);
 
-  // Define user type options based on environment
   const allowEmployeeRegistration = import.meta.env.VITE_ALLOW_EMPLOYEE_REGISTRATION === 'true';
   const allowDevRegistration = import.meta.env.VITE_ALLOW_DEV_REGISTRATION === 'true';
   const allowComAgentRegistration = import.meta.env.VITE_ALLOW_COM_AGENT_REGISTRATION === 'true';
@@ -76,7 +73,6 @@ const Register = () => {
     },
   });
 
-  // Update form when referral code changes
   useEffect(() => {
     form.setValue('referralCode', referralCode);
   }, [referralCode, form]);
@@ -138,7 +134,6 @@ const Register = () => {
   };
 
   if (!authLoading && user) {
-    // User is already authenticated, redirect to appropriate page
     if (user.user_type === 'employee') {
       return <Navigate to="/employee" />;
     } else if (user.user_type === 'restaurant') {
@@ -277,8 +272,8 @@ const Register = () => {
                         </div>
                         <div className="h-48 rounded-md overflow-hidden border border-gray-300">
                           <Map
-                            lat={userLocation.lat}
-                            lng={userLocation.lng}
+                            initialLat={userLocation.lat}
+                            initialLng={userLocation.lng}
                             onLocationSelected={handleLocationSelected}
                             onMapLoad={handleMapLoad}
                           />

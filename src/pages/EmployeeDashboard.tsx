@@ -7,14 +7,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { 
   Users, BarChart, Code, 
-  Store, Truck, LogOut, 
+  Store, Truck, 
   Layers, Terminal, MapPin,
-  ClipboardList, Settings
+  ClipboardList
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const EmployeeDashboard = () => {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   
   // Redirect if not logged in
@@ -36,23 +36,6 @@ const EmployeeDashboard = () => {
                           isCommercialAgent(user) ? 'Commercial Agent' : 
                           'Employee';
 
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      toast({
-        title: "Signed out successfully",
-        description: "You have been signed out of your employee account",
-      });
-    } catch (error) {
-      console.error("Error signing out:", error);
-      toast({
-        title: "Error",
-        description: "Failed to sign out. Please try again.",
-        variant: "destructive"
-      });
-    }
-  };
-
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <NavBar />
@@ -64,19 +47,6 @@ const EmployeeDashboard = () => {
             <p className="text-gray-500">
               Welcome, {user.name} | {roleDisplayName}
             </p>
-          </div>
-          
-          <div className="flex space-x-2 mt-4 md:mt-0">
-            <Button variant="outline" size="sm" asChild>
-              <Link to="/employee/profile">
-                <Settings className="h-4 w-4 mr-2" />
-                Profile
-              </Link>
-            </Button>
-            <Button variant="destructive" size="sm" onClick={handleSignOut}>
-              <LogOut className="h-4 w-4 mr-2" />
-              Sign Out
-            </Button>
           </div>
         </div>
         

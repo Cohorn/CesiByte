@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Link } from 'react-router-dom';
 import { useAuth, isEmployeeType } from '@/lib/AuthContext';
 import NavBar from '@/components/NavBar';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +8,6 @@ import EditProfileForm from '@/components/EditProfileForm';
 import DeleteAccountDialog from '@/components/DeleteAccountDialog';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { User } from '@/lib/database.types';
 
 const EmployeeProfile = () => {

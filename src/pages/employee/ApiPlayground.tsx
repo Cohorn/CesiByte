@@ -1,646 +1,524 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect } from 'react';
+import { Navigate, Link } from 'react-router-dom';
+import { useAuth, isDeveloper } from '@/lib/AuthContext';
+import NavBar from '@/components/NavBar';
+import { ArrowLeft, Play, Clipboard, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { AlertCircle, Check, Clock, Code, Copy, Play, RefreshCw, Save, Terminal, X } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { apiClient } from '@/api/client';
+import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { 
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue 
+} from '@/components/ui/select';
+import {
+  Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle
+} from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import axios from 'axios';
 
-// Define the form schema for API requests
-const requestFormSchema = z.object({
-  url: z.string().min(1, 'URL is required'),
-  method: z.enum(['GET', 'POST', 'PUT', 'DELETE', 'PATCH']),
-  headers: z.string().optional(),
-  body: z.string().optional(),
-});
-
-type RequestForm = z.infer<typeof requestFormSchema>;
-
-// Define the saved request schema
-interface SavedRequest {
-  id: string;
-  name: string;
-  url: string;
-  method: string;
-  headers: string;
-  body: string;
-}
-
-// Define API endpoint categories
-const endpointCategories = [
-  {
-    name: 'Users',
-    endpoints: [
-      { name: 'Get All Users', url: '/users', method: 'GET' },
-      { name: 'Get User by ID', url: '/users/{id}', method: 'GET' },
-      { name: 'Create User', url: '/users', method: 'POST' },
-      { name: 'Update User', url: '/users/{id}', method: 'PUT' },
-      { name: 'Delete User', url: '/users/{id}', method: 'DELETE' },
-    ],
-  },
-  {
-    name: 'Restaurants',
-    endpoints: [
-      { name: 'Get All Restaurants', url: '/restaurants', method: 'GET' },
-      { name: 'Get Restaurant by ID', url: '/restaurants/{id}', method: 'GET' },
-      { name: 'Create Restaurant', url: '/restaurants', method: 'POST' },
-      { name: 'Update Restaurant', url: '/restaurants/{id}', method: 'PUT' },
-      { name: 'Delete Restaurant', url: '/restaurants/{id}', method: 'DELETE' },
-    ],
-  },
-  {
-    name: 'Orders',
-    endpoints: [
-      { name: 'Get All Orders', url: '/orders', method: 'GET' },
-      { name: 'Get Order by ID', url: '/orders/{id}', method: 'GET' },
-      { name: 'Get Orders by User', url: '/orders/user/{id}', method: 'GET' },
-      { name: 'Get Orders by Restaurant', url: '/orders/restaurant/{id}', method: 'GET' },
-      { name: 'Get Orders by Status', url: '/orders/status/{status}', method: 'GET' },
-      { name: 'Create Order', url: '/orders', method: 'POST' },
-      { name: 'Update Order Status', url: '/orders/{id}/status', method: 'PUT' },
-      { name: 'Delete Order', url: '/orders/{id}', method: 'DELETE' },
-    ],
-  },
-  {
-    name: 'Reviews',
-    endpoints: [
-      { name: 'Get Reviews for Restaurant', url: '/reviews/restaurant/{id}', method: 'GET' },
-      { name: 'Get Reviews for Courier', url: '/reviews/courier/{id}', method: 'GET' },
-      { name: 'Create Review', url: '/reviews', method: 'POST' },
-      { name: 'Update Review', url: '/reviews/{id}', method: 'PUT' },
-      { name: 'Delete Review', url: '/reviews/{id}', method: 'DELETE' },
-    ],
-  },
+// API endpoints configuration
+const API_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'];
+const BASE_ENDPOINTS = [
+  { label: 'Auth Service', value: '/auth' },
+  { label: 'User Service', value: '/users' },
+  { label: 'Restaurant Service', value: '/restaurants' },
+  { label: 'Order Service', value: '/orders' },
+  { label: 'Review Service', value: '/reviews' },
+  { label: 'Employee Service', value: '/employees' },
 ];
 
-const ApiPlayground: React.FC = () => {
-  const [responseData, setResponseData] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [responseTime, setResponseTime] = useState<number | null>(null);
-  const [savedRequests, setSavedRequests] = useState<SavedRequest[]>([]);
-  const [activeTab, setActiveTab] = useState('request');
-  const [showSaveDialog, setShowSaveDialog] = useState(false);
-  const [requestName, setRequestName] = useState('');
-  const responseRef = useRef<HTMLDivElement>(null);
+// Response formatting helper
+const formatJSON = (json: any) => {
+  try {
+    return JSON.stringify(json, null, 2);
+  } catch (e) {
+    return String(json);
+  }
+};
+
+// Syntax highlighting for JSON
+const JsonDisplay = ({ json }: { json: any }) => {
+  const formattedJson = formatJSON(json);
+  const [copied, setCopied] = useState(false);
+  
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(formattedJson);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  
+  return (
+    <div className="relative">
+      <div className="absolute top-2 right-2">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={copyToClipboard}
+          className="h-8 w-8 p-0"
+        >
+          {copied ? <Check className="h-4 w-4" /> : <Clipboard className="h-4 w-4" />}
+        </Button>
+      </div>
+      <pre className="bg-gray-800 text-white p-4 rounded-md overflow-auto max-h-[500px] text-xs">
+        <code>{formattedJson}</code>
+      </pre>
+    </div>
+  );
+};
+
+const ApiPlayground = () => {
+  const { user } = useAuth();
   const { toast } = useToast();
-
-  // Set up the form
-  const form = useForm<RequestForm>({
-    resolver: zodResolver(requestFormSchema),
-    defaultValues: {
-      url: '',
-      method: 'GET',
-      headers: '{\n  "Content-Type": "application/json"\n}',
-      body: '',
+  const [method, setMethod] = useState('GET');
+  const [baseEndpoint, setBaseEndpoint] = useState('/users');
+  const [path, setPath] = useState('');
+  const [requestBody, setRequestBody] = useState('');
+  const [requestHeaders, setRequestHeaders] = useState('{\n  "Content-Type": "application/json"\n}');
+  const [response, setResponse] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [statusCode, setStatusCode] = useState<number | null>(null);
+  const [responseTime, setResponseTime] = useState<number | null>(null);
+  
+  // Example requests for each endpoint
+  const [examples, setExamples] = useState<Record<string, any>>({
+    '/auth': {
+      'POST /auth/login': {
+        method: 'POST',
+        path: '/login',
+        body: {
+          email: 'user@example.com',
+          password: 'password123'
+        }
+      },
+      'POST /auth/register': {
+        method: 'POST',
+        path: '/register',
+        body: {
+          name: 'New User',
+          email: 'newuser@example.com',
+          password: 'password123',
+          address: '123 Main St',
+          lat: 40.7128,
+          lng: -74.0060,
+          user_type: 'customer'
+        }
+      }
     },
-  });
-
-  // Load saved requests from local storage
-  useEffect(() => {
-    const savedRequestsJSON = localStorage.getItem('savedApiRequests');
-    if (savedRequestsJSON) {
-      try {
-        const parsed = JSON.parse(savedRequestsJSON);
-        setSavedRequests(parsed);
-      } catch (e) {
-        console.error('Error parsing saved requests:', e);
+    '/users': {
+      'GET /users': {
+        method: 'GET',
+        path: '',
+        body: {}
+      },
+      'GET /users/{id}': {
+        method: 'GET',
+        path: '/{USER_ID}',
+        body: {}
+      },
+      'PUT /users/{id}': {
+        method: 'PUT',
+        path: '/{USER_ID}',
+        body: {
+          name: 'Updated Name',
+          address: 'New Address'
+        }
+      }
+    },
+    '/restaurants': {
+      'GET /restaurants': {
+        method: 'GET',
+        path: '',
+        body: {}
+      },
+      'GET /restaurants/nearby': {
+        method: 'GET',
+        path: '/nearby?lat=40.7128&lng=-74.0060',
+        body: {}
+      },
+      'GET /restaurants/{id}': {
+        method: 'GET',
+        path: '/{RESTAURANT_ID}',
+        body: {}
+      }
+    },
+    '/orders': {
+      'GET /orders': {
+        method: 'GET',
+        path: '',
+        body: {}
+      },
+      'GET /orders/{id}': {
+        method: 'GET',
+        path: '/{ORDER_ID}',
+        body: {}
+      },
+      'POST /orders': {
+        method: 'POST',
+        path: '',
+        body: {
+          restaurant_id: '{RESTAURANT_ID}',
+          items: [
+            {
+              menu_item_id: '{MENU_ITEM_ID}',
+              quantity: 2,
+              special_instructions: 'Extra sauce'
+            }
+          ],
+          delivery_address: '123 Main St',
+          lat: 40.7128,
+          lng: -74.0060
+        }
+      }
+    },
+    '/reviews': {
+      'GET /reviews/restaurant/{id}': {
+        method: 'GET',
+        path: '/restaurant/{RESTAURANT_ID}',
+        body: {}
+      },
+      'POST /reviews': {
+        method: 'POST',
+        path: '',
+        body: {
+          restaurant_id: '{RESTAURANT_ID}',
+          rating: 5,
+          comment: 'Great food and service!'
+        }
+      }
+    },
+    '/employees': {
+      'GET /employees': {
+        method: 'GET',
+        path: '',
+        body: {}
+      },
+      'GET /employees/stats': {
+        method: 'GET',
+        path: '/stats',
+        body: {}
       }
     }
-  }, []);
-
-  const saveRequests = (requests: SavedRequest[]) => {
-    localStorage.setItem('savedApiRequests', JSON.stringify(requests));
-    setSavedRequests(requests);
+  });
+  
+  // Function to load an example request
+  const loadExample = (exampleKey: string) => {
+    const example = examples[baseEndpoint]?.[exampleKey];
+    if (example) {
+      setMethod(example.method);
+      setPath(example.path);
+      setRequestBody(JSON.stringify(example.body, null, 2));
+    }
   };
-
-  const onSubmit = async (data: RequestForm) => {
-    setIsLoading(true);
+  
+  // Redirect if not logged in or not a developer
+  if (!user) {
+    return <Navigate to="/login" />;
+  } else if (!isDeveloper(user)) {
+    return <Navigate to="/employee/dashboard" />;
+  }
+  
+  // Execute API request
+  const executeRequest = async () => {
+    setLoading(true);
+    setResponse(null);
     setError(null);
-    setResponseData(null);
+    setStatusCode(null);
     setResponseTime(null);
     
-    const startTime = performance.now();
-    
     try {
+      const url = `${baseEndpoint}${path}`;
       let headers = {};
-      if (data.headers) {
+      try {
+        headers = JSON.parse(requestHeaders);
+      } catch (e) {
+        toast({
+          title: "Invalid Headers Format",
+          description: "Please check your headers JSON format",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+      
+      let data = undefined;
+      if (['POST', 'PUT', 'PATCH'].includes(method)) {
         try {
-          headers = JSON.parse(data.headers);
+          data = requestBody ? JSON.parse(requestBody) : undefined;
         } catch (e) {
-          setError('Invalid JSON in headers');
-          setIsLoading(false);
+          toast({
+            title: "Invalid Request Body",
+            description: "Please check your request body JSON format",
+            variant: "destructive",
+          });
+          setLoading(false);
           return;
         }
       }
       
-      let parsedBody;
-      if (data.body && ['POST', 'PUT', 'PATCH'].includes(data.method)) {
-        try {
-          parsedBody = JSON.parse(data.body);
-        } catch (e) {
-          setError('Invalid JSON in request body');
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      const response = await apiClient({
-        method: data.method.toLowerCase(),
-        url: data.url,
-        headers,
-        data: parsedBody,
+      const startTime = performance.now();
+      
+      const response = await axios({
+        method: method.toLowerCase(),
+        url,
+        data,
+        headers
       });
       
       const endTime = performance.now();
-      setResponseTime(endTime - startTime);
-      setResponseData(response);
-      setActiveTab('response');
-    } catch (error: any) {
-      const endTime = performance.now();
+      
+      setResponse(response.data);
+      setStatusCode(response.status);
       setResponseTime(endTime - startTime);
       
-      console.error('API request error:', error);
-      setError(error.message || 'An error occurred');
-      setResponseData(error.response || null);
-    } finally {
-      setIsLoading(false);
-      // Scroll to response section
-      if (responseRef.current) {
-        responseRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    }
-  };
-
-  const handleSaveRequest = () => {
-    if (!requestName.trim()) {
       toast({
-        title: 'Error',
-        description: 'Please enter a name for this request',
-        variant: 'destructive',
+        title: "Request Successful",
+        description: `${method} ${url} completed in ${(endTime - startTime).toFixed(2)}ms`,
+        // Fix: Change 'success' to 'default' as it's a valid variant
+        variant: "default",
       });
-      return;
-    }
-    
-    const newRequest: SavedRequest = {
-      id: crypto.randomUUID(),
-      name: requestName,
-      url: form.getValues('url'),
-      method: form.getValues('method'),
-      headers: form.getValues('headers') || '',
-      body: form.getValues('body') || '',
-    };
-    
-    const updatedRequests = [...savedRequests, newRequest];
-    saveRequests(updatedRequests);
-    
-    setShowSaveDialog(false);
-    setRequestName('');
-    
-    toast({
-      title: 'Success',
-      description: 'Request saved successfully',
-    });
-  };
-
-  const handleLoadRequest = (request: SavedRequest) => {
-    form.reset({
-      url: request.url,
-      method: request.method as any,
-      headers: request.headers,
-      body: request.body,
-    });
-    
-    toast({
-      title: 'Request loaded',
-      description: `Loaded "${request.name}"`,
-    });
-  };
-
-  const handleDeleteRequest = (id: string) => {
-    const updatedRequests = savedRequests.filter((req) => req.id !== id);
-    saveRequests(updatedRequests);
-    
-    toast({
-      title: 'Request deleted',
-      description: 'The saved request has been deleted',
-    });
-  };
-
-  const handleSelectEndpoint = (url: string, method: string) => {
-    // Replace placeholders with empty values for user to fill in
-    const processedUrl = url.replace(/{([^}]+)}/g, '');
-    
-    form.reset({
-      url: processedUrl,
-      method: method as any,
-      headers: form.getValues('headers'),
-      body: method === 'GET' ? '' : form.getValues('body') || '{\n  \n}',
-    });
-  };
-
-  const formatJSON = (json: any) => {
-    try {
-      if (typeof json === 'string') {
-        return JSON.stringify(JSON.parse(json), null, 2);
-      }
-      return JSON.stringify(json, null, 2);
-    } catch (e) {
-      return json;
-    }
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text).then(
-      () => {
-        toast({
-          title: 'Copied!',
-          description: 'Content copied to clipboard',
-        });
-      },
-      () => {
-        toast({
-          title: 'Failed to copy',
-          description: 'Could not copy to clipboard',
-          variant: 'destructive',
-        });
-      }
-    );
-  };
-
-  return (
-    <div className="container mx-auto p-4 max-w-6xl">
-      <h1 className="text-2xl font-bold mb-6">API Playground</h1>
+    } catch (err: any) {
+      console.error("API request error:", err);
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div className="md:col-span-1">
-          <Card>
-            <CardHeader>
-              <CardTitle>API Endpoints</CardTitle>
-              <CardDescription>Select from common endpoints</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[400px] pr-4">
-                <Accordion type="multiple" className="w-full">
-                  {endpointCategories.map((category) => (
-                    <AccordionItem key={category.name} value={category.name}>
-                      <AccordionTrigger>{category.name}</AccordionTrigger>
-                      <AccordionContent>
-                        <div className="space-y-2">
-                          {category.endpoints.map((endpoint) => (
-                            <div 
-                              key={endpoint.name}
-                              className="flex items-center justify-between p-2 rounded-md hover:bg-gray-100 cursor-pointer"
-                              onClick={() => handleSelectEndpoint(endpoint.url, endpoint.method)}
-                            >
-                              <div>
-                                <p className="text-sm font-medium">{endpoint.name}</p>
-                                <p className="text-xs text-gray-500">{endpoint.url}</p>
-                              </div>
-                              <Badge variant={endpoint.method === 'GET' ? 'secondary' : 
-                                endpoint.method === 'POST' ? 'success' : 
-                                endpoint.method === 'PUT' ? 'outline' : 
-                                endpoint.method === 'DELETE' ? 'destructive' : 'default'}>
-                                {endpoint.method}
-                              </Badge>
-                            </div>
-                          ))}
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  ))}
-                </Accordion>
-              </ScrollArea>
-            </CardContent>
-          </Card>
+      setError(err.message);
+      if (err.response) {
+        setStatusCode(err.response.status);
+        setResponse(err.response.data);
+      }
+      
+      toast({
+        title: "Request Failed",
+        description: err.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Handle keyboard shortcut (Ctrl+Enter to execute)
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      executeRequest();
+    }
+  };
+  
+  return (
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      <NavBar />
+      
+      <div className="container mx-auto px-4 py-8">
+        <div className="mb-6">
+          <Button variant="ghost" size="sm" asChild className="mb-4">
+            <Link to="/employee/dashboard">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Dashboard
+            </Link>
+          </Button>
+          <h1 className="text-2xl font-bold">API Playground</h1>
+          <p className="text-gray-500">Test API endpoints directly from your browser</p>
         </div>
         
-        <div className="md:col-span-2">
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle>Request</CardTitle>
-                  <CardDescription>Configure your API request</CardDescription>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setShowSaveDialog(true)} disabled={isLoading}>
-                    <Save className="h-4 w-4 mr-2" />
-                    Save
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <div className="flex gap-2">
-                    <FormField
-                      control={form.control}
-                      name="method"
-                      render={({ field }) => (
-                        <FormItem className="w-32">
-                          <FormLabel>Method</FormLabel>
-                          <Select
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                            disabled={isLoading}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Method" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="GET">GET</SelectItem>
-                              <SelectItem value="POST">POST</SelectItem>
-                              <SelectItem value="PUT">PUT</SelectItem>
-                              <SelectItem value="DELETE">DELETE</SelectItem>
-                              <SelectItem value="PATCH">PATCH</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="url"
-                      render={({ field }) => (
-                        <FormItem className="flex-1">
-                          <FormLabel>URL</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="API endpoint path (e.g., /users)"
-                              {...field}
-                              disabled={isLoading}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  
-                  <FormField
-                    control={form.control}
-                    name="headers"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Headers (JSON)</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder="Enter request headers as JSON"
-                            className="font-mono text-sm h-24"
-                            {...field}
-                            disabled={isLoading}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          Enter request headers in JSON format
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  {form.watch('method') !== 'GET' && (
-                    <FormField
-                      control={form.control}
-                      name="body"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Request Body (JSON)</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              placeholder="Enter request body as JSON"
-                              className="font-mono text-sm h-40"
-                              {...field}
-                              disabled={isLoading}
-                            />
-                          </FormControl>
-                          <FormDescription>
-                            Enter request body in JSON format
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  )}
-                  
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => form.reset()}
-                      disabled={isLoading}
-                    >
-                      Reset
-                    </Button>
-                    <Button type="submit" disabled={isLoading}>
-                      {isLoading ? (
-                        <>
-                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                          Sending...
-                        </>
-                      ) : (
-                        <>
-                          <Play className="h-4 w-4 mr-2" />
-                          Send Request
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
-          
-          {/* Saved Requests */}
-          {savedRequests.length > 0 && (
-            <Card className="mt-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-1">
+            <Card>
               <CardHeader>
-                <CardTitle>Saved Requests</CardTitle>
-                <CardDescription>Your saved API requests</CardDescription>
+                <CardTitle>Examples</CardTitle>
+                <CardDescription>
+                  Select an example to get started
+                </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {savedRequests.map((request) => (
-                    <div 
-                      key={request.id}
-                      className="flex items-center justify-between p-2 rounded-md hover:bg-gray-100"
+              <CardContent className="space-y-2">
+                <Select 
+                  value={baseEndpoint} 
+                  onValueChange={(value) => {
+                    setBaseEndpoint(value);
+                    setPath('');
+                    setRequestBody('');
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select service" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {BASE_ENDPOINTS.map((endpoint) => (
+                      <SelectItem key={endpoint.value} value={endpoint.value}>
+                        {endpoint.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                <div className="mt-4 space-y-2">
+                  {examples[baseEndpoint] && Object.keys(examples[baseEndpoint]).map((exampleKey) => (
+                    <Button 
+                      key={exampleKey}
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start text-left"
+                      onClick={() => loadExample(exampleKey)}
                     >
-                      <div className="flex items-center gap-2">
-                        <Badge variant={request.method === 'GET' ? 'secondary' : 
-                          request.method === 'POST' ? 'success' : 
-                          request.method === 'PUT' ? 'outline' : 
-                          request.method === 'DELETE' ? 'destructive' : 'default'}>
-                          {request.method}
-                        </Badge>
-                        <div>
-                          <p className="font-medium">{request.name}</p>
-                          <p className="text-xs text-gray-500">{request.url}</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => handleLoadRequest(request)}
-                        >
-                          <Clock className="h-4 w-4" />
-                          <span className="sr-only">Load</span>
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => handleDeleteRequest(request.id)}
-                        >
-                          <X className="h-4 w-4 text-red-500" />
-                          <span className="sr-only">Delete</span>
-                        </Button>
-                      </div>
-                    </div>
+                      {exampleKey}
+                    </Button>
                   ))}
                 </div>
               </CardContent>
             </Card>
-          )}
-        </div>
-      </div>
-      
-      {/* Response Section */}
-      <div ref={responseRef}>
-        {(responseData || error) && (
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle>Response</CardTitle>
-                  {responseTime !== null && (
-                    <CardDescription>
-                      Completed in {responseTime.toFixed(0)}ms
-                    </CardDescription>
-                  )}
+            
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle>Tips</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <p>• Press <kbd className="px-2 py-1 bg-gray-100 rounded">Ctrl</kbd> + <kbd className="px-2 py-1 bg-gray-100 rounded">Enter</kbd> to execute request</p>
+                <p>• Requests are sent to the internal API</p>
+                <p>• Admin privileges are required for some endpoints</p>
+                <p>• Response time includes network latency</p>
+              </CardContent>
+            </Card>
+          </div>
+          
+          <div className="lg:col-span-2">
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Request</CardTitle>
+                <CardDescription>
+                  Configure your API request
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex gap-2">
+                  <Select value={method} onValueChange={setMethod}>
+                    <SelectTrigger className="w-28">
+                      <SelectValue placeholder="Method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {API_METHODS.map((m) => (
+                        <SelectItem key={m} value={m}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  
+                  <div className="flex-1 flex">
+                    <div className="bg-gray-100 border border-r-0 border-gray-300 rounded-l-md px-2 flex items-center text-gray-500 text-sm">
+                      {baseEndpoint}
+                    </div>
+                    <Input
+                      value={path}
+                      onChange={(e) => setPath(e.target.value)}
+                      placeholder="Path"
+                      className="rounded-l-none flex-1"
+                    />
+                  </div>
                 </div>
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-[400px]">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="response">Response</TabsTrigger>
+                
+                <Tabs defaultValue="body" className="w-full">
+                  <TabsList>
+                    <TabsTrigger value="body">Body</TabsTrigger>
                     <TabsTrigger value="headers">Headers</TabsTrigger>
                   </TabsList>
+                  <TabsContent value="body">
+                    <Textarea
+                      value={requestBody}
+                      onChange={(e) => setRequestBody(e.target.value)}
+                      placeholder="Request body (JSON)"
+                      className="font-mono text-sm h-48"
+                      onKeyDown={handleKeyDown}
+                      disabled={['GET', 'DELETE'].includes(method)}
+                    />
+                    {['GET', 'DELETE'].includes(method) && (
+                      <p className="text-xs text-gray-500 mt-2">
+                        Body is not typically used with {method} requests.
+                      </p>
+                    )}
+                  </TabsContent>
+                  <TabsContent value="headers">
+                    <Textarea
+                      value={requestHeaders}
+                      onChange={(e) => setRequestHeaders(e.target.value)}
+                      placeholder="Request headers (JSON)"
+                      className="font-mono text-sm h-48"
+                      onKeyDown={handleKeyDown}
+                    />
+                  </TabsContent>
                 </Tabs>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {error && !responseData && (
-                <Alert variant="destructive" className="mb-4">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Error</AlertTitle>
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-              
-              {responseData && (
-                <>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Badge variant={
-                      responseData.status < 300 ? 'success' : 
-                      responseData.status < 400 ? 'secondary' : 
-                      'destructive'
-                    }>
-                      Status: {responseData.status}
-                    </Badge>
-                    <Badge variant="outline">
-                      {responseData.statusText}
-                    </Badge>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => copyToClipboard(
-                        activeTab === 'response' 
-                          ? JSON.stringify(responseData.data, null, 2)
-                          : JSON.stringify(responseData.headers, null, 2)
+              </CardContent>
+              <CardFooter className="flex justify-between">
+                <div className="text-sm text-gray-500">
+                  Press Ctrl+Enter to execute
+                </div>
+                <Button 
+                  onClick={executeRequest} 
+                  disabled={loading}
+                  className="flex items-center"
+                >
+                  {loading ? (
+                    <span className="flex items-center">
+                      <span className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent rounded-full"></span>
+                      Executing...
+                    </span>
+                  ) : (
+                    <>
+                      <Play className="mr-2 h-4 w-4" />
+                      Execute
+                    </>
+                  )}
+                </Button>
+              </CardFooter>
+            </Card>
+            
+            {(response || error) && (
+              <Card>
+                <CardHeader className="flex flex-row items-center">
+                  <div className="flex-1">
+                    <CardTitle className="flex items-center gap-2">
+                      Response
+                      {statusCode && (
+                        <span 
+                          className={`text-sm px-2 py-1 rounded-full ${
+                            statusCode >= 200 && statusCode < 300 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-red-100 text-red-800'
+                          }`}
+                        >
+                          {statusCode}
+                        </span>
                       )}
-                    >
-                      <Copy className="h-4 w-4 mr-2" />
-                      Copy
-                    </Button>
+                    </CardTitle>
+                    <CardDescription>
+                      {responseTime && `Completed in ${responseTime.toFixed(2)}ms`}
+                    </CardDescription>
                   </div>
-                  
-                  <TabsContent value="response" className="mt-0">
-                    <div className="bg-gray-900 text-gray-100 p-4 rounded-md overflow-x-auto">
-                      <pre className="text-sm font-mono">
-                        {formatJSON(responseData.data)}
-                      </pre>
+                  {error && (
+                    <div className="flex items-center text-red-600">
+                      <X className="mr-1 h-4 w-4" />
+                      Error
                     </div>
-                  </TabsContent>
-                  
-                  <TabsContent value="headers" className="mt-0">
-                    <div className="bg-gray-900 text-gray-100 p-4 rounded-md overflow-x-auto">
-                      <pre className="text-sm font-mono">
-                        {formatJSON(responseData.headers)}
-                      </pre>
+                  )}
+                  {response && !error && statusCode && statusCode >= 200 && statusCode < 300 && (
+                    <div className="flex items-center text-green-600">
+                      <Check className="mr-1 h-4 w-4" />
+                      {/* Fix: Change 'success' to 'default' as it's a valid variant */}
+                      <span className="text-sm">Success</span>
                     </div>
-                  </TabsContent>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        )}
-      </div>
-      
-      {/* Save Request Dialog */}
-      {showSaveDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <Card className="w-[400px]">
-            <CardHeader>
-              <CardTitle>Save Request</CardTitle>
-              <CardDescription>Enter a name for this request</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <FormLabel>Request Name</FormLabel>
-                  <Input 
-                    placeholder="My API Request"
-                    value={requestName}
-                    onChange={(e) => setRequestName(e.target.value)}
-                  />
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => {
-                      setShowSaveDialog(false);
-                      setRequestName('');
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button onClick={handleSaveRequest}>
-                    <Save className="h-4 w-4 mr-2" />
-                    Save
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                  )}
+                </CardHeader>
+                <CardContent>
+                  {error && !response && (
+                    <div className="text-red-600 mb-4">
+                      {error}
+                    </div>
+                  )}
+                  {response && (
+                    <JsonDisplay json={response} />
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };
