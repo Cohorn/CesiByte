@@ -24,6 +24,7 @@ const RestaurantOrders = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<number | null>(null);
   const { toast } = useToast();
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   
   const REFRESH_COOLDOWN = 10000; // 10 seconds
 
@@ -64,11 +65,26 @@ const RestaurantOrders = () => {
         
         // If we successfully fetched the restaurant, refresh orders
         if (result) {
-          refetch(true);
+          // Auto refresh orders on initial page load
+          refetch(true).then(() => {
+            setInitialLoadComplete(true);
+            setLastRefreshTime(Date.now());
+          });
         }
       });
     }
   }, [user, restaurant, fetchRestaurant, refetch]);
+
+  // If restaurant is already loaded on component mount, fetch orders automatically
+  useEffect(() => {
+    if (restaurant && !initialLoadComplete) {
+      console.log("Restaurant data already loaded, auto-refreshing orders");
+      refetch(true).then(() => {
+        setInitialLoadComplete(true);
+        setLastRefreshTime(Date.now());
+      });
+    }
+  }, [restaurant, initialLoadComplete, refetch]);
 
   const canRefresh = useCallback(() => {
     if (!lastRefreshTime) return true;
