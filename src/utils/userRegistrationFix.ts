@@ -41,7 +41,7 @@ export const registerUserWithReferral = async (params: RegisterUserParams): Prom
     if (success && params.referralCode) {
       try {
         // Create a notification for the user who made the referral
-        if (notificationService.addNotification) {
+        if (notificationService && notificationService.addNotification) {
           const notification = {
             id: crypto.randomUUID(),
             user_id: params.referralCode, // Using the referral code as the user ID for now

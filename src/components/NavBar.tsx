@@ -63,15 +63,20 @@ const NavBar: React.FC = () => {
           icon: <ShoppingBag className="mr-1 h-4 w-4" />,
           label: 'Orders',
         },
+        {
+          path: '/restaurant/analytics',
+          icon: <ShoppingBag className="mr-1 h-4 w-4" />,
+          label: 'Analytics',
+        },
       ],
       courier: [
         {
-          path: '/courier/available',
+          path: '/courier/available-orders',
           icon: <ShoppingBag className="mr-1 h-4 w-4" />,
           label: 'Available',
         },
         {
-          path: '/courier/active',
+          path: '/courier/active-orders',
           icon: <Truck className="mr-1 h-4 w-4" />,
           label: 'Active',
         },
@@ -87,7 +92,7 @@ const NavBar: React.FC = () => {
     
     const userNavItems = user.user_type === 'employee' 
       ? navItems.employee 
-      : (navItems[user.user_type] || []);
+      : (navItems[user.user_type as keyof typeof navItems] || []);
     
     // Update profile path for all employee-type roles
     const profilePath = isEmployee ? '/employee/profile' : '/profile';

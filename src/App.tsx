@@ -57,6 +57,10 @@ function App() {
       element: <RestaurantOrders />
     },
     {
+      path: '/restaurant/menu',
+      element: <RestaurantMenu />
+    },
+    {
       path: '/restaurant/analytics',
       element: <Analytics />
     },

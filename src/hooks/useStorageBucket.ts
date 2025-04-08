@@ -18,11 +18,15 @@ export const useStorageBucket = (bucketName: string) => {
         if (listError) {
           console.error('Error accessing storage:', listError);
           setBucketReady(false);
-          toast({
-            title: "Storage connection issue",
-            description: "Could not connect to image storage. Please try again later.",
-            variant: "destructive"
-          });
+          
+          // Only show toast for non-connection errors
+          if (listError.message !== 'Failed to fetch') {
+            toast({
+              title: "Storage connection issue",
+              description: "Could not connect to image storage. Please try again later.",
+              variant: "destructive"
+            });
+          }
           return;
         }
         
@@ -40,11 +44,15 @@ export const useStorageBucket = (bucketName: string) => {
           if (listFilesError) {
             console.error('Error accessing bucket:', listFilesError);
             setBucketReady(false);
-            toast({
-              title: "Storage access issue",
-              description: `Cannot access "${bucketName}" bucket.`,
-              variant: "destructive"
-            });
+            
+            // Only show toast for non-connection errors
+            if (listFilesError.message !== 'Failed to fetch') {
+              toast({
+                title: "Storage access issue",
+                description: `Cannot access "${bucketName}" bucket.`,
+                variant: "destructive"
+              });
+            }
             return;
           }
           
@@ -61,11 +69,15 @@ export const useStorageBucket = (bucketName: string) => {
       } catch (error) {
         console.error('Error checking storage bucket:', error);
         setBucketReady(false);
-        toast({
-          title: "Storage connection issue",
-          description: "Could not connect to image storage. Please try again later.",
-          variant: "destructive"
-        });
+        
+        // Only show toast if it's not a network error
+        if (error instanceof Error && error.message !== 'Failed to fetch') {
+          toast({
+            title: "Storage connection issue",
+            description: "Could not connect to image storage. Please try again later.",
+            variant: "destructive"
+          });
+        }
       } finally {
         setIsChecking(false);
       }
@@ -82,7 +94,8 @@ export const useStorageBucket = (bucketName: string) => {
       const { data: buckets, error: listError } = await supabase.storage.listBuckets();
       
       if (listError || !buckets?.some(bucket => bucket.name === bucketName)) {
-        throw new Error(`Cannot upload: "${bucketName}" bucket not accessible.`);
+        console.error(`Cannot upload: "${bucketName}" bucket not accessible.`);
+        return false;
       }
       
       // Verify access by trying to list files
@@ -91,7 +104,8 @@ export const useStorageBucket = (bucketName: string) => {
         .list();
         
       if (listFilesError) {
-        throw new Error(`Cannot access "${bucketName}" bucket.`);
+        console.error(`Cannot access "${bucketName}" bucket.`);
+        return false;
       }
       
       setBucketReady(true);
