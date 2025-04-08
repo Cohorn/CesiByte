@@ -9,38 +9,37 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+} from '@/components/ui/alert-dialog';
 
-interface DeleteAccountDialogProps {
-  open?: boolean;
+export interface DeleteAccountDialogProps {
+  open: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirm?: () => void;
+  onConfirm: () => void;
 }
 
-const DeleteAccountDialog: React.FC<DeleteAccountDialogProps> = ({ 
-  open = false, 
+const DeleteAccountDialog: React.FC<DeleteAccountDialogProps> = ({
+  open,
   onOpenChange,
-  onConfirm
+  onConfirm,
 }) => {
-  const handleConfirm = () => {
-    if (onConfirm) {
-      onConfirm();
-    }
-  };
-
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+          <AlertDialogTitle>Delete Account</AlertDialogTitle>
           <AlertDialogDescription>
-            This action cannot be undone. This will permanently delete your account
-            and remove your data from our servers.
+            Are you sure you want to delete your account? This action cannot be undone.
+            All of your data will be permanently removed.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={handleConfirm}>Delete</AlertDialogAction>
+          <AlertDialogAction 
+            onClick={onConfirm} 
+            className="bg-red-600 hover:bg-red-700"
+          >
+            Delete Account
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

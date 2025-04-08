@@ -33,9 +33,11 @@ export const useRestaurant = (id?: string | null) => {
     setError(null);
     
     try {
+      // Use getRestaurant instead of getRestaurantById
       const restaurantData = await restaurantApi.getRestaurant(id);
       setRestaurant(restaurantData);
       
+      // Use getMenuItems instead of getMenuItemsByRestaurantId
       const menuData = await restaurantApi.getMenuItems(id);
       setMenuItems(menuData);
       
@@ -133,7 +135,7 @@ export const useRestaurant = (id?: string | null) => {
         restaurant_lng: restaurant.lng,
       };
       
-      // Call the API to create the order
+      // Call the API to create the order - use the correct method
       const newOrder = await restaurantApi.createOrder(orderData);
       
       // Clear the cart on successful order
@@ -144,12 +146,12 @@ export const useRestaurant = (id?: string | null) => {
       console.error("Checkout failed:", err);
       throw err;
     }
-  }, [restaurant, user, cart, clearCart]);
+  }, [restaurant, user, cart]);
   
-  // Make sure to return menuItems in the return object
+  // Make sure to return all necessary properties
   return {
     restaurant,
-    menuItems: menuItems || [], // This should be properly implemented but adding a placeholder for type checking
+    menuItems,
     loading,
     error,
     fetchRestaurant,

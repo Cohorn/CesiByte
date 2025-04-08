@@ -2,19 +2,19 @@ export type UserType = 'customer' | 'restaurant' | 'courier' | 'employee';
 
 export type MapLocationType = 'restaurant' | 'courier' | 'user';
 
-export type User = {
+export interface User {
   id: string;
-  created_at: string;
-  name: string;
   email: string;
-  user_type: UserType;
+  name: string;
   address: string;
   lat: number;
   lng: number;
-  employee_role?: string;
+  user_type: 'customer' | 'restaurant' | 'courier' | 'employee';
+  employee_role?: 'commercial_service' | 'developer';
+  created_at: string;
   referral_code?: string;
   referred_by?: string;
-};
+}
 
 export type SimpleUser = {
   id: string;

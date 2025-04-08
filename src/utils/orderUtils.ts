@@ -1,45 +1,54 @@
 
-import { Order } from '@/lib/database.types';
+import { Order, OrderStatus } from '@/lib/database.types';
 
-// Check if an order is stale (older than 45 mins with no status update)
+// Constants for order processing
+const STALE_ORDER_THRESHOLD = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+const DELIVERY_SPEED_KM_H = 20; // Average delivery speed in km/h
+
+// Check if an order is considered "current" based on its status
+export const isCurrentOrder = (status: OrderStatus): boolean => {
+  const currentOrderStatuses: OrderStatus[] = [
+    'pending',
+    'confirmed',
+    'preparing',
+    'ready_for_pickup',
+    'picked_up',
+    'out_for_delivery',
+  ];
+  
+  return currentOrderStatuses.includes(status);
+};
+
+// Check if an order is considered "stale" based on its last update time
 export const isStaleOrder = (order: Order): boolean => {
-  const updatedAt = new Date(order.updated_at);
-  const now = new Date();
-  const diffInMinutes = (now.getTime() - updatedAt.getTime()) / (1000 * 60);
+  const lastUpdated = new Date(order.updated_at).getTime();
+  const now = Date.now();
   
-  // Consider an order stale if it's been more than 45 minutes since last update
-  // and the order is not in a completed or delivered state
-  return diffInMinutes > 45 && 
-    !['delivered', 'completed'].includes(order.status);
+  // Order is stale if it's in an active state but hasn't been updated in 24 hours
+  return isCurrentOrder(order.status) && (now - lastUpdated > STALE_ORDER_THRESHOLD);
 };
 
-// Convert distance in kilometers to travel time in minutes assuming 20km/h speed
-export const distanceToTime = (distanceKm: number): number => {
-  // Speed: 20 km/h = 0.333 km/min
-  const speedKmPerMin = 20 / 60;
-  
-  // Calculate time in minutes
-  return Math.round(distanceKm / speedKmPerMin);
-};
-
-// Check if an order is a current/active order
-export const isCurrentOrder = (status: string): boolean => {
-  return ['pending', 'preparing', 'ready_for_pickup', 'picked_up', 'on_the_way'].includes(status);
-};
-
-// Process a list of orders to handle stale ones
+// Process orders to mark stale ones with a special flag
 export const processStaleOrders = (orders: Order[]): Order[] => {
-  if (!orders || orders.length === 0) return [];
-  
   return orders.map(order => {
-    // For display purposes, mark stale orders as completed
     if (isStaleOrder(order)) {
+      // Create a copy with the stale flag for UI purposes
       return {
         ...order,
-        status: 'completed',
-        statusChanged: true
+        isStale: true,
       };
     }
     return order;
   });
 };
+
+// Calculate estimated delivery time based on distance in kilometers
+export const distanceToTime = (distanceKm: number): number => {
+  if (!distanceKm || distanceKm <= 0) return 0;
+  
+  // Convert distance to time in minutes
+  // Time = Distance / Speed * 60 (minutes)
+  return Math.ceil((distanceKm / DELIVERY_SPEED_KM_H) * 60);
+};
+
+// Export any other order utility functions that might be needed
