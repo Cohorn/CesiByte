@@ -1,6 +1,7 @@
+
 import React from 'react';
 import { Navigate, Link } from 'react-router-dom';
-import { useAuth, isDeveloper, isCommercialAgent } from '@/lib/AuthContext';
+import { useAuth } from '@/lib/AuthContext';
 import NavBar from '@/components/NavBar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,16 +14,20 @@ import {
 const EmployeeDashboard = () => {
   const { user, signOut } = useAuth();
   
-  // Redirect if not logged in or not an employee type
+  // Redirect if not logged in
   if (!user) {
     return <Navigate to="/login" />;
-  } else if (user.user_type !== 'employee' && user.user_type !== 'dev' && user.user_type !== 'com_agent') {
+  } 
+  
+  // Redirect non-employee-type users
+  const isEmployeeType = ['employee', 'dev', 'com_agent'].includes(user.user_type);
+  if (!isEmployeeType) {
     return <Navigate to="/" />;
   }
 
   // Check specific role permissions
-  const canAccessDeveloperTools = isDeveloper(user.user_type);
-  const canAccessCommercialTools = isCommercialAgent(user.user_type);
+  const canAccessDeveloperTools = user.user_type === 'dev' || user.user_type === 'employee';
+  const canAccessCommercialTools = user.user_type === 'com_agent' || user.user_type === 'employee';
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
@@ -33,7 +38,9 @@ const EmployeeDashboard = () => {
           <div>
             <h1 className="text-2xl font-bold">Employee Dashboard</h1>
             <p className="text-gray-500">
-              Welcome, {user.name} | {user.user_type.charAt(0).toUpperCase() + user.user_type.slice(1)}
+              Welcome, {user.name} | {user.user_type === 'dev' ? 'Developer' : 
+                                    user.user_type === 'com_agent' ? 'Commercial Agent' :
+                                    'Employee'}
             </p>
           </div>
           

@@ -12,11 +12,16 @@ const AuthContext = createContext<ReturnType<typeof useAuthProvider> | undefined
 
 // Utility functions for checking user roles
 export const isDeveloper = (userType: UserType): boolean => {
-  return userType === 'dev';
+  return userType === 'dev' || userType === 'employee';
 };
 
 export const isCommercialAgent = (userType: UserType): boolean => {
-  return userType === 'com_agent';
+  return userType === 'com_agent' || userType === 'employee';
+};
+
+// Check if user is any type of employee (employee, dev, or com_agent)
+export const isEmployeeType = (userType: UserType): boolean => {
+  return ['employee', 'dev', 'com_agent'].includes(userType);
 };
 
 // Provider hook that creates auth object and handles state

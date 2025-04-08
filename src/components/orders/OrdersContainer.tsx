@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import OrderListItem from '@/components/OrderListItem';
-import { Order } from '@/lib/database.types';
+import { Order, OrderStatus } from '@/lib/database.types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 
@@ -54,7 +54,7 @@ const OrdersContainer = () => {
     }
   };
 
-  const handleUpdateStatus = async (orderId: string, status: string) => {
+  const handleUpdateStatus = async (orderId: string, status: OrderStatus) => {
     if (!updateOrderStatus) return;
     
     try {
@@ -67,6 +67,8 @@ const OrdersContainer = () => {
       if (refetch) {
         await refetch(true);
       }
+      
+      return { success: true };
     } catch (error) {
       console.error("Error updating order status:", error);
       toast({
@@ -74,6 +76,8 @@ const OrdersContainer = () => {
         description: "Could not update order status",
         variant: "destructive",
       });
+      
+      return { success: false, error };
     }
   };
 

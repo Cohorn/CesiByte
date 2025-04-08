@@ -11,6 +11,9 @@ import { useIsMobile } from '@/hooks/use-mobile';
 const Index = () => {
   const { user } = useAuth();
   const isMobile = useIsMobile();
+  
+  // Check if user is any type of employee
+  const isEmployeeType = user?.user_type === 'employee' || user?.user_type === 'dev' || user?.user_type === 'com_agent';
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -127,12 +130,14 @@ const Index = () => {
                       {user.user_type === 'customer' ? 'Ready to Order?' :
                        user.user_type === 'restaurant' ? 'Manage Your Restaurant' :
                        user.user_type === 'courier' ? 'Start Delivering' :
-                       user.user_type === 'employee' ? 'Access Dashboard' : ''}
+                       isEmployeeType ? 'Access Dashboard' : ''}
                     </CardTitle>
                     <CardDescription className="text-md">
                       {user.user_type === 'customer' ? 'Find your favorite food' :
                        user.user_type === 'restaurant' ? 'Update your menu and manage orders' :
                        user.user_type === 'courier' ? 'Deliver food and earn money' :
+                       user.user_type === 'dev' ? 'Access developer tools' :
+                       user.user_type === 'com_agent' ? 'Manage platform users' :
                        user.user_type === 'employee' ? 'Access your employee tools' : ''}
                     </CardDescription>
                   </CardHeader>
@@ -172,7 +177,7 @@ const Index = () => {
                       </Button>
                     )}
                     
-                    {user.user_type === 'employee' && (
+                    {isEmployeeType && (
                       <Button asChild className="w-full group">
                         <Link to="/employee/dashboard">
                           Access Dashboard
