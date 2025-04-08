@@ -38,7 +38,9 @@ export const restaurantApi = {
   
   // Get restaurant by user ID
   getRestaurantByUser: async (userId: string) => {
+    console.log('Fetching restaurant for user ID:', userId);
     const response = await apiClient.get(`/restaurants/user/${userId}`);
+    console.log('Response:', response.data);
     return response.data;
   },
   
@@ -79,8 +81,15 @@ export const restaurantApi = {
   
   // Get menu items for a restaurant
   getMenuItems: async (restaurantId: string) => {
-    const response = await apiClient.get(`/restaurants/${restaurantId}/menu`);
-    return response.data;
+    console.log(`Fetching menu items for restaurant: ${restaurantId}`);
+    try {
+      const response = await apiClient.get(`/restaurants/${restaurantId}/menu`);
+      console.log('Menu items response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching menu items for restaurant ${restaurantId}:`, error);
+      throw error;
+    }
   },
   
   // Add a menu item
@@ -118,8 +127,15 @@ export const restaurantApi = {
   
   // Create an order
   createOrder: async (orderData: any) => {
-    const response = await apiClient.post('/orders', orderData);
-    return response.data;
+    console.log('Creating order with data:', orderData);
+    try {
+      const response = await apiClient.post('/orders', orderData);
+      console.log('Order created:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error creating order:', error);
+      throw error;
+    }
   },
   
   // Direct Supabase methods for restaurants

@@ -1,3 +1,4 @@
+
 export type UserType = 'customer' | 'restaurant' | 'courier' | 'employee';
 
 export type MapLocationType = 'restaurant' | 'courier' | 'user';

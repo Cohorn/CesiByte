@@ -14,31 +14,36 @@ import {
 export interface DeleteAccountDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirm: () => void;
+  onConfirm: () => Promise<void>;
 }
 
-const DeleteAccountDialog: React.FC<DeleteAccountDialogProps> = ({
-  open,
-  onOpenChange,
-  onConfirm,
+const DeleteAccountDialog: React.FC<DeleteAccountDialogProps> = ({ 
+  open, 
+  onOpenChange, 
+  onConfirm 
 }) => {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete Account</AlertDialogTitle>
+          <AlertDialogTitle>Are you sure you want to delete your account?</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to delete your account? This action cannot be undone.
-            All of your data will be permanently removed.
+            This action cannot be undone. All of your data will be permanently removed.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction 
-            onClick={onConfirm} 
-            className="bg-red-600 hover:bg-red-700"
+            onClick={async (e) => {
+              e.preventDefault();
+              try {
+                await onConfirm();
+              } catch (error) {
+                console.error("Error deleting account:", error);
+              }
+            }}
           >
-            Delete Account
+            Delete
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

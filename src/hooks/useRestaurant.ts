@@ -33,12 +33,17 @@ export const useRestaurant = (id?: string | null) => {
     setError(null);
     
     try {
+      console.log(`Fetching restaurant data for ID: ${id}`);
+      
       // Use getRestaurant instead of getRestaurantById
       const restaurantData = await restaurantApi.getRestaurant(id);
+      console.log('Restaurant data received:', restaurantData);
       setRestaurant(restaurantData);
       
       // Use getMenuItems instead of getMenuItemsByRestaurantId
+      console.log(`Fetching menu items for restaurant ID: ${id}`);
       const menuData = await restaurantApi.getMenuItems(id);
+      console.log('Menu items received:', menuData);
       setMenuItems(menuData);
       
       setLoading(false);
@@ -62,6 +67,7 @@ export const useRestaurant = (id?: string | null) => {
   
   useEffect(() => {
     if (id) {
+      console.log(`useRestaurant hook: Fetching data for restaurant ID: ${id}`);
       fetchRestaurant(id);
     }
   }, [id, fetchRestaurant]);
@@ -109,6 +115,8 @@ export const useRestaurant = (id?: string | null) => {
     }
     
     try {
+      console.log('Starting checkout process for restaurant:', restaurant.id);
+      
       // Prepare order items for the API
       const orderItems = cart.map(item => ({
         menu_item_id: item.menu_item_id,
@@ -135,8 +143,11 @@ export const useRestaurant = (id?: string | null) => {
         restaurant_lng: restaurant.lng,
       };
       
+      console.log('Creating order with data:', orderData);
+      
       // Call the API to create the order - use the correct method
       const newOrder = await restaurantApi.createOrder(orderData);
+      console.log('Order created successfully:', newOrder);
       
       // Clear the cart on successful order
       clearCart();

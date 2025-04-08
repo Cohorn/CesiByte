@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
@@ -12,7 +13,7 @@ import { AlertCircle } from 'lucide-react';
 import DeleteAccountDialog from '@/components/DeleteAccountDialog';
 
 const Profile = () => {
-  const { user, updateUser, signOut } = useAuth();
+  const { user, setUser, signOut } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
@@ -56,7 +57,7 @@ const Profile = () => {
       const updatedUser = await userApi.updateUser(userData);
 
       if (updatedUser) {
-        updateUser(updatedUser);
+        setUser(updatedUser);
         toast({
           title: "Profile Updated",
           description: "Your profile has been updated successfully.",
