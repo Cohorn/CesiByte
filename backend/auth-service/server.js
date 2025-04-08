@@ -185,8 +185,8 @@ app.post('/register', async (req, res) => {
     // Explicitly check and validate the user_type
     console.log('Validating user_type:', user_type);
     
-    // Validate the user_type to make sure it's one of the accepted values
-    const validUserTypes = ['customer', 'restaurant', 'courier', 'employee'];
+    // Updated to include dev and com_agent as valid user types
+    const validUserTypes = ['customer', 'restaurant', 'courier', 'employee', 'dev', 'com_agent'];
     if (!validUserTypes.includes(user_type)) {
       console.error(`Invalid user_type provided: ${user_type}`);
       return res.status(400).json({ 
@@ -217,9 +217,10 @@ app.post('/register', async (req, res) => {
         user_type: user_type
       };
       
-      // Handle employee vs non-employee data differently
-      if (user_type === 'employee') {
-        // For employees, set empty address and 0 coordinates
+      // Handle employee, dev, or com_agent data differently
+      if (user_type === 'employee' || 
+          user_type === 'dev' || 
+          user_type === 'com_agent') {
         userProfile.address = '';
         userProfile.lat = 0;
         userProfile.lng = 0;
@@ -245,7 +246,7 @@ app.post('/register', async (req, res) => {
       }
 
       // Verify the created user has the right user_type (for debugging)
-      if (user_type === 'employee') {
+      if (user_type === 'employee' || user_type === 'dev' || user_type === 'com_agent') {
         const { data: verifyUser, error: verifyError } = await supabase
           .from('users')
           .select('*')

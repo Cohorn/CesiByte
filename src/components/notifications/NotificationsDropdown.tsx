@@ -32,17 +32,25 @@ const NotificationsDropdown = () => {
   };
 
   useEffect(() => {
+    if (!user) return;
+    
     loadNotifications();
     
-    // Listen for new notifications
+    // Listen for new notifications using the custom event
     const handleNewNotification = () => {
       loadNotifications();
     };
     
     window.addEventListener('new-notification', handleNewNotification);
     
+    // Subscribe to notification changes through the service
+    const unsubscribe = notificationService.subscribe(() => {
+      loadNotifications();
+    });
+    
     return () => {
       window.removeEventListener('new-notification', handleNewNotification);
+      unsubscribe();
     };
   }, [user]);
 
@@ -116,22 +124,29 @@ const NotificationsDropdown = () => {
                   <div className="font-medium">{notification.title}</div>
                   <div className="flex items-center space-x-1">
                     <span className="text-xs text-gray-500">
-                      {format(new Date(notification.created_at), 'MMM d, HH:mm')}
+                      {format(new Date(notification.created_at), 'HH:mm')}
                     </span>
                     {!notification.is_read && (
-                      <CheckCircle 
-                        className="h-4 w-4 text-green-500 cursor-pointer"
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
                         onClick={() => markAsRead(notification.id)}
-                      />
+                      >
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      </Button>
                     )}
                   </div>
                 </div>
-                <p className="text-gray-600">{notification.message}</p>
-                <div className="mt-1">
-                  <Badge variant="outline" className="text-xs">
-                    {notification.type}
+                <div className="text-gray-700">{notification.message}</div>
+                {notification.type !== 'system' && (
+                  <Badge 
+                    variant="outline" 
+                    className="mt-1 text-xs"
+                  >
+                    {notification.type === 'order' ? 'Order' : 'Referral'}
                   </Badge>
-                </div>
+                )}
               </div>
             ))
           )}

@@ -97,7 +97,7 @@ const RestaurantOrders = () => {
   }, [restaurant, refetch]);
 
   const handleRefresh = async () => {
-    // Restaurants can refresh at any time
+    // Restaurants can refresh at any time without cooldown
     setIsRefreshing(true);
     
     try {

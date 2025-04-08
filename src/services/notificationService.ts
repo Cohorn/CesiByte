@@ -1,8 +1,12 @@
 
 import { Notification, User } from '@/lib/database.types';
+import { toast } from "@/hooks/use-toast";
 
 // In-memory notification storage for the mock implementation
 let notifications: Notification[] = [];
+
+// Observable pattern for subscribers
+const subscribers = new Set<() => void>();
 
 /**
  * Service for managing user notifications
@@ -20,14 +24,33 @@ export const notificationService = {
    * Add a new notification
    */
   addNotification: (notification: Notification): void => {
-    notifications.push(notification);
+    // Check if notification already exists to prevent duplicates
+    const exists = notifications.some(n => 
+      n.user_id === notification.user_id && 
+      n.title === notification.title && 
+      n.message === notification.message && 
+      n.type === notification.type &&
+      Math.abs(new Date(n.created_at).getTime() - new Date(notification.created_at).getTime()) < 10000 // Within 10 seconds
+    );
     
-    // Broadcast the notification to UI if needed
-    // This could use a pub/sub system in a real implementation
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('new-notification', { 
-        detail: notification 
-      }));
+    if (!exists) {
+      notifications.push(notification);
+      
+      // Display a toast for the notification
+      toast({
+        title: notification.title,
+        description: notification.message,
+      });
+      
+      // Notify subscribers of the update
+      subscribers.forEach(callback => callback());
+      
+      // Broadcast the notification to UI components
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('new-notification', { 
+          detail: notification 
+        }));
+      }
     }
   },
   
@@ -41,6 +64,9 @@ export const notificationService = {
         ...notifications[index],
         is_read: true
       };
+      
+      // Notify subscribers of the update
+      subscribers.forEach(callback => callback());
     }
   },
   
@@ -48,11 +74,19 @@ export const notificationService = {
    * Mark all notifications as read for a user
    */
   markAllAsRead: (userId: string): void => {
-    notifications = notifications.map(n => 
-      n.user_id === userId 
-        ? { ...n, is_read: true } 
-        : n
-    );
+    let updated = false;
+    notifications = notifications.map(n => {
+      if (n.user_id === userId && !n.is_read) {
+        updated = true;
+        return { ...n, is_read: true };
+      }
+      return n;
+    });
+    
+    // Only notify subscribers if something actually changed
+    if (updated) {
+      subscribers.forEach(callback => callback());
+    }
   },
   
   /**
@@ -63,9 +97,20 @@ export const notificationService = {
   },
   
   /**
+   * Subscribe to notification changes
+   */
+  subscribe: (callback: () => void): () => void => {
+    subscribers.add(callback);
+    return () => {
+      subscribers.delete(callback);
+    };
+  },
+  
+  /**
    * Clear all notifications for testing
    */
   _clearAll: (): void => {
     notifications = [];
+    subscribers.forEach(callback => callback());
   }
 };

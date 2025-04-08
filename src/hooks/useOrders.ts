@@ -4,6 +4,8 @@ import { Order, OrderStatus } from '@/lib/database.types';
 import { useAuth } from '@/lib/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { mqttClient } from '@/lib/mqtt-client';
+import { notificationService } from '@/services/notificationService';
+import { generateOrderStatusNotification } from '@/utils/notificationUtils';
 
 interface OrdersOptions {
   userId?: string;
@@ -109,6 +111,59 @@ export const useOrders = (options: OrdersOptions = {}) => {
         description: `Order status has been updated to ${status.replace(/_/g, ' ')}`,
       });
 
+      // Create relevant notifications for all parties involved
+      if (user) {
+        const updatedOrder = result.order || orders.find(o => o.id === orderId);
+        
+        if (updatedOrder) {
+          // Find the order to get related information
+          // For customer notification
+          if (updatedOrder.user_id && updatedOrder.user_id !== user.id) {
+            const { title, message } = generateOrderStatusNotification(status, 'customer');
+            notificationService.addNotification({
+              id: crypto.randomUUID(),
+              user_id: updatedOrder.user_id,
+              title,
+              message,
+              is_read: false,
+              created_at: new Date().toISOString(),
+              type: 'order',
+              related_id: orderId
+            });
+          }
+          
+          // For restaurant notification (if we're a courier)
+          if (user.user_type === 'courier' && updatedOrder.restaurant_id) {
+            const { title, message } = generateOrderStatusNotification(status, 'restaurant');
+            notificationService.addNotification({
+              id: crypto.randomUUID(),
+              user_id: updatedOrder.restaurant_id,
+              title,
+              message,
+              is_read: false,
+              created_at: new Date().toISOString(),
+              type: 'order',
+              related_id: orderId
+            });
+          }
+          
+          // For courier notification (if we're a restaurant)
+          if (user.user_type === 'restaurant' && updatedOrder.courier_id) {
+            const { title, message } = generateOrderStatusNotification(status, 'courier');
+            notificationService.addNotification({
+              id: crypto.randomUUID(),
+              user_id: updatedOrder.courier_id,
+              title,
+              message,
+              is_read: false,
+              created_at: new Date().toISOString(),
+              type: 'order',
+              related_id: orderId
+            });
+          }
+        }
+      }
+
       fetchOrders(true);
       
       return { success: true, data: result };
@@ -123,7 +178,7 @@ export const useOrders = (options: OrdersOptions = {}) => {
       
       return { success: false, error: err };
     }
-  }, [fetchOrders, toast]);
+  }, [fetchOrders, toast, user, orders]);
 
   const assignCourier = useCallback(async (orderId: string, courierId: string) => {
     try {
@@ -248,6 +303,25 @@ export const useOrders = (options: OrdersOptions = {}) => {
             return [updatedOrder, ...currentOrders];
           }
         });
+        
+        // Generate a notification for relevant order updates
+        if (user) {
+          const { title, message } = generateOrderStatusNotification(
+            updatedOrder.status, 
+            user.user_type
+          );
+          
+          notificationService.addNotification({
+            id: crypto.randomUUID(),
+            user_id: user.id,
+            title,
+            message,
+            is_read: false,
+            created_at: new Date().toISOString(),
+            type: 'order',
+            related_id: updatedOrder.id
+          });
+        }
       }
     });
 
@@ -268,7 +342,7 @@ export const useOrders = (options: OrdersOptions = {}) => {
       
       unsubscribe();
     };
-  }, [options.restaurantId, options.userId, options.courierId, options.status]);
+  }, [options.restaurantId, options.userId, options.courierId, options.status, user]);
 
   return {
     orders,
