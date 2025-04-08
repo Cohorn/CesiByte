@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useOrders } from '@/hooks/useOrders';
 import { useAuth } from '@/lib/AuthContext';
@@ -14,11 +13,11 @@ import OrdersList from '@/components/OrdersList';
 import { useReviews } from '@/hooks/useReviews';
 import { useToast } from '@/hooks/use-toast';
 
-// Define the function first before using it in useEffect
 const processOrdersWithRestaurants = (data: any[]): OrderWithRestaurant[] => {
   return data.map(order => {
-    // Add delivery_pin with default value if it doesn't exist in the order record
     const delivery_pin = order.delivery_pin || '0000';
+    
+    const restaurant = order.restaurants || {};
     
     return {
       id: order.id,
@@ -35,14 +34,14 @@ const processOrdersWithRestaurants = (data: any[]): OrderWithRestaurant[] => {
       updated_at: order.updated_at,
       delivery_pin: delivery_pin,
       restaurant: {
-        id: order.restaurants?.id || '',
-        name: order.restaurants?.name || 'Unknown Restaurant',
-        address: order.restaurants?.address || 'Unknown Address',
-        lat: order.restaurants?.lat || 0,
-        lng: order.restaurants?.lng || 0,
-        user_id: order.restaurants?.user_id || '',
-        created_at: order.restaurants?.created_at || order.created_at,
-        image_url: order.restaurants?.image_url || null
+        id: restaurant.id || '',
+        name: restaurant.name || 'Unknown Restaurant',
+        address: restaurant.address || 'Unknown Address',
+        lat: restaurant.lat || 0,
+        lng: restaurant.lng || 0,
+        user_id: restaurant.user_id || '',
+        created_at: restaurant.created_at || order.created_at,
+        image_url: restaurant.image_url || null
       } as Restaurant
     };
   });
@@ -62,23 +61,21 @@ const CustomerOrders: React.FC = () => {
     if (orders) {
       const ordersWithRestaurants = processOrdersWithRestaurants(orders);
       setProcessedOrders(ordersWithRestaurants);
+      
+      console.log("Processed orders with restaurant data:", ordersWithRestaurants);
     } else {
-      // Reset to empty array when there are no orders
       setProcessedOrders([]);
     }
   }, [orders]);
 
   useEffect(() => {
-    // Only fetch orders if user is authenticated
     if (user && user.id) {
       refetch();
     }
   }, [refetch, user]);
 
-  // Check for authentication errors (401)
   useEffect(() => {
     if (error) {
-      // Use type assertion to check for response property on Error
       const axiosError = error as Error & { response?: { status?: number } };
       if (axiosError.response && axiosError.response.status === 401) {
         setAuthError(true);
@@ -86,15 +83,22 @@ const CustomerOrders: React.FC = () => {
     }
   }, [error]);
 
-  // Create map of restaurant IDs to names
   const restaurantNames = processedOrders.reduce((acc, order) => {
     if (order.restaurant && order.restaurant.name) {
       acc[order.restaurant_id] = order.restaurant.name;
+    } else {
+      const originalOrder = orders?.find(o => o.id === order.id);
+      if (originalOrder?.restaurants?.name) {
+        acc[order.restaurant_id] = originalOrder.restaurants.name;
+      } else {
+        console.log(`Missing restaurant name for order ${order.id}, restaurant_id: ${order.restaurant_id}`);
+      }
     }
     return acc;
   }, {} as Record<string, string>);
 
-  // Handle courier review submission
+  console.log("Restaurant names mapping:", restaurantNames);
+
   const handleReviewCourier = async (orderId: string, courierId: string) => {
     if (!user) return;
     
@@ -102,7 +106,7 @@ const CustomerOrders: React.FC = () => {
       const result = await submitReview({
         user_id: user.id,
         courier_id: courierId,
-        rating: 5, // Default rating is handled in the form
+        rating: 5,
         comment: ''
       });
       
@@ -122,7 +126,6 @@ const CustomerOrders: React.FC = () => {
     }
   };
 
-  // Redirect to login if not authenticated or auth error
   if ((!authLoading && !user) || authError) {
     return <Navigate to="/login" />;
   }
@@ -194,12 +197,12 @@ const CustomerOrders: React.FC = () => {
           <Card className="p-6">
             <OrdersList 
               orders={processedOrders}
-              onUpdateStatus={() => Promise.resolve({ success: false })} // Customers don't update status
+              onUpdateStatus={() => Promise.resolve({ success: false })}
               isCurrentOrders={false}
               restaurantNames={restaurantNames}
               showTabs={true}
               onReviewCourier={handleReviewCourier}
-              canUpdateStatus={false} // Explicitly disable status updates for customers
+              canUpdateStatus={false}
             />
           </Card>
         )}

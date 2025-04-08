@@ -23,7 +23,8 @@ const CourierActiveOrders: React.FC = () => {
   const { 
     orders: pastOrders, 
     isLoading: pastOrdersLoading, 
-    error: pastOrdersError 
+    error: pastOrdersError,
+    verifyDeliveryPin 
   } = useOrders({
     courierId: user?.id,
     status: ['delivered', 'completed'] as OrderStatus[]
@@ -35,7 +36,6 @@ const CourierActiveOrders: React.FC = () => {
     setVerifyingPin(true);
     
     try {
-      const { verifyDeliveryPin } = useOrders();
       if (verifyDeliveryPin) {
         const result = await verifyDeliveryPin(selectedOrderId, pin);
         if (result.success) {
