@@ -26,30 +26,25 @@ export const restaurantApi = {
       endpoint += `?${params.toString()}`;
     }
     
-    console.log(`Fetching all restaurants with endpoint: ${endpoint}`);
     const response = await apiClient.get(endpoint);
     return response.data;
   },
   
   // Get a specific restaurant
   getRestaurant: async (id: string) => {
-    console.log(`Fetching restaurant with ID: ${id} from /restaurants/${id}`);
     const response = await apiClient.get(`/restaurants/${id}`);
     return response.data;
   },
   
   // Get restaurant by user ID
   getRestaurantByUser: async (userId: string) => {
-    console.log(`Fetching restaurant for user ID: ${userId} from /restaurants/user/${userId}`);
     const response = await apiClient.get(`/restaurants/user/${userId}`);
-    console.log('Response from getRestaurantByUser:', response.data);
     return response.data;
   },
   
   // Get restaurant for the current user
   getCurrentUserRestaurant: async () => {
     try {
-      console.log('Fetching restaurant for current user from /restaurants/my-restaurant');
       const response = await apiClient.get('/restaurants/my-restaurant');
       return response.data;
     } catch (error) {
@@ -72,48 +67,36 @@ export const restaurantApi = {
   
   // Update an existing restaurant
   updateRestaurant: async (id: string, restaurantData: Partial<Restaurant>) => {
-    console.log(`Updating restaurant ${id} with data:`, restaurantData);
     const response = await apiClient.put(`/restaurants/${id}`, restaurantData);
     return response.data;
   },
   
   // Delete a restaurant
   deleteRestaurant: async (id: string) => {
-    console.log(`Deleting restaurant ${id}`);
     const response = await apiClient.delete(`/restaurants/${id}`);
     return response.data;
   },
   
   // Get menu items for a restaurant
   getMenuItems: async (restaurantId: string) => {
-    console.log(`Fetching menu items for restaurant: ${restaurantId} from /restaurants/${restaurantId}/menu`);
-    try {
-      const response = await apiClient.get(`/restaurants/${restaurantId}/menu`);
-      console.log('Menu items response:', response.data);
-      return response.data;
-    } catch (error) {
-      console.error(`Error fetching menu items for restaurant ${restaurantId}:`, error);
-      throw error;
-    }
+    const response = await apiClient.get(`/restaurants/${restaurantId}/menu`);
+    return response.data;
   },
   
   // Add a menu item
   addMenuItem: async (restaurantId: string, menuItem: Omit<MenuItem, 'id' | 'created_at'>) => {
-    console.log(`Adding menu item to restaurant ${restaurantId}:`, menuItem);
     const response = await apiClient.post(`/restaurants/${restaurantId}/menu`, menuItem);
     return response.data;
   },
   
   // Update a menu item
   updateMenuItem: async (restaurantId: string, itemId: string, menuItem: Partial<MenuItem>) => {
-    console.log(`Updating menu item ${itemId} for restaurant ${restaurantId}:`, menuItem);
     const response = await apiClient.put(`/restaurants/${restaurantId}/menu/${itemId}`, menuItem);
     return response.data;
   },
   
   // Delete a menu item
   deleteMenuItem: async (restaurantId: string, itemId: string) => {
-    console.log(`Deleting menu item ${itemId} from restaurant ${restaurantId}`);
     const response = await apiClient.delete(`/restaurants/${restaurantId}/menu/${itemId}`);
     return response.data;
   },
@@ -131,19 +114,6 @@ export const restaurantApi = {
     
     const response = await apiClient.get(`/restaurants/nearby?${params.toString()}`);
     return response.data;
-  },
-  
-  // Create an order
-  createOrder: async (orderData: any) => {
-    console.log('Creating order with data:', orderData);
-    try {
-      const response = await apiClient.post('/orders', orderData);
-      console.log('Order created:', response.data);
-      return response.data;
-    } catch (error) {
-      console.error('Error creating order:', error);
-      throw error;
-    }
   },
   
   // Direct Supabase methods for restaurants

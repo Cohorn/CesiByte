@@ -1,71 +1,36 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/lib/AuthContext';
-import { checkRestaurantEndpoint } from '@/utils/apiHealthCheck';
-import { useToast } from '@/hooks/use-toast';
+import { Settings, StoreIcon } from 'lucide-react';
 
-const RestaurantSetupPrompt = () => {
+const RestaurantSetupPrompt: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const { toast } = useToast();
-  const [isChecking, setIsChecking] = useState(false);
-
-  const handleSetupRestaurant = () => {
-    navigate('/restaurant/setup');
-  };
-
-  const checkApiConnection = async () => {
-    if (!user) return;
-    
-    setIsChecking(true);
-    try {
-      const result = await checkRestaurantEndpoint(user.id);
-      console.log('API endpoint check result:', result);
-      
-      if (result.working) {
-        toast({
-          title: "API Connection Success",
-          description: `Restaurant API endpoint is working. Status: ${result.status}`,
-        });
-      } else {
-        toast({
-          title: "API Connection Issue",
-          description: `Restaurant API endpoint error: ${result.error}. Status: ${result.status}`,
-          variant: "destructive"
-        });
-      }
-    } catch (error) {
-      console.error('Error during API check:', error);
-      toast({
-        title: "API Check Failed",
-        description: "Could not complete API connection test",
-        variant: "destructive"
-      });
-    } finally {
-      setIsChecking(false);
-    }
-  };
 
   return (
-    <div className="bg-white rounded-lg shadow p-6 my-4">
-      <h2 className="text-xl font-semibold mb-2">Restaurant Not Set Up</h2>
-      <p className="text-gray-600 mb-4">
-        You haven't set up your restaurant profile yet. To manage orders and menu items, 
-        you need to create a restaurant profile first.
+    <div className="bg-white rounded shadow p-8 text-center">
+      <StoreIcon className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+      <h2 className="text-xl font-semibold mb-4">Restaurant Not Found</h2>
+      <p className="text-gray-500 mb-4">
+        Please set up your restaurant profile to continue.
       </p>
-      <div className="flex flex-col sm:flex-row gap-3">
-        <Button onClick={handleSetupRestaurant}>
-          Set Up Restaurant
+      <div className="flex flex-col space-y-2">
+        <Button onClick={() => navigate('/restaurant/setup')}>
+          Set Up Restaurant Profile
         </Button>
-        <Button 
-          variant="outline" 
-          onClick={checkApiConnection}
-          disabled={isChecking || !user}
-        >
-          {isChecking ? "Checking..." : "Check API Connection"}
-        </Button>
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <p className="text-sm text-gray-500 mb-2">
+            Already have a restaurant profile?
+          </p>
+          <Button 
+            variant="outline" 
+            onClick={() => navigate('/profile')}
+            className="flex items-center"
+          >
+            <Settings className="h-4 w-4 mr-2" />
+            Edit Profile
+          </Button>
+        </div>
       </div>
     </div>
   );

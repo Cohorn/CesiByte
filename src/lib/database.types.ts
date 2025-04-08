@@ -3,19 +3,16 @@ export type UserType = 'customer' | 'restaurant' | 'courier' | 'employee';
 
 export type MapLocationType = 'restaurant' | 'courier' | 'user';
 
-export interface User {
+export type User = {
   id: string;
   email: string;
+  user_type: UserType;
   name: string;
   address: string;
   lat: number;
   lng: number;
-  user_type: 'customer' | 'restaurant' | 'courier' | 'employee';
-  employee_role?: 'commercial_service' | 'developer';
   created_at: string;
-  referral_code?: string;
-  referred_by?: string;
-}
+};
 
 export type SimpleUser = {
   id: string;
@@ -54,10 +51,7 @@ export type OrderStatus =
   | 'picked_up' 
   | 'on_the_way' 
   | 'delivered' 
-  | 'completed'
-  | 'pending'
-  | 'confirmed'
-  | 'out_for_delivery';
+  | 'completed';
 
 export type Order = {
   id: string;
@@ -73,7 +67,6 @@ export type Order = {
   created_at: string;
   updated_at: string;
   delivery_pin: string;
-  isStale?: boolean;
 };
 
 export type OrderItem = {

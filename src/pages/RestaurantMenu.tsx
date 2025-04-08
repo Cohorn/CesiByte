@@ -9,54 +9,36 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { AlertCircle, Clock, MapPin, Star, Edit, Plus, Trash2 } from 'lucide-react';
+import { AlertCircle, Clock, MapPin, Star } from 'lucide-react';
 import { MenuItem, SimpleUser } from '@/lib/database.types';
 import { useReviews } from '@/frontend/hooks/useReviews';
 import RestaurantReviewsList from '@/components/RestaurantReviewsList';
 import { calculateDistance, formatDistance } from '@/lib/distanceUtils';
 import { format } from 'date-fns';
 import { distanceToTime } from '@/utils/orderUtils';
-import MenuItemEditor from '@/components/restaurant/MenuItemEditor';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { restaurantApi } from '@/api/services';
 
 const RestaurantMenu = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
-  
-  // Avoid destructuring directly to prevent TypeScript errors
-  const restaurantData = useRestaurant(id);
-  const restaurant = restaurantData.restaurant;
-  const menuItems = restaurantData.menuItems || [];
-  const isLoading = restaurantData.loading;
-  const error = restaurantData.error;
-  
-  // Safely access methods if they exist
-  const addToCart = restaurantData.addToCart || (() => {});
-  const cart = restaurantData.cart || [];
-  const clearCart = restaurantData.clearCart || (() => {});
-  const removeFromCart = restaurantData.removeFromCart || (() => {});
-  const updateCartItemQuantity = restaurantData.updateCartItemQuantity || (() => {});
-  const checkout = restaurantData.checkout || (async () => {});
+  const { 
+    restaurant, 
+    menuItems, 
+    isLoading, 
+    error,
+    addToCart,
+    cart,
+    clearCart,
+    removeFromCart,
+    updateCartItemQuantity,
+    checkout
+  } = useRestaurant(id);
   
   const { reviews, isLoading: isLoadingReviews } = useReviews({ restaurantId: id });
   const [reviewers, setReviewers] = useState<SimpleUser[]>([]);
   const [isLoadingReviewers, setIsLoadingReviewers] = useState(false);
   const [distance, setDistance] = useState<number | null>(null);
   const [estimatedTime, setEstimatedTime] = useState<string | null>(null);
-  
-  // Menu item editor state
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editorMode, setEditorMode] = useState<'add' | 'edit'>('add');
-  const [currentItem, setCurrentItem] = useState<MenuItem | undefined>(undefined);
-  
-  // Delete confirmation state
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState<MenuItem | null>(null);
-  
-  // Check if current user is the restaurant owner
-  const isRestaurantOwner = user?.user_type === 'restaurant';
   
   // Fetch reviewers
   useEffect(() => {
@@ -90,9 +72,9 @@ const RestaurantMenu = () => {
     fetchReviewers();
   }, [reviews]);
   
-  // Calculate distance and estimated time (only for customers)
+  // Calculate distance and estimated time
   useEffect(() => {
-    if (restaurant && user && !isRestaurantOwner) {
+    if (restaurant && user) {
       const dist = calculateDistance(
         user.lat,
         user.lng,
@@ -110,7 +92,7 @@ const RestaurantMenu = () => {
       
       setEstimatedTime(`${format(estimatedDelivery, 'h:mm a')} (approx. ${totalMinutes} min)`);
     }
-  }, [restaurant, user, isRestaurantOwner]);
+  }, [restaurant, user]);
   
   const calculateTotal = () => {
     return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
@@ -169,8 +151,6 @@ const RestaurantMenu = () => {
   };
   
   const handleAddToCart = (item: MenuItem) => {
-    if (isRestaurantOwner) return; // Restaurant owners can't add to cart
-    
     const quantity = getCartItemQuantity(item.id);
     
     if (quantity === 0) {
@@ -200,57 +180,6 @@ const RestaurantMenu = () => {
     }
   };
   
-  // Menu editor handlers
-  const openAddItemEditor = () => {
-    setEditorMode('add');
-    setCurrentItem(undefined);
-    setEditorOpen(true);
-  };
-  
-  const openEditItemEditor = (item: MenuItem) => {
-    setEditorMode('edit');
-    setCurrentItem(item);
-    setEditorOpen(true);
-  };
-  
-  const openDeleteDialog = (item: MenuItem) => {
-    setItemToDelete(item);
-    setDeleteDialogOpen(true);
-  };
-  
-  const handleDeleteItem = async () => {
-    if (!itemToDelete || !restaurant) return;
-    
-    try {
-      await restaurantApi.deleteMenuItem(restaurant.id, itemToDelete.id);
-      toast({
-        title: "Success",
-        description: "Menu item deleted successfully"
-      });
-      
-      // Refresh menu items
-      if (restaurantData.fetchRestaurant) {
-        await restaurantData.fetchRestaurant(restaurant.id, true);
-      }
-    } catch (error) {
-      console.error("Error deleting menu item:", error);
-      toast({
-        title: "Error",
-        description: "Failed to delete menu item",
-        variant: "destructive"
-      });
-    } finally {
-      setDeleteDialogOpen(false);
-      setItemToDelete(null);
-    }
-  };
-  
-  const refreshMenu = async () => {
-    if (restaurant && restaurantData.fetchRestaurant) {
-      await restaurantData.fetchRestaurant(restaurant.id, true);
-    }
-  };
-  
   const renderMenuItems = (items: MenuItem[]) => {
     return items.map(item => (
       <div key={item.id} className="flex justify-between py-3 border-b last:border-0">
@@ -260,59 +189,34 @@ const RestaurantMenu = () => {
           <p className="mt-1 font-bold">${item.price.toFixed(2)}</p>
         </div>
         <div>
-          {isRestaurantOwner ? (
+          {item.available ? (
             <div className="flex items-center space-x-2">
+              {getCartItemQuantity(item.id) > 0 && (
+                <>
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={() => handleRemoveFromCart(item.id)}
+                    className="h-8 w-8"
+                  >
+                    -
+                  </Button>
+                  <span className="w-6 text-center">{getCartItemQuantity(item.id)}</span>
+                </>
+              )}
               <Button 
                 variant="outline" 
-                size="sm" 
-                onClick={() => openEditItemEditor(item)}
-                className="h-8 flex items-center"
+                size="icon" 
+                onClick={() => handleAddToCart(item)}
+                className="h-8 w-8"
               >
-                <Edit className="h-4 w-4 mr-1" /> Edit
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => openDeleteDialog(item)}
-                className="h-8 text-red-500 hover:text-red-700 flex items-center"
-              >
-                <Trash2 className="h-4 w-4" />
+                +
               </Button>
             </div>
           ) : (
-            item.available ? (
-              <div className="flex items-center space-x-2">
-                {getCartItemQuantity(item.id) > 0 && (
-                  <>
-                    <Button 
-                      variant="outline" 
-                      size="icon" 
-                      onClick={() => handleRemoveFromCart(item.id)}
-                      className="h-8 w-8"
-                    >
-                      -
-                    </Button>
-                    <span className="w-6 text-center">{getCartItemQuantity(item.id)}</span>
-                  </>
-                )}
-                <Button 
-                  variant="outline" 
-                  size="icon" 
-                  onClick={() => handleAddToCart(item)}
-                  className="h-8 w-8"
-                >
-                  +
-                </Button>
-              </div>
-            ) : (
-              <Button 
-                variant="outline" 
-                disabled={!item.available}
-                className="text-sm"
-              >
-                Unavailable
-              </Button>
-            )
+            <Button variant="outline" disabled className="text-sm">
+              Unavailable
+            </Button>
           )}
         </div>
       </div>
@@ -338,7 +242,7 @@ const RestaurantMenu = () => {
           <div className="flex items-center p-4 bg-red-50 rounded border border-red-200">
             <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
             <p className="text-red-600">
-              {error ? (error instanceof Error ? error.message : String(error)) : "Restaurant not found"}
+              {error || "Restaurant not found"}
             </p>
           </div>
         </div>
@@ -366,20 +270,20 @@ const RestaurantMenu = () => {
       
       <div className="container mx-auto px-4 py-6">
         <div className="flex flex-col md:flex-row gap-6">
-          <div className={isRestaurantOwner ? "w-full" : "md:w-2/3"}>
+          <div className="md:w-2/3">
             <Card>
               <CardHeader>
                 <CardTitle className="text-2xl">{restaurant.name}</CardTitle>
                 <CardDescription className="flex items-center gap-2">
                   <MapPin className="h-4 w-4 text-gray-500" />
                   <span>{restaurant.address}</span>
-                  {distance !== null && !isRestaurantOwner && (
+                  {distance !== null && (
                     <span className="text-sm text-gray-500 ml-2">
                       ({formatDistance(distance)} away)
                     </span>
                   )}
                 </CardDescription>
-                {estimatedTime && !isRestaurantOwner && (
+                {estimatedTime && (
                   <div className="flex items-center mt-2 text-sm text-gray-600">
                     <Clock className="h-4 w-4 mr-1" />
                     <span>Estimated delivery: {estimatedTime}</span>
@@ -388,31 +292,10 @@ const RestaurantMenu = () => {
               </CardHeader>
               
               <CardContent>
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-lg font-medium">Menu</h2>
-                  {isRestaurantOwner && (
-                    <Button 
-                      onClick={openAddItemEditor}
-                      className="flex items-center"
-                      size="sm"
-                    >
-                      <Plus className="h-4 w-4 mr-1" /> Add Item
-                    </Button>
-                  )}
-                </div>
+                <h2 className="text-lg font-medium mb-4">Menu</h2>
                 
                 {menuItems.length === 0 ? (
-                  <div className="text-center py-10">
-                    <p className="text-gray-500 mb-4">This restaurant has not added any menu items yet.</p>
-                    {isRestaurantOwner && (
-                      <Button 
-                        onClick={openAddItemEditor}
-                        className="flex items-center mx-auto"
-                      >
-                        <Plus className="h-4 w-4 mr-2" /> Add Your First Menu Item
-                      </Button>
-                    )}
-                  </div>
+                  <p className="text-gray-500">This restaurant has not added any menu items yet.</p>
                 ) : (
                   <>
                     {availableItems.length > 0 && (
@@ -446,108 +329,74 @@ const RestaurantMenu = () => {
             </Card>
           </div>
           
-          {/* Only show the cart if user is not a restaurant owner */}
-          {!isRestaurantOwner && (
-            <div className="md:w-1/3">
-              <Card className="sticky top-4">
-                <CardHeader>
-                  <CardTitle>Your Order</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {cart.length === 0 ? (
-                    <p className="text-gray-500">Your cart is empty</p>
-                  ) : (
-                    <>
-                      <div className="space-y-3 mb-4">
-                        {cart.map(item => (
-                          <div key={item.menu_item_id} className="flex justify-between">
-                            <div>
-                              <span className="font-medium">{item.name}</span>
-                              <div className="flex items-center mt-1">
-                                <Button 
-                                  variant="outline" 
-                                  size="icon" 
-                                  onClick={() => handleRemoveFromCart(item.menu_item_id)}
-                                  className="h-6 w-6 text-xs"
-                                >
-                                  -
-                                </Button>
-                                <span className="mx-2">{item.quantity}</span>
-                                <Button 
-                                  variant="outline" 
-                                  size="icon" 
-                                  onClick={() => updateCartItemQuantity(item.menu_item_id, item.quantity + 1)}
-                                  className="h-6 w-6 text-xs"
-                                >
-                                  +
-                                </Button>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <p>${(item.price * item.quantity).toFixed(2)}</p>
+          <div className="md:w-1/3">
+            <Card className="sticky top-4">
+              <CardHeader>
+                <CardTitle>Your Order</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {cart.length === 0 ? (
+                  <p className="text-gray-500">Your cart is empty</p>
+                ) : (
+                  <>
+                    <div className="space-y-3 mb-4">
+                      {cart.map(item => (
+                        <div key={item.menu_item_id} className="flex justify-between">
+                          <div>
+                            <span className="font-medium">{item.name}</span>
+                            <div className="flex items-center mt-1">
+                              <Button 
+                                variant="outline" 
+                                size="icon" 
+                                onClick={() => handleRemoveFromCart(item.menu_item_id)}
+                                className="h-6 w-6 text-xs"
+                              >
+                                -
+                              </Button>
+                              <span className="mx-2">{item.quantity}</span>
+                              <Button 
+                                variant="outline" 
+                                size="icon" 
+                                onClick={() => updateCartItemQuantity(item.menu_item_id, item.quantity + 1)}
+                                className="h-6 w-6 text-xs"
+                              >
+                                +
+                              </Button>
                             </div>
                           </div>
-                        ))}
-                      </div>
-                      
-                      <Separator className="my-4" />
-                      
-                      <div className="flex justify-between font-bold mb-4">
-                        <span>Total:</span>
-                        <span>${calculateTotal().toFixed(2)}</span>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Button className="w-full" onClick={handleCheckout}>
-                          Checkout
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          className="w-full" 
-                          onClick={clearCart}
-                        >
-                          Clear Cart
-                        </Button>
-                      </div>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          )}
+                          <div className="text-right">
+                            <p>${(item.price * item.quantity).toFixed(2)}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <Separator className="my-4" />
+                    
+                    <div className="flex justify-between font-bold mb-4">
+                      <span>Total:</span>
+                      <span>${calculateTotal().toFixed(2)}</span>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Button className="w-full" onClick={handleCheckout}>
+                        Checkout
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        className="w-full" 
+                        onClick={clearCart}
+                      >
+                        Clear Cart
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
-      
-      {/* Menu Item Editor Modal */}
-      {isRestaurantOwner && restaurant && (
-        <MenuItemEditor 
-          restaurantId={restaurant.id}
-          item={currentItem}
-          isOpen={editorOpen}
-          onClose={() => setEditorOpen(false)}
-          onSave={refreshMenu}
-          mode={editorMode}
-        />
-      )}
-      
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete the menu item "{itemToDelete?.name}". 
-              This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteItem} className="bg-red-500 hover:bg-red-600">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 };

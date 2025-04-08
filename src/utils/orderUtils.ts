@@ -1,54 +1,23 @@
 
-import { Order, OrderStatus } from '@/lib/database.types';
+import { Order } from '@/lib/database.types';
 
-// Constants for order processing
-const STALE_ORDER_THRESHOLD = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
-const DELIVERY_SPEED_KM_H = 20; // Average delivery speed in km/h
-
-// Check if an order is considered "current" based on its status
-export const isCurrentOrder = (status: OrderStatus): boolean => {
-  const currentOrderStatuses: OrderStatus[] = [
-    'pending',
-    'confirmed',
-    'preparing',
-    'ready_for_pickup',
-    'picked_up',
-    'out_for_delivery',
-  ];
-  
-  return currentOrderStatuses.includes(status);
-};
-
-// Check if an order is considered "stale" based on its last update time
+// Check if an order is stale (older than 45 mins with no status update)
 export const isStaleOrder = (order: Order): boolean => {
-  const lastUpdated = new Date(order.updated_at).getTime();
-  const now = Date.now();
+  const updatedAt = new Date(order.updated_at);
+  const now = new Date();
+  const diffInMinutes = (now.getTime() - updatedAt.getTime()) / (1000 * 60);
   
-  // Order is stale if it's in an active state but hasn't been updated in 24 hours
-  return isCurrentOrder(order.status) && (now - lastUpdated > STALE_ORDER_THRESHOLD);
+  // Consider an order stale if it's been more than 45 minutes since last update
+  // and the order is not in a completed or delivered state
+  return diffInMinutes > 45 && 
+    !['delivered', 'completed'].includes(order.status);
 };
 
-// Process orders to mark stale ones with a special flag
-export const processStaleOrders = (orders: Order[]): Order[] => {
-  return orders.map(order => {
-    if (isStaleOrder(order)) {
-      // Create a copy with the stale flag for UI purposes
-      return {
-        ...order,
-        isStale: true,
-      };
-    }
-    return order;
-  });
-};
-
-// Calculate estimated delivery time based on distance in kilometers
+// Convert distance in kilometers to travel time in minutes assuming 20km/h speed
 export const distanceToTime = (distanceKm: number): number => {
-  if (!distanceKm || distanceKm <= 0) return 0;
+  // Speed: 20 km/h = 0.333 km/min
+  const speedKmPerMin = 20 / 60;
   
-  // Convert distance to time in minutes
-  // Time = Distance / Speed * 60 (minutes)
-  return Math.ceil((distanceKm / DELIVERY_SPEED_KM_H) * 60);
+  // Calculate time in minutes
+  return Math.round(distanceKm / speedKmPerMin);
 };
-
-// Export any other order utility functions that might be needed

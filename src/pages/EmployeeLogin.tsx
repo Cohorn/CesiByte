@@ -1,135 +1,181 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
 
-import { authApi } from '@/api/services';
+import React, { useState, useEffect } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
+import NavBar from '@/components/NavBar';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form"
-
-const loginFormSchema = z.object({
-  email: z.string().email({ message: "Please enter a valid email address." }),
-  password: z.string().min(8, { message: "Password must be at least 8 characters." }),
-});
-
-type LoginFormValues = z.infer<typeof loginFormSchema>;
-
-interface ApiError extends Error {
-  response?: {
-    data?: any;
-    status?: number;
-    message?: string;
-  };
-}
+import { AtSign, Lock, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const EmployeeLogin = () => {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  
+  const { signIn, user, isLoading } = useAuth();
   const navigate = useNavigate();
-  const { signIn } = useAuth();
   const { toast } = useToast();
 
-  const form = useForm<LoginFormValues>({
-    resolver: zodResolver(loginFormSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-    },
-  });
+  // Clear error message when inputs change
+  useEffect(() => {
+    if (errorMessage) {
+      setErrorMessage(null);
+    }
+  }, [email, password]);
 
-  const handleSubmit = async (data: LoginFormValues) => {
-    setIsLoading(true);
-    setError(null);
+  const handleEmployeeLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!email || !password) {
+      toast({
+        title: "Error",
+        description: "Please enter both email and password",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrorMessage(null);
     
     try {
-      const { error } = await signIn(data.email, data.password);
+      const { error } = await signIn(email, password);
       
       if (error) {
-        throw error;
-      }
-      
-      toast({
-        title: "Success",
-        description: "Employee sign in successful!",
-      });
-      
-      navigate('/profile');
-    } catch (err) {
-      console.error("Employee login error:", err);
-      
-      const apiError = err as ApiError;
-      
-      if (apiError.response?.data?.message) {
-        setError(apiError.response.data.message);
+        console.error("Login error:", error);
+        const errorMsg = error.response?.data?.error || error.message || "Invalid credentials";
+        setErrorMessage(errorMsg);
+        toast({
+          title: "Login Failed",
+          description: errorMsg,
+          variant: "destructive"
+        });
       } else {
-        setError("An error occurred during sign in. Please try again.");
+        // Wait for auth to complete and redirect only if user is an employee
+        setTimeout(() => {
+          if (user?.user_type === 'employee') {
+            navigate('/employee/dashboard');
+          } else {
+            setErrorMessage("Only employees can access this portal");
+            toast({
+              title: "Access Denied",
+              description: "Only employees can access this portal",
+              variant: "destructive"
+            });
+          }
+        }, 500);
       }
+    } catch (error: any) {
+      console.error("Unexpected error:", error);
+      setErrorMessage("An unexpected error occurred. Please try again.");
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive"
+      });
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
-  
+
+  // Redirect if already logged in as employee
+  if (user?.user_type === 'employee' && !isLoading) {
+    return <Navigate to="/employee/dashboard" />;
+  }
+
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <Card className="w-full max-w-md p-4 space-y-4">
-        <CardHeader>
-          <CardTitle className="text-2xl text-center">Employee Login</CardTitle>
-          <CardDescription className="text-center text-gray-500">
-            Enter your credentials to access the employee portal.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input placeholder="employee@example.com" {...field} type="email" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Password" {...field} type="password" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              {error && (
-                <p className="text-red-500 text-sm">{error}</p>
-              )}
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Logging in..." : "Login"}
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      <NavBar />
+      
+      <div className="container mx-auto px-4 py-8 flex-grow flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl font-bold text-center">Employee Portal</CardTitle>
+            <CardDescription className="text-center">
+              Enter your credentials to access the employee dashboard
+            </CardDescription>
+          </CardHeader>
+          
+          <CardContent>
+            {errorMessage && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>
+                  {errorMessage}
+                </AlertDescription>
+              </Alert>
+            )}
+            
+            <form onSubmit={handleEmployeeLogin} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <div className="relative">
+                  <AtSign className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="Enter your email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pl-10"
+                    required
+                    disabled={isSubmitting}
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <Label htmlFor="password">Password</Label>
+                </div>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pl-10"
+                    required
+                    disabled={isSubmitting}
+                  />
+                </div>
+              </div>
+
+              <Button 
+                type="submit" 
+                className="w-full" 
+                disabled={isSubmitting || isLoading}
+              >
+                {isSubmitting ? 'Logging in...' : 'Access Employee Portal'}
               </Button>
             </form>
-          </Form>
-        </CardContent>
-      </Card>
+          </CardContent>
+          
+          <CardFooter className="flex flex-col space-y-2">
+            <p className="text-sm text-gray-600 text-center">
+              This portal is restricted to authorized employees only.
+            </p>
+            <p className="text-sm text-gray-600 text-center">
+              Need an employee account?{' '}
+              <Button 
+                onClick={() => navigate('/register?type=employee')}
+                className="p-0 h-auto font-normal"
+                variant="link"
+              >
+                Register here
+              </Button>
+            </p>
+          </CardFooter>
+        </Card>
+      </div>
     </div>
   );
 };
