@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useOrders } from '@/hooks/useOrders';
 import { useAuth } from '@/lib/AuthContext';
@@ -7,7 +8,7 @@ import { OrderStatus, Restaurant, Order } from '@/lib/database.types';
 import { Card } from '@/components/ui/card';
 import { Navigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, RefreshCw, Bell } from 'lucide-react';
+import { AlertCircle, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import OrdersList from '@/components/OrdersList';
 import { useReviews } from '@/hooks/useReviews';
@@ -305,6 +306,7 @@ const CustomerOrders: React.FC = () => {
               onReviewCourier={handleReviewCourier}
               canUpdateStatus={false}
               previousOrderStatuses={previousOrderStatuses}
+              emptyMessage="No orders found"
             />
           </Card>
         )}

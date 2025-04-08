@@ -14,7 +14,7 @@ interface OrdersListProps {
   onReviewCourier?: (orderId: string, courierId: string, data: { rating: number; comment: string }) => void;
   canUpdateStatus?: boolean;
   previousOrderStatuses?: Record<string, OrderStatus>;
-  emptyMessage?: string; // Added this property
+  emptyMessage?: string;
 }
 
 const OrdersList: React.FC<OrdersListProps> = ({ 
@@ -26,7 +26,7 @@ const OrdersList: React.FC<OrdersListProps> = ({
   onReviewCourier,
   canUpdateStatus = false,
   previousOrderStatuses = {},
-  emptyMessage = "No orders found" // Use this as default
+  emptyMessage = "No orders found"
 }) => {
   const [activeTab, setActiveTab] = useState("active");
   
