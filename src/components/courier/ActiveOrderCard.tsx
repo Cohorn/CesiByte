@@ -36,8 +36,10 @@ const ActiveOrderCard: React.FC<ActiveOrderProps> = ({
     activeOrder.delivery_lng
   );
   
-  const handleMarkOnTheWay = () => {
-    onUpdateStatus(activeOrder.id, 'on_the_way');
+  const handleMarkOnTheWay = async () => {
+    // Add async/await to prevent UI flashing from rapid state changes
+    await onUpdateStatus(activeOrder.id, 'on_the_way');
+    console.log('Order marked as on the way');
   };
   
   const handleCompleteDelivery = () => {
@@ -45,7 +47,7 @@ const ActiveOrderCard: React.FC<ActiveOrderProps> = ({
   };
   
   return (
-    <div className="border p-4 rounded mb-4">
+    <div className="border p-4 rounded mb-4 bg-white shadow">
       <h2 className="text-lg font-bold">{activeOrder.restaurant_name}</h2>
       <p className="text-gray-600">{activeOrder.restaurant_address}</p>
       <div className="flex items-center text-sm text-blue-600 mt-1">
@@ -62,7 +64,7 @@ const ActiveOrderCard: React.FC<ActiveOrderProps> = ({
       </div>
       
       <p className="mt-3">
-        Status: <span className="font-medium">{activeOrder.status}</span>
+        Status: <span className="font-medium capitalize">{activeOrder.status.replace(/_/g, ' ')}</span>
       </p>
       <p className="text-sm text-gray-500">
         {formatDistanceToNow(new Date(activeOrder.created_at), {
@@ -72,12 +74,12 @@ const ActiveOrderCard: React.FC<ActiveOrderProps> = ({
 
       <div className="mt-4 flex justify-between">
         {activeOrder.status === 'picked_up' && (
-          <Button onClick={handleMarkOnTheWay}>
+          <Button onClick={handleMarkOnTheWay} className="w-full">
             Mark as On the Way
           </Button>
         )}
         {activeOrder.status === 'on_the_way' && (
-          <Button onClick={handleCompleteDelivery}>
+          <Button onClick={handleCompleteDelivery} className="w-full">
             <KeyRound className="mr-2 h-4 w-4" />
             Enter Delivery PIN
           </Button>

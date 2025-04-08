@@ -4,8 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
-import { KeyRound } from 'lucide-react';
+import { AlertCircle, KeyRound } from 'lucide-react';
 
 export interface DeliveryPinInputProps {
   orderId: string;
@@ -25,7 +24,9 @@ const DeliveryPinInput: React.FC<DeliveryPinInputProps> = ({ orderId, isOpen, on
     setError(null);
 
     try {
+      console.log(`Submitting PIN ${pin} for order ${orderId}`);
       const result = await onVerify(orderId, pin);
+      
       if (result.success) {
         setPin('');
         onClose();
@@ -33,8 +34,8 @@ const DeliveryPinInput: React.FC<DeliveryPinInputProps> = ({ orderId, isOpen, on
         setError(result.message || 'Verification failed');
       }
     } catch (err) {
-      setError('An unexpected error occurred');
       console.error('Error verifying PIN:', err);
+      setError('An unexpected error occurred');
     } finally {
       setIsVerifying(false);
     }
