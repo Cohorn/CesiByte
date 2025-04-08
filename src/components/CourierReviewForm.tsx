@@ -1,9 +1,8 @@
 
-import React from 'react';
-import { useForm } from 'react-hook-form';
+import React, { useState } from 'react';
+import { StarRating } from '@/components/ui/star-rating';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { StarRating } from '@/components/ui/star-rating';
 
 interface CourierReviewFormProps {
   courierId: string;
@@ -14,61 +13,53 @@ interface CourierReviewFormProps {
 const CourierReviewForm: React.FC<CourierReviewFormProps> = ({
   courierId,
   orderId,
-  onSubmit,
+  onSubmit
 }) => {
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
-    formState: { errors, isSubmitting },
-  } = useForm<{ rating: number; comment: string }>({
-    defaultValues: {
-      rating: 5,
-      comment: '',
-    },
-  });
+  const [rating, setRating] = useState<number>(5);
+  const [comment, setComment] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  const rating = watch('rating');
-
-  const handleRatingChange = (newRating: number) => {
-    setValue('rating', newRating);
-  };
-
-  const submitHandler = (data: { rating: number; comment: string }) => {
-    onSubmit({
-      rating: data.rating,
-      comment: data.comment || ''
-    });
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    
+    try {
+      onSubmit({
+        rating,
+        comment
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <form onSubmit={handleSubmit(submitHandler)} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-sm font-medium mb-2">Rating</label>
-        <StarRating
-          value={rating}
-          onChange={handleRatingChange}
-          size={24}
-        />
-        {errors.rating && (
-          <p className="text-red-500 text-sm mt-1">{errors.rating.message}</p>
-        )}
+        <label className="block text-sm font-medium mb-1">
+          How would you rate your delivery experience?
+        </label>
+        <StarRating value={rating} onChange={setRating} />
       </div>
       
       <div>
-        <label htmlFor="comment" className="block text-sm font-medium mb-2">
-          Comments (optional)
+        <label htmlFor="comment" className="block text-sm font-medium mb-1">
+          Additional comments (optional)
         </label>
         <Textarea
           id="comment"
           placeholder="Share your experience with this courier..."
-          {...register('comment')}
-          className="w-full"
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          rows={4}
         />
       </div>
       
-      <Button type="submit" disabled={isSubmitting} className="w-full">
+      <Button 
+        type="submit" 
+        className="w-full"
+        disabled={isSubmitting}
+      >
         {isSubmitting ? 'Submitting...' : 'Submit Review'}
       </Button>
     </form>

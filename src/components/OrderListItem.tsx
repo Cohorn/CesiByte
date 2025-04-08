@@ -31,9 +31,9 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
   const showDeliveryPin = isCustomer && ['ready_for_pickup', 'picked_up', 'on_the_way'].includes(order.status);
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   
-  // Check if order is completed and has a courier assigned
+  // Updated condition: Check if order is completed or delivered and has a courier assigned
   const canReviewCourier = isCustomer && 
-                          order.status === 'completed' && 
+                          (order.status === 'completed' || order.status === 'delivered') && 
                           order.courier_id && 
                           onReviewCourier !== undefined;
 
