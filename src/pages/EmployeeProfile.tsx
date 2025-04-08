@@ -14,11 +14,12 @@ import { User } from '@/lib/database.types';
 const EmployeeProfile = () => {
   const { user, updateProfile, isLoading, deleteAccount } = useAuth();
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   
   // Redirect if not logged in or not an employee
   if (!user) {
     return <Navigate to="/employee/login" />;
-  } else if (user.user_type !== 'employee') {
+  } else if (user.user_type !== 'employee' && user.user_type !== 'dev' && user.user_type !== 'com_agent') {
     return <Navigate to="/" />;
   }
 
@@ -85,7 +86,17 @@ const EmployeeProfile = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <DeleteAccountDialog onConfirm={handleDeleteAccount} />
+                <Button 
+                  variant="destructive" 
+                  onClick={() => setIsDeleteDialogOpen(true)}
+                >
+                  Delete Account
+                </Button>
+                <DeleteAccountDialog 
+                  open={isDeleteDialogOpen}
+                  onOpenChange={setIsDeleteDialogOpen}
+                  onConfirm={handleDeleteAccount}
+                />
               </CardContent>
             </Card>
           </div>

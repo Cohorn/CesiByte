@@ -16,7 +16,6 @@ import RestaurantImageUpload from '@/components/restaurant/RestaurantImageUpload
 import { userApi } from '@/api/services/userService';
 import ReferralCodeDisplay from '@/components/ReferralCodeDisplay';
 import NotificationsDropdown from '@/components/notifications/NotificationsDropdown';
-import { useState } from 'react';
 
 const Profile = () => {
   const { user, updateProfile, signOut } = useAuth();

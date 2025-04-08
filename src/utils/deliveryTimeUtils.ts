@@ -1,5 +1,5 @@
 
-import { getDistanceInKm } from '@/lib/distanceUtils';
+import { calculateDistance } from '@/lib/distanceUtils';
 
 /**
  * Constants for time calculation
@@ -22,9 +22,11 @@ export const calculateEstimatedDeliveryTime = (
   customerLng: number
 ): string => {
   // Calculate distance between restaurant and customer in kilometers
-  const distanceKm = getDistanceInKm(
-    { lat: restaurantLat, lng: restaurantLng },
-    { lat: customerLat, lng: customerLng }
+  const distanceKm = calculateDistance(
+    restaurantLat,
+    restaurantLng,
+    customerLat,
+    customerLng
   );
   
   // Calculate travel time in minutes (distance / speed * 60)
