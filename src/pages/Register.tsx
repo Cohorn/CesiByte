@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
@@ -30,20 +29,19 @@ const Register = () => {
   const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [referralCode, setReferralCode] = useState('');
   
   const { signUp, user, isLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { createRestaurant } = useRestaurant();
 
-  // Clear error message when inputs change
   useEffect(() => {
     if (errorMessage) {
       setErrorMessage(null);
     }
   }, [email, password, name, address, userType]);
 
-  // Validate latitude and longitude
   const validateCoordinates = () => {
     const errors: {[key: string]: string} = {};
     
@@ -63,7 +61,6 @@ const Register = () => {
     const file = event.target.files?.[0];
     if (!file) return;
     
-    // Check file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       toast({
         title: "Error",
@@ -73,7 +70,6 @@ const Register = () => {
       return;
     }
     
-    // Validate file type
     const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (!validTypes.includes(file.type)) {
       toast({
@@ -87,15 +83,12 @@ const Register = () => {
     setIsUploading(true);
     
     try {
-      // Ensure the storage bucket exists
       await ensureStorageBucket();
       
-      // Create a unique file name
       const fileExt = file.name.split('.').pop();
       const fileName = `${Math.random().toString(36).substring(2, 15)}-${Date.now()}.${fileExt}`;
       const filePath = `${fileName}`;
       
-      // Upload file to Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from('restaurant_images')
         .upload(filePath, file, {
@@ -108,7 +101,6 @@ const Register = () => {
         throw uploadError;
       }
       
-      // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('restaurant_images')
         .getPublicUrl(filePath);
@@ -165,10 +157,13 @@ const Register = () => {
     }
   };
 
+  const generateReferralCode = () => {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate coordinates before submitting
     if (!validateCoordinates()) {
       return;
     }
@@ -177,20 +172,22 @@ const Register = () => {
     setErrorMessage(null);
     
     try {
+      const userReferralCode = generateReferralCode();
+      
       let userData: any = {
         email,
         password,
         name,
-        user_type: userType
+        user_type: userType,
+        referral_code: userReferralCode,
+        referred_by: referralCode || null
       };
       
-      // Only include address and location for non-employee users
       if (userType !== 'employee') {
         userData.address = address;
         userData.lat = lat;
         userData.lng = lng;
       } else {
-        // For employees, set empty address and 0 coordinates
         userData.address = '';
         userData.lat = 0;
         userData.lng = 0;
@@ -204,7 +201,6 @@ const Register = () => {
         console.error("Registration error:", error);
         let errorMsg = error.message || "Registration failed";
         
-        // Add more details from the error response if available
         if (error.response && error.response.data && error.response.data.error) {
           errorMsg += `: ${error.response.data.error}`;
         }
@@ -216,13 +212,10 @@ const Register = () => {
           variant: "destructive"
         });
       } else {
-        // Auto-create restaurant if type is restaurant
         if (userType === 'restaurant') {
           try {
-            // Wait a moment for the auth process to complete
             setTimeout(async () => {
               try {
-                // Get current user after sign up
                 const { data: { session } } = await supabase.auth.getSession();
                 if (session?.user) {
                   const restaurantData = {
@@ -242,7 +235,6 @@ const Register = () => {
                     description: "Restaurant account created successfully!",
                   });
                   
-                  // Navigate to restaurant menu page
                   navigate('/restaurant/menu');
                 }
               } catch (restError) {
@@ -264,9 +256,7 @@ const Register = () => {
             description: "Your account has been created"
           });
           
-          // Small delay to ensure the registration is complete before redirect
           setTimeout(() => {
-            // Redirect based on user type
             if (userType === 'employee') {
               navigate('/employee/dashboard');
             } else if (userType === 'courier') {
@@ -290,7 +280,6 @@ const Register = () => {
     }
   };
 
-  // Redirect if user is already logged in
   if (user && !isLoading) {
     return <Navigate to="/" />;
   }
@@ -392,7 +381,18 @@ const Register = () => {
                 />
               </div>
               
-              {/* Only show address and location fields for non-employee users */}
+              <div className="space-y-2">
+                <Label htmlFor="referralCode">Referral Code (Optional)</Label>
+                <Input
+                  id="referralCode"
+                  type="text"
+                  value={referralCode}
+                  onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                  placeholder="Enter referral code if you have one"
+                  className="uppercase"
+                />
+              </div>
+              
               {userType !== 'employee' && (
                 <>
                   <div className="space-y-2">
@@ -449,7 +449,6 @@ const Register = () => {
                 </>
               )}
               
-              {/* Restaurant Image Upload */}
               {userType === 'restaurant' && (
                 <div className="space-y-2">
                   <Label>Restaurant Cover Image (Optional)</Label>
