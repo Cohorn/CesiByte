@@ -28,20 +28,12 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Switch } from "@/components/ui/switch"
-import { Edit, Plus, Trash, Upload, X, Image as ImageIcon, Menu } from 'lucide-react';
+import { Edit, Plus, Trash, Upload, X, Image as ImageIcon } from 'lucide-react';
 import NavBar from '@/components/NavBar';
 import { v4 as uuidv4 } from 'uuid';
-import { 
-  Sidebar, 
-  SidebarContent, 
-  SidebarGroup, 
-  SidebarGroupContent,
-  SidebarMenuItem,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarProvider,
-  SidebarTrigger
-} from '@/components/ui/sidebar';
+import { useReviews } from '@/hooks/useReviews';
+import RestaurantReviewsList from '@/components/RestaurantReviewsList';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 const DEFAULT_MENU_ITEM_IMAGE = 'https://placehold.co/600x400/orange/white?text=Menu+Item';
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -62,6 +54,7 @@ const RestaurantMenu = () => {
   const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("items");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -69,6 +62,11 @@ const RestaurantMenu = () => {
   const { toast } = useToast();
 
   const { user } = useAuth();
+  
+  // Fetch restaurant reviews
+  const { reviews, reviewers, averageRating, isLoading: reviewsLoading } = useReviews({ 
+    restaurantId: restaurantId 
+  });
 
   useEffect(() => {
     const fetchRestaurantId = async () => {
@@ -337,45 +335,27 @@ const RestaurantMenu = () => {
     return <Navigate to="/" />;
   }
 
-  // Menu sidebar options
-  const menuOptions = [
-    { title: 'Menu Items', icon: Menu, current: true },
-    { title: 'Categories', icon: Menu, current: false },
-    { title: 'Special Offers', icon: Menu, current: false },
-  ];
-
   return (
-    <SidebarProvider>
-      <div className="min-h-screen flex flex-col bg-background w-full">
-        <NavBar />
-        
-        <div className="flex flex-1 w-full">
-          <Sidebar side="left" variant="floating" collapsible="icon">
-            <SidebarContent>
-              <SidebarGroup>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    {menuOptions.map((item) => (
-                      <SidebarMenuItem key={item.title}>
-                        <SidebarMenuButton tooltip={item.title} isActive={item.current}>
-                          <item.icon className="h-4 w-4 mr-2" />
-                          <span>{item.title}</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            </SidebarContent>
-          </Sidebar>
+    <div className="min-h-screen flex flex-col bg-background w-full">
+      <NavBar />
+      
+      <main className="flex-1 p-4 md:p-6 lg:p-8">
+        <div className="container mx-auto">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+            <div>
+              <h1 className="text-2xl font-bold">Restaurant Dashboard</h1>
+              <p className="text-muted-foreground">Manage your menu and reviews</p>
+            </div>
+          </div>
 
-          <main className="flex-1 p-4 md:p-6 lg:p-8">
-            <div className="container mx-auto">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                <div>
-                  <h1 className="text-2xl font-bold">Restaurant Menu</h1>
-                  <p className="text-muted-foreground">Manage your menu items</p>
-                </div>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mb-6">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="items">Menu Items</TabsTrigger>
+              <TabsTrigger value="reviews">Customer Reviews</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="items" className="mt-4">
+              <div className="flex justify-end mb-4">
                 <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                   <DialogTrigger asChild>
                     <Button variant="default">
@@ -484,7 +464,7 @@ const RestaurantMenu = () => {
                   </DialogContent>
                 </Dialog>
               </div>
-
+              
               <div className="overflow-x-auto rounded-lg border border-border shadow-sm">
                 <Table>
                   <TableCaption>A list of your menu items.</TableCaption>
@@ -559,10 +539,21 @@ const RestaurantMenu = () => {
                   </TableFooter>
                 </Table>
               </div>
-            </div>
-          </main>
+            </TabsContent>
+            
+            <TabsContent value="reviews" className="mt-4">
+              <div className="bg-white rounded-lg border border-border shadow-sm p-6">
+                <h2 className="text-xl font-semibold mb-4">Customer Reviews</h2>
+                {reviewsLoading ? (
+                  <p className="text-center py-4">Loading reviews...</p>
+                ) : (
+                  <RestaurantReviewsList reviews={reviews} reviewers={reviewers} />
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
         </div>
-      </div>
+      </main>
 
       {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
@@ -666,7 +657,7 @@ const RestaurantMenu = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </SidebarProvider>
+    </div>
   );
 };
 
