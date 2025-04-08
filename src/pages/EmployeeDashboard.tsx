@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Navigate, Link } from 'react-router-dom';
-import { useAuth } from '@/lib/AuthContext';
+import { useAuth, isEmployeeType, isDeveloper, isCommercialAgent } from '@/lib/AuthContext';
 import NavBar from '@/components/NavBar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,15 +19,19 @@ const EmployeeDashboard = () => {
     return <Navigate to="/login" />;
   } 
   
-  // Redirect non-employee-type users
-  const isEmployeeType = ['employee', 'dev', 'com_agent'].includes(user.user_type);
-  if (!isEmployeeType) {
+  // Redirect non-employee users
+  if (!isEmployeeType(user)) {
     return <Navigate to="/" />;
   }
 
   // Check specific role permissions
-  const canAccessDeveloperTools = user.user_type === 'dev' || user.user_type === 'employee';
-  const canAccessCommercialTools = user.user_type === 'com_agent' || user.user_type === 'employee';
+  const canAccessDeveloperTools = isDeveloper(user);
+  const canAccessCommercialTools = isCommercialAgent(user);
+
+  // Determine role display name
+  const roleDisplayName = isDeveloper(user) ? 'Developer' : 
+                          isCommercialAgent(user) ? 'Commercial Agent' : 
+                          'Employee';
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
@@ -38,9 +42,7 @@ const EmployeeDashboard = () => {
           <div>
             <h1 className="text-2xl font-bold">Employee Dashboard</h1>
             <p className="text-gray-500">
-              Welcome, {user.name} | {user.user_type === 'dev' ? 'Developer' : 
-                                    user.user_type === 'com_agent' ? 'Commercial Agent' :
-                                    'Employee'}
+              Welcome, {user.name} | {roleDisplayName}
             </p>
           </div>
           

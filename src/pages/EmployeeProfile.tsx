@@ -1,7 +1,6 @@
-
 import React, { useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '@/lib/AuthContext';
+import { useAuth, isEmployeeType } from '@/lib/AuthContext';
 import NavBar from '@/components/NavBar';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import EditProfileForm from '@/components/EditProfileForm';
@@ -19,7 +18,7 @@ const EmployeeProfile = () => {
   // Redirect if not logged in or not an employee
   if (!user) {
     return <Navigate to="/employee/login" />;
-  } else if (user.user_type !== 'employee' && user.user_type !== 'dev' && user.user_type !== 'com_agent') {
+  } else if (!isEmployeeType(user)) {
     return <Navigate to="/" />;
   }
 

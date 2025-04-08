@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { useAuth } from '@/lib/AuthContext';
+import { useAuth, isEmployeeType, isDeveloper, isCommercialAgent } from '@/lib/AuthContext';
 import { Button } from './ui/button';
 import { Utensils, ShoppingBag, Truck, User, LogOut, Menu, X } from 'lucide-react';
 import SitemapBackButton from './SitemapBackButton';
@@ -19,9 +19,9 @@ const NavBar: React.FC = () => {
     return location.pathname === path;
   };
 
-  // Consider employee, dev, and com_agent all as employee types for dashboard purposes
-  const isEmployeeType = user?.user_type === 'employee' || user?.user_type === 'dev' || user?.user_type === 'com_agent';
-  const showSitemapButton = isEmployeeType && location.pathname !== '/employee/sitemap';
+  // Check if user is any type of employee
+  const isEmployee = user ? isEmployeeType(user) : false;
+  const showSitemapButton = isEmployee && location.pathname !== '/employee/sitemap';
 
   const toggleMobileMenu = () => setMobileMenuOpen(!mobileMenuOpen);
 
@@ -83,27 +83,14 @@ const NavBar: React.FC = () => {
           label: 'Dashboard',
         },
       ],
-      // Add navigation for dev and com_agent roles
-      dev: [
-        {
-          path: '/employee/dashboard',
-          icon: <User className="mr-1 h-4 w-4" />,
-          label: 'Dashboard',
-        },
-      ],
-      com_agent: [
-        {
-          path: '/employee/dashboard',
-          icon: <User className="mr-1 h-4 w-4" />,
-          label: 'Dashboard',
-        },
-      ],
     };
     
-    const userNavItems = navItems[user.user_type] || [];
+    const userNavItems = user.user_type === 'employee' 
+      ? navItems.employee 
+      : (navItems[user.user_type] || []);
     
     // Update profile path for all employee-type roles
-    const profilePath = isEmployeeType ? '/employee/profile' : '/profile';
+    const profilePath = isEmployee ? '/employee/profile' : '/profile';
     
     return (
       <>
@@ -161,7 +148,7 @@ const NavBar: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex">
-            <Link to={isEmployeeType ? "/employee/dashboard" : "/"} className="flex items-center space-x-2">
+            <Link to={isEmployee ? "/employee/dashboard" : "/"} className="flex items-center space-x-2">
               <div className="flex items-center">
                 <span className="inline-block bg-yellow-300 text-black font-bold rounded-l-md px-2 py-1">C</span>
                 <span className="font-bold text-xl">esiByte</span>

@@ -1,6 +1,5 @@
-
 import { apiClient } from '../client';
-import { User, UserType } from '@/lib/database.types';
+import { User, UserType, EmployeeRoleType } from '@/lib/database.types';
 import { generateReferralCode } from '@/utils/referralUtils';
 
 export interface LoginCredentials {
@@ -16,6 +15,7 @@ export interface RegisterData {
   lat: number;
   lng: number;
   user_type: UserType;
+  employee_role?: EmployeeRoleType;
   referral_code?: string;
 }
 
@@ -55,15 +55,11 @@ export const authApi = {
 
   register: async (data: RegisterData) => {
     try {
-      // For employee registration, set dummy address, lat, lng values
+      // For employee registration, set employee_role if not provided
       const registrationData = { ...data };
       
-      if (registrationData.user_type === 'employee' || 
-          registrationData.user_type === 'dev' || 
-          registrationData.user_type === 'com_agent') {
-        registrationData.address = '';
-        registrationData.lat = 0;
-        registrationData.lng = 0;
+      if (registrationData.user_type === 'employee' && !registrationData.employee_role) {
+        registrationData.employee_role = 'commercial_service';
       }
       
       console.log('Attempting to register new user with email:', registrationData.email);

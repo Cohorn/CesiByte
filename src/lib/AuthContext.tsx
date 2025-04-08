@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useCallback, createContext, useContext, ReactNode } from 'react';
 import { authApi } from '@/api/services/authService';
-import { User, UserType } from '@/lib/database.types';
+import { User, UserType, EmployeeRoleType } from '@/lib/database.types';
 import { useToast } from '@/hooks/use-toast';
 import { userApi } from '@/api/services/userService';
 import { supabase } from '@/lib/supabase';
@@ -11,17 +11,20 @@ import { isValidUserType } from '@/utils/userRegistrationFix';
 const AuthContext = createContext<ReturnType<typeof useAuthProvider> | undefined>(undefined);
 
 // Utility functions for checking user roles
-export const isDeveloper = (userType: UserType): boolean => {
-  return userType === 'dev' || userType === 'employee';
+export const isDeveloper = (user: User | null): boolean => {
+  if (!user) return false;
+  return user.user_type === 'employee' && user.employee_role === 'developer';
 };
 
-export const isCommercialAgent = (userType: UserType): boolean => {
-  return userType === 'com_agent' || userType === 'employee';
+export const isCommercialAgent = (user: User | null): boolean => {
+  if (!user) return false;
+  return user.user_type === 'employee' && user.employee_role === 'commercial_service';
 };
 
-// Check if user is any type of employee (employee, dev, or com_agent)
-export const isEmployeeType = (userType: UserType): boolean => {
-  return ['employee', 'dev', 'com_agent'].includes(userType);
+// Check if user is any type of employee
+export const isEmployeeType = (user: User | null): boolean => {
+  if (!user) return false;
+  return user.user_type === 'employee';
 };
 
 // Provider hook that creates auth object and handles state
@@ -137,6 +140,7 @@ function useAuthProvider() {
         password,
         name: userData.name || '',
         user_type: userType as UserType,
+        employee_role: userData.employee_role,
         address: userData.address || '',
         lat: userData.lat || 0,
         lng: userData.lng || 0,

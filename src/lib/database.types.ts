@@ -1,4 +1,6 @@
-export type UserType = 'customer' | 'restaurant' | 'courier' | 'employee' | 'dev' | 'com_agent';
+
+export type UserType = 'customer' | 'restaurant' | 'courier' | 'employee';
+export type EmployeeRoleType = 'commercial_service' | 'developer';
 
 export type MapLocationType = 'restaurant' | 'courier' | 'user';
 
@@ -6,6 +8,7 @@ export type User = {
   id: string;
   email: string;
   user_type: UserType;
+  employee_role?: EmployeeRoleType;
   name: string;
   address: string;
   lat: number;

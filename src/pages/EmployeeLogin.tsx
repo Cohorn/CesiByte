@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/lib/AuthContext';
+import { useAuth, isEmployeeType } from '@/lib/AuthContext';
 import NavBar from '@/components/NavBar';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -58,7 +57,7 @@ const EmployeeLogin = () => {
       } else {
         // Wait for auth to complete and redirect only if user is an employee
         setTimeout(() => {
-          if (user?.user_type === 'employee') {
+          if (user && isEmployeeType(user)) {
             navigate('/employee/dashboard');
           } else {
             setErrorMessage("Only employees can access this portal");
@@ -84,7 +83,7 @@ const EmployeeLogin = () => {
   };
 
   // Redirect if already logged in as employee
-  if (user?.user_type === 'employee' && !isLoading) {
+  if (user && isEmployeeType(user) && !isLoading) {
     return <Navigate to="/employee/dashboard" />;
   }
 

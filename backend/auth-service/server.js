@@ -1,4 +1,3 @@
-
 const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
@@ -180,18 +179,27 @@ app.post('/login', async (req, res) => {
 app.post('/register', async (req, res) => {
   try {
     console.log('Register request received:', req.body);
-    const { email, password, name, address, lat, lng, user_type } = req.body;
+    const { email, password, name, address, lat, lng, user_type, employee_role } = req.body;
     
     // Explicitly check and validate the user_type
     console.log('Validating user_type:', user_type);
     
-    // Updated to include dev and com_agent as valid user types
-    const validUserTypes = ['customer', 'restaurant', 'courier', 'employee', 'dev', 'com_agent'];
+    // Updated valid user types - only four main types now
+    const validUserTypes = ['customer', 'restaurant', 'courier', 'employee'];
     if (!validUserTypes.includes(user_type)) {
       console.error(`Invalid user_type provided: ${user_type}`);
       return res.status(400).json({ 
         error: `Invalid user_type: ${user_type}. Must be one of: ${validUserTypes.join(', ')}` 
       });
+    }
+    
+    // Validate employee_role if user_type is employee
+    if (user_type === 'employee') {
+      const validEmployeeRoles = ['commercial_service', 'developer'];
+      if (!employee_role || !validEmployeeRoles.includes(employee_role)) {
+        console.log(`Invalid or missing employee_role for employee: ${employee_role}, defaulting to 'commercial_service'`);
+        req.body.employee_role = 'commercial_service';
+      }
     }
     
     console.log('User data validation passed, proceeding with registration');
@@ -217,10 +225,9 @@ app.post('/register', async (req, res) => {
         user_type: user_type
       };
       
-      // Handle employee, dev, or com_agent data differently
-      if (user_type === 'employee' || 
-          user_type === 'dev' || 
-          user_type === 'com_agent') {
+      // Handle employee data
+      if (user_type === 'employee') {
+        userProfile.employee_role = req.body.employee_role;
         userProfile.address = '';
         userProfile.lat = 0;
         userProfile.lng = 0;
@@ -245,8 +252,8 @@ app.post('/register', async (req, res) => {
         return res.status(400).json({ error: profileError.message });
       }
 
-      // Verify the created user has the right user_type (for debugging)
-      if (user_type === 'employee' || user_type === 'dev' || user_type === 'com_agent') {
+      // Verify the created user has the right user_type and employee_role (for debugging)
+      if (user_type === 'employee') {
         const { data: verifyUser, error: verifyError } = await supabase
           .from('users')
           .select('*')
@@ -256,6 +263,7 @@ app.post('/register', async (req, res) => {
         if (!verifyError) {
           console.log('Verified created user:', verifyUser);
           console.log('User type set correctly:', verifyUser.user_type);
+          console.log('Employee role set correctly:', verifyUser.employee_role);
         }
       }
       
