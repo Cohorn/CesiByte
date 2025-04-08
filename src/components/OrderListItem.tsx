@@ -49,6 +49,7 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
   // Detect status changes and show notification
   useEffect(() => {
     if (previousStatus && previousStatus !== order.status) {
+      console.log(`Status changed from ${previousStatus} to ${order.status}`);
       setStatusChanged(true);
       setNotificationVisible(true);
       

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useOrders } from '@/hooks/useOrders';
 import { useAuth } from '@/lib/AuthContext';
@@ -101,10 +102,12 @@ const CustomerOrders: React.FC = () => {
     }
   }, [orders]);
 
+  // Track order status changes
   useEffect(() => {
     if (orders && orders.length > 0) {
       // First time we get orders, set up initial status state
       if (Object.keys(previousOrderStatuses).length === 0) {
+        console.log("Initial order statuses setup");
         const initialStatuses: Record<string, OrderStatus> = {};
         orders.forEach((order: Order) => {
           initialStatuses[order.id] = order.status as OrderStatus;
@@ -117,8 +120,9 @@ const CustomerOrders: React.FC = () => {
           previousOrderStatuses[order.id] !== order.status
         );
         
-        // If we have status changes, update processed orders and update previous statuses
+        // If we have status changes, update previous statuses
         if (updatedOrders.length > 0) {
+          console.log("Status changes detected:", updatedOrders.length);
           const newStatusMap: Record<string, OrderStatus> = {...previousOrderStatuses};
           
           orders.forEach((order: Order) => {
