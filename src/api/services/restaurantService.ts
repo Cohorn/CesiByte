@@ -116,6 +116,12 @@ export const restaurantApi = {
     return response.data;
   },
   
+  // Create an order
+  createOrder: async (orderData: any) => {
+    const response = await apiClient.post('/orders', orderData);
+    return response.data;
+  },
+  
   // Direct Supabase methods for restaurants
   supabase: {
     // Get all restaurants

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import {
   AlertDialog,
@@ -13,12 +14,20 @@ import {
 interface DeleteAccountDialogProps {
   open?: boolean;
   onOpenChange: (open: boolean) => void;
+  onConfirm?: () => void;
 }
 
 const DeleteAccountDialog: React.FC<DeleteAccountDialogProps> = ({ 
   open = false, 
-  onOpenChange 
+  onOpenChange,
+  onConfirm
 }) => {
+  const handleConfirm = () => {
+    if (onConfirm) {
+      onConfirm();
+    }
+  };
+
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
@@ -31,7 +40,7 @@ const DeleteAccountDialog: React.FC<DeleteAccountDialogProps> = ({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction>Delete</AlertDialogAction>
+          <AlertDialogAction onClick={handleConfirm}>Delete</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

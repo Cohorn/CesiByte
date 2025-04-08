@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { restaurantApi } from '@/api/services/restaurantService';
 import { Restaurant, MenuItem } from '@/lib/database.types';
@@ -32,10 +33,10 @@ export const useRestaurant = (id?: string | null) => {
     setError(null);
     
     try {
-      const restaurantData = await restaurantApi.getRestaurantById(id);
+      const restaurantData = await restaurantApi.getRestaurant(id);
       setRestaurant(restaurantData);
       
-      const menuData = await restaurantApi.getMenuItemsByRestaurantId(id);
+      const menuData = await restaurantApi.getMenuItems(id);
       setMenuItems(menuData);
       
       setLoading(false);
