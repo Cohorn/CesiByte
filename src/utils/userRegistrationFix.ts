@@ -41,16 +41,15 @@ export const registerUserWithReferral = async (params: RegisterUserParams): Prom
     if (success && params.referralCode) {
       try {
         // Create a notification for the user who made the referral
-        // Fix the missing method by using the correct one from notificationService
         if (notificationService.addNotification) {
           const notification = {
             id: crypto.randomUUID(),
             user_id: params.referralCode, // Using the referral code as the user ID for now
             title: 'New Referral',
             message: `User ${params.email} has signed up using your referral code!`,
-            type: 'referral',
+            type: 'referral' as 'referral' | 'order' | 'system', // Explicitly type this to match Notification type
             created_at: new Date().toISOString(),
-            read: false
+            is_read: false
           };
           notificationService.addNotification(notification);
         } else {

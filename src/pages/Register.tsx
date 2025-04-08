@@ -272,10 +272,10 @@ const Register = () => {
                         </div>
                         <div className="h-48 rounded-md overflow-hidden border border-gray-300">
                           <Map
-                            initialLat={userLocation.lat}
-                            initialLng={userLocation.lng}
+                            lat={userLocation.lat}
+                            lng={userLocation.lng}
                             onLocationSelected={handleLocationSelected}
-                            onMapLoad={handleMapLoad}
+                            onLoad={handleMapLoad}
                           />
                         </div>
                         <p className="text-xs text-gray-500">
