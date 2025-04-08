@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { orderApi } from '@/api/services/orderService';
 import { Order, OrderStatus } from '@/lib/database.types';
@@ -39,6 +40,12 @@ export const useOrders = (options: OrdersOptions = {}) => {
       } else if (options.restaurantId) {
         console.log(`Fetching orders for restaurant ID: ${options.restaurantId}, force: ${forceRefresh}`);
         fetchedOrders = await orderApi.getOrdersByRestaurant(options.restaurantId, forceRefresh);
+      } else if (options.courierId && options.status) {
+        console.log(`Fetching orders for courier ID: ${options.courierId} with status: ${options.status}`);
+        // When status is specified with courier ID, use the getOrdersByStatus method
+        fetchedOrders = await orderApi.getOrdersByStatus(options.status);
+        // Filter orders by courier ID
+        fetchedOrders = fetchedOrders.filter(order => order.courier_id === options.courierId);
       } else if (options.courierId) {
         console.log(`Fetching orders for courier ID: ${options.courierId}`);
         fetchedOrders = await orderApi.getOrdersByCourier(options.courierId);

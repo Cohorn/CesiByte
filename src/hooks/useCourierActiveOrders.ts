@@ -70,6 +70,8 @@ export function useCourierActiveOrders(courierId: string | null) {
     setError(null);
     
     try {
+      console.log(`Fetching active orders for courier: ${courierId}`);
+      
       const { data, error } = await supabase
         .from('orders')
         .select(`
@@ -83,6 +85,8 @@ export function useCourierActiveOrders(courierId: string | null) {
         console.error('Error fetching active orders:', error);
         throw error;
       }
+      
+      console.log(`Retrieved ${data?.length || 0} active orders`);
       
       if (!data) {
         setActiveOrders([]);

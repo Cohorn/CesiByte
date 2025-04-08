@@ -1,3 +1,4 @@
+
 // This is a simplified version for demonstration
 import { apiClient } from '../client';
 import { Order, OrderStatus } from '@/lib/database.types';
@@ -112,25 +113,42 @@ export const orderApi = {
   },
 
   getOrdersByStatus: async (status: OrderStatus | OrderStatus[]) => {
+    // Convert status to appropriate string format for the API
     const statusParam = Array.isArray(status) ? status.join(',') : status;
     console.log(`Fetching orders with status: ${statusParam}`);
     
+    // Create a cache key using the stringified status array
+    const cacheKey = `status_${statusParam}`;
+    
     // Check cache first
-    const cachedOrders = orderCacheService.getCached('byStatus', statusParam);
+    const cachedOrders = orderCacheService.getCached('byStatus', cacheKey);
     if (cachedOrders) return cachedOrders;
     
     try {
-      const response = await apiClient.get(`/orders/status/${statusParam}`);
+      // For multiple statuses, use query parameters instead of path
+      let url = '/orders/status';
+      if (Array.isArray(status)) {
+        // Use query parameters for multiple statuses
+        const statusesString = status.join(',');
+        url = `/orders/status?statuses=${statusesString}`;
+      } else {
+        // Use path parameter for a single status
+        url = `/orders/status/${status}`;
+      }
+      
+      console.log(`API request URL: ${url}`);
+      const response = await apiClient.get(url);
       console.log(`Received ${response.data?.length || 0} orders with status ${statusParam}`);
       
       const processedOrders = processOrders(response.data);
       
       // Update cache
-      orderCacheService.setCache('byStatus', statusParam, processedOrders);
+      orderCacheService.setCache('byStatus', cacheKey, processedOrders);
       
       return processedOrders;
     } catch (error) {
       console.error('Error fetching orders by status:', error);
+      console.error('Error details:', error.response?.data || error.message);
       throw error;
     }
   },

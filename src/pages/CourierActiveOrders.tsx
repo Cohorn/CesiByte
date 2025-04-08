@@ -27,7 +27,7 @@ const CourierActiveOrders: React.FC = () => {
   const [isRefetching, setIsRefetching] = useState(false);
   const [userLocation, setUserLocation] = useState({ lat: 0, lng: 0 });
   
-  // Fetch past orders separately
+  // Fetch past orders separately - specify the status to avoid 400 error
   const { 
     orders: pastOrders, 
     isLoading: pastOrdersLoading, 
@@ -35,7 +35,7 @@ const CourierActiveOrders: React.FC = () => {
     verifyDeliveryPin 
   } = useOrders({
     courierId: user?.id,
-    status: ['delivered', 'completed'] as OrderStatus[]
+    status: ['delivered', 'completed']
   });
 
   // Set courier location from user profile
