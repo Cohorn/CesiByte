@@ -16,13 +16,19 @@ const RestaurantHeader: React.FC<RestaurantHeaderProps> = ({
   isRefreshing = false,
   canRefresh = true
 }) => {
+  const handleRefresh = () => {
+    if (onRefresh && canRefresh && !isRefreshing) {
+      onRefresh();
+    }
+  };
+
   return (
     <div className="flex justify-between items-center mb-6">
       <h1 className="text-2xl font-bold">{title}</h1>
       
       {onRefresh && (
         <Button
-          onClick={onRefresh}
+          onClick={handleRefresh}
           disabled={isRefreshing || !canRefresh}
           variant="outline"
           size="sm"

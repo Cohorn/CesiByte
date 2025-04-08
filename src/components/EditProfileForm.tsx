@@ -1,74 +1,54 @@
 
 import React from 'react';
+import { User } from '@/lib/database.types';
+import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
-import * as z from 'zod';
-import { User } from '@/lib/database.types';
-import { useToast } from '@/hooks/use-toast';
-import { 
-  Form, FormControl, FormField, FormItem, 
-  FormLabel, FormMessage 
+import { Button } from '@/components/ui/button';
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Save } from 'lucide-react';
 
-const profileSchema = z.object({
-  name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
-  email: z.string().email({ message: 'Must be a valid email address.' }),
-  address: z.string().min(2, { message: 'Address must be at least 2 characters.' }),
-  lat: z.number().or(z.string().transform((val) => parseFloat(val)))
-    .refine((val) => !isNaN(val) && val >= -90 && val <= 90, {
-      message: 'Latitude must be between -90 and 90.',
-    }),
-  lng: z.number().or(z.string().transform((val) => parseFloat(val)))
-    .refine((val) => !isNaN(val) && val >= -180 && val <= 180, {
-      message: 'Longitude must be between -180 and 180.',
-    }),
+// Define the form schema
+const formSchema = z.object({
+  name: z.string().min(2, {
+    message: 'Name must be at least 2 characters.',
+  }),
+  address: z.string().min(5, {
+    message: 'Address must be at least 5 characters.',
+  }),
 });
 
-type ProfileFormData = z.infer<typeof profileSchema>;
-
-interface EditProfileFormProps {
+export interface EditProfileFormProps {
   user: User;
-  onSubmit: (data: ProfileFormData) => Promise<void>;
+  onSubmit: (values: z.infer<typeof formSchema>) => void;
   isLoading: boolean;
 }
 
-const EditProfileForm: React.FC<EditProfileFormProps> = ({ 
-  user, 
+const EditProfileForm: React.FC<EditProfileFormProps> = ({
+  user,
   onSubmit,
   isLoading
 }) => {
-  const { toast } = useToast();
-  
-  const form = useForm<ProfileFormData>({
-    resolver: zodResolver(profileSchema),
+  // Initialize form with user data
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
       name: user.name || '',
-      email: user.email || '',
       address: user.address || '',
-      lat: user.lat || 0,
-      lng: user.lng || 0,
     },
   });
 
-  const handleSubmit = async (data: ProfileFormData) => {
-    try {
-      await onSubmit(data);
-    } catch (error) {
-      console.error("Form submission error:", error);
-      toast({
-        title: "Error",
-        description: "There was a problem updating your profile.",
-        variant: "destructive",
-      });
-    }
-  };
-
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <FormField
           control={form.control}
           name="name"
@@ -78,20 +58,9 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
               <FormControl>
                 <Input placeholder="Your name" {...field} />
               </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Email</FormLabel>
-              <FormControl>
-                <Input type="email" placeholder="Your email" {...field} />
-              </FormControl>
+              <FormDescription>
+                This is your public display name.
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -106,64 +75,16 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
               <FormControl>
                 <Input placeholder="Your address" {...field} />
               </FormControl>
+              <FormDescription>
+                This address will be used for deliveries.
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
         />
 
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="lat"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Latitude</FormLabel>
-                <FormControl>
-                  <Input 
-                    type="number" 
-                    step="any" 
-                    placeholder="Latitude" 
-                    {...field}
-                    onChange={e => field.onChange(parseFloat(e.target.value))}
-                    min="-90"
-                    max="90"
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="lng"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Longitude</FormLabel>
-                <FormControl>
-                  <Input 
-                    type="number" 
-                    step="any" 
-                    placeholder="Longitude" 
-                    {...field}
-                    onChange={e => field.onChange(parseFloat(e.target.value))}
-                    min="-180"
-                    max="180"
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
-        <Button 
-          type="submit" 
-          className="w-full"
-          disabled={isLoading}
-        >
-          <Save className="h-4 w-4 mr-2" />
-          {isLoading ? 'Saving...' : 'Save Profile'}
+        <Button type="submit" disabled={isLoading}>
+          {isLoading ? 'Saving...' : 'Save Changes'}
         </Button>
       </form>
     </Form>

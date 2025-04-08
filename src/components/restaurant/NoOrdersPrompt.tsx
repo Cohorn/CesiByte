@@ -12,6 +12,12 @@ const NoOrdersPrompt: React.FC<NoOrdersPromptProps> = ({
   onRefresh, 
   isRefreshing = false 
 }) => {
+  const handleRefresh = () => {
+    if (!isRefreshing) {
+      onRefresh();
+    }
+  };
+
   return (
     <div className="bg-white rounded shadow p-8 text-center">
       <ClipboardList className="h-12 w-12 mx-auto mb-4 text-gray-400" />
@@ -20,7 +26,7 @@ const NoOrdersPrompt: React.FC<NoOrdersPromptProps> = ({
         You don't have any orders at the moment. New orders will appear here when customers place them.
       </p>
       <Button 
-        onClick={onRefresh} 
+        onClick={handleRefresh} 
         disabled={isRefreshing}
         className="flex items-center"
       >

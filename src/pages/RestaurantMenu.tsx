@@ -16,29 +16,48 @@ import RestaurantReviewsList from '@/components/RestaurantReviewsList';
 import { calculateDistance, formatDistance } from '@/lib/distanceUtils';
 import { format } from 'date-fns';
 import { distanceToTime } from '@/utils/orderUtils';
+import { restaurantApi } from '@/api/services/restaurantService';
+import LoadingState from '@/components/restaurant/LoadingState';
 
 const RestaurantMenu = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
-  const { 
-    restaurant, 
-    menuItems, 
-    isLoading, 
-    error,
-    addToCart,
-    cart,
-    clearCart,
-    removeFromCart,
-    updateCartItemQuantity,
-    checkout
-  } = useRestaurant(id);
+  const { restaurant, loading: isLoading, error } = useRestaurant(id);
+  
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [loadingMenuItems, setLoadingMenuItems] = useState(true);
+  const [cart, setCart] = useState<any[]>([]);
   
   const { reviews, isLoading: isLoadingReviews } = useReviews({ restaurantId: id });
   const [reviewers, setReviewers] = useState<SimpleUser[]>([]);
   const [isLoadingReviewers, setIsLoadingReviewers] = useState(false);
   const [distance, setDistance] = useState<number | null>(null);
   const [estimatedTime, setEstimatedTime] = useState<string | null>(null);
+  
+  // Fetch menu items
+  useEffect(() => {
+    const fetchMenuItems = async () => {
+      if (!restaurant) return;
+      
+      setLoadingMenuItems(true);
+      try {
+        const items = await restaurantApi.getMenuItems(restaurant.id);
+        setMenuItems(items || []);
+      } catch (error) {
+        console.error('Error fetching menu items:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load menu items",
+          variant: "destructive"
+        });
+      } finally {
+        setLoadingMenuItems(false);
+      }
+    };
+    
+    fetchMenuItems();
+  }, [restaurant, toast]);
   
   // Fetch reviewers
   useEffect(() => {
@@ -94,91 +113,9 @@ const RestaurantMenu = () => {
     }
   }, [restaurant, user]);
   
-  const calculateTotal = () => {
-    return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
-  };
-  
-  const handleCheckout = async () => {
-    if (!user) {
-      toast({
-        title: "Error",
-        description: "You must be logged in to place an order",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    if (cart.length === 0) {
-      toast({
-        title: "Error",
-        description: "Your cart is empty",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    if (!restaurant) {
-      toast({
-        title: "Error",
-        description: "Restaurant information is missing",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    try {
-      const order = await checkout();
-      toast({
-        title: "Success",
-        description: "Your order has been placed successfully!",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to place order",
-        variant: "destructive"
-      });
-    }
-  };
-  
   // Group menu items by availability
   const availableItems = menuItems.filter(item => item.available);
   const unavailableItems = menuItems.filter(item => !item.available);
-  
-  const getCartItemQuantity = (menuItemId: string) => {
-    const cartItem = cart.find(item => item.menu_item_id === menuItemId);
-    return cartItem ? cartItem.quantity : 0;
-  };
-  
-  const handleAddToCart = (item: MenuItem) => {
-    const quantity = getCartItemQuantity(item.id);
-    
-    if (quantity === 0) {
-      addToCart({
-        menu_item_id: item.id,
-        name: item.name,
-        price: item.price,
-        quantity: 1
-      });
-    } else {
-      updateCartItemQuantity(item.id, quantity + 1);
-    }
-    
-    toast({
-      title: "Added to cart",
-      description: `${item.name} has been added to your cart.`,
-    });
-  };
-  
-  const handleRemoveFromCart = (itemId: string) => {
-    const quantity = getCartItemQuantity(itemId);
-    
-    if (quantity > 1) {
-      updateCartItemQuantity(itemId, quantity - 1);
-    } else {
-      removeFromCart(itemId);
-    }
-  };
   
   const renderMenuItems = (items: MenuItem[]) => {
     return items.map(item => (
@@ -191,27 +128,22 @@ const RestaurantMenu = () => {
         <div>
           {item.available ? (
             <div className="flex items-center space-x-2">
-              {getCartItemQuantity(item.id) > 0 && (
-                <>
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    onClick={() => handleRemoveFromCart(item.id)}
-                    className="h-8 w-8"
-                  >
-                    -
-                  </Button>
-                  <span className="w-6 text-center">{getCartItemQuantity(item.id)}</span>
-                </>
+              {user?.user_type === 'restaurant' ? (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                >
+                  Edit
+                </Button>
+              ) : (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  disabled={user?.user_type === 'restaurant'}
+                >
+                  Add to Cart
+                </Button>
               )}
-              <Button 
-                variant="outline" 
-                size="icon" 
-                onClick={() => handleAddToCart(item)}
-                className="h-8 w-8"
-              >
-                +
-              </Button>
             </div>
           ) : (
             <Button variant="outline" disabled className="text-sm">
@@ -223,12 +155,12 @@ const RestaurantMenu = () => {
     ));
   };
   
-  if (isLoading) {
+  if (isLoading || loadingMenuItems) {
     return (
       <div className="min-h-screen bg-gray-50">
         <NavBar />
         <div className="container mx-auto px-4 py-8">
-          <p className="text-center">Loading restaurant menu...</p>
+          <LoadingState message="Loading restaurant menu..." />
         </div>
       </div>
     );
@@ -242,7 +174,7 @@ const RestaurantMenu = () => {
           <div className="flex items-center p-4 bg-red-50 rounded border border-red-200">
             <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
             <p className="text-red-600">
-              {error || "Restaurant not found"}
+              {error instanceof Error ? error.message : "Restaurant not found"}
             </p>
           </div>
         </div>
@@ -270,7 +202,7 @@ const RestaurantMenu = () => {
       
       <div className="container mx-auto px-4 py-6">
         <div className="flex flex-col md:flex-row gap-6">
-          <div className="md:w-2/3">
+          <div className={user?.user_type === 'restaurant' ? 'w-full' : 'md:w-2/3'}>
             <Card>
               <CardHeader>
                 <CardTitle className="text-2xl">{restaurant.name}</CardTitle>
@@ -329,72 +261,18 @@ const RestaurantMenu = () => {
             </Card>
           </div>
           
-          <div className="md:w-1/3">
-            <Card className="sticky top-4">
-              <CardHeader>
-                <CardTitle>Your Order</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {cart.length === 0 ? (
+          {user?.user_type !== 'restaurant' && (
+            <div className="md:w-1/3">
+              <Card className="sticky top-4">
+                <CardHeader>
+                  <CardTitle>Your Order</CardTitle>
+                </CardHeader>
+                <CardContent>
                   <p className="text-gray-500">Your cart is empty</p>
-                ) : (
-                  <>
-                    <div className="space-y-3 mb-4">
-                      {cart.map(item => (
-                        <div key={item.menu_item_id} className="flex justify-between">
-                          <div>
-                            <span className="font-medium">{item.name}</span>
-                            <div className="flex items-center mt-1">
-                              <Button 
-                                variant="outline" 
-                                size="icon" 
-                                onClick={() => handleRemoveFromCart(item.menu_item_id)}
-                                className="h-6 w-6 text-xs"
-                              >
-                                -
-                              </Button>
-                              <span className="mx-2">{item.quantity}</span>
-                              <Button 
-                                variant="outline" 
-                                size="icon" 
-                                onClick={() => updateCartItemQuantity(item.menu_item_id, item.quantity + 1)}
-                                className="h-6 w-6 text-xs"
-                              >
-                                +
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p>${(item.price * item.quantity).toFixed(2)}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    
-                    <Separator className="my-4" />
-                    
-                    <div className="flex justify-between font-bold mb-4">
-                      <span>Total:</span>
-                      <span>${calculateTotal().toFixed(2)}</span>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Button className="w-full" onClick={handleCheckout}>
-                        Checkout
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        className="w-full" 
-                        onClick={clearCart}
-                      >
-                        Clear Cart
-                      </Button>
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </div>
       </div>
     </div>

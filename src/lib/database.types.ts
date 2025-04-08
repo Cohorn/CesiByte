@@ -12,6 +12,8 @@ export type User = {
   lat: number;
   lng: number;
   created_at: string;
+  referral_code?: string;
+  referred_by?: string;
 };
 
 export type SimpleUser = {

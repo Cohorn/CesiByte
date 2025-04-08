@@ -1,12 +1,12 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { restaurantApi } from '@/api/services/restaurantService';
-import { Restaurant } from '@/lib/database.types';
+import { Restaurant, MenuItem } from '@/lib/database.types';
 import { useToast } from '@/hooks/use-toast';
 
 export function useRestaurant(initialId?: string) {
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
   const { toast } = useToast();
 
@@ -15,6 +15,7 @@ export function useRestaurant(initialId?: string) {
     
     if (!restaurantId) {
       console.log('No restaurant ID provided for fetching');
+      setLoading(false);
       return null;
     }
     
@@ -25,14 +26,19 @@ export function useRestaurant(initialId?: string) {
       console.log(`Fetching restaurant data for ID: ${restaurantId}`);
       
       // First try by direct restaurant ID
-      let restaurantData: Restaurant;
+      let restaurantData: Restaurant | null = null;
       
       try {
         restaurantData = await restaurantApi.getRestaurant(restaurantId);
       } catch (err) {
-        // If that fails, check if it's a user ID instead
         console.log(`Restaurant not found by ID, trying as user ID: ${restaurantId}`);
-        restaurantData = await restaurantApi.getRestaurantByUser(restaurantId);
+        
+        try {
+          restaurantData = await restaurantApi.getRestaurantByUser(restaurantId);
+        } catch (userErr) {
+          console.error('Error fetching restaurant by user ID:', userErr);
+          throw new Error('Restaurant not found');
+        }
       }
       
       if (restaurantData) {
@@ -63,6 +69,8 @@ export function useRestaurant(initialId?: string) {
   useEffect(() => {
     if (initialId) {
       fetchRestaurant(initialId);
+    } else {
+      setLoading(false);
     }
   }, [initialId, fetchRestaurant]);
 
