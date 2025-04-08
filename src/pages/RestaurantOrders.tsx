@@ -25,7 +25,7 @@ const RestaurantOrders = () => {
   const { toast } = useToast();
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   
-  // No longer using REFRESH_COOLDOWN
+  // Periodic check for stale orders
   const STALE_CHECK_INTERVAL = 5 * 60 * 1000; // Check for stale orders every 5 minutes
 
   // Initialize orders state regardless of restaurant
@@ -97,7 +97,7 @@ const RestaurantOrders = () => {
   }, [restaurant, refetch]);
 
   const handleRefresh = async () => {
-    // Now restaurants can refresh at any time
+    // Restaurants can refresh at any time
     setIsRefreshing(true);
     
     try {
@@ -173,7 +173,7 @@ const RestaurantOrders = () => {
           title="Restaurant Orders" 
           onRefresh={handleRefresh}
           isRefreshing={isRefreshing}
-          canRefresh={!!restaurant} // Always allow refreshing now
+          canRefresh={true} // Always allow refreshing
         />
         
         <RestaurantAlerts 

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useOrders } from '@/hooks/useOrders';
 import { useAuth } from '@/lib/AuthContext';
@@ -66,9 +65,8 @@ const CustomerOrders: React.FC = () => {
   const { toast } = useToast();
   const [restaurantNames, setRestaurantNames] = useState<Record<string, string>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastRefreshTime, setLastRefreshTime] = useState<number | null>(null);
   
-  const REFRESH_COOLDOWN = 10000; // 10 seconds cooldown
+  // Removed lastRefreshTime and REFRESH_COOLDOWN
 
   useEffect(() => {
     const fetchRestaurantNames = async () => {
@@ -158,26 +156,10 @@ const CustomerOrders: React.FC = () => {
       }
     }
   }, [error]);
-
-  const canRefresh = () => {
-    if (!lastRefreshTime) return true;
-    
-    const timeSinceLastRefresh = Date.now() - lastRefreshTime;
-    return timeSinceLastRefresh >= REFRESH_COOLDOWN;
-  };
   
   const handleRefresh = async () => {
-    if (!canRefresh()) {
-      const remainingTime = Math.ceil((REFRESH_COOLDOWN - (Date.now() - (lastRefreshTime || 0))) / 1000);
-      toast({
-        title: "Please wait",
-        description: `You can refresh again in ${remainingTime} seconds`,
-      });
-      return;
-    }
-
+    // Removed canRefresh check
     setIsRefreshing(true);
-    setLastRefreshTime(Date.now());
     
     try {
       await refetch(true);
@@ -292,7 +274,7 @@ const CustomerOrders: React.FC = () => {
             onClick={handleRefresh} 
             variant="outline" 
             size="sm"
-            disabled={isRefreshing || !canRefresh()}
+            disabled={isRefreshing}
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
             Refresh

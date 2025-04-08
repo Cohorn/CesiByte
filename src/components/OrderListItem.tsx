@@ -11,7 +11,7 @@ import CourierReviewForm from '@/components/CourierReviewForm';
 import { useToast } from '@/hooks/use-toast';
 import { Clock, Bell, CalendarClock } from 'lucide-react';
 import { isStaleOrder } from '@/utils/orderUtils';
-import { formatEstimatedDeliveryTime } from '@/utils/deliveryTimeUtils';
+import { formatEstimatedDeliveryTime, getRemainingDeliveryTime } from '@/utils/deliveryTimeUtils';
 
 interface OrderListItemProps {
   order: Order;
@@ -189,11 +189,22 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
       
       {/* Display estimated delivery time for customers */}
       {isCustomer && order.estimated_delivery_time && (
-        <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded flex items-center gap-2">
-          <CalendarClock className="h-4 w-4 text-blue-500" />
-          <div>
-            <div className="font-medium">Estimated Delivery Time:</div>
-            <div>{formatEstimatedDeliveryTime(order.estimated_delivery_time)}</div>
+        <div className="space-y-2 mb-3">
+          <div className="p-2 bg-blue-50 border border-blue-200 rounded flex items-center gap-2">
+            <CalendarClock className="h-4 w-4 text-blue-500" />
+            <div>
+              <div className="font-medium">Estimated Delivery Time:</div>
+              <div>{formatEstimatedDeliveryTime(order.estimated_delivery_time)}</div>
+            </div>
+          </div>
+          
+          {/* Add the new remaining time display */}
+          <div className="p-2 bg-green-50 border border-green-200 rounded flex items-center gap-2">
+            <Clock className="h-4 w-4 text-green-500" />
+            <div>
+              <div className="font-medium">Estimated Time Remaining:</div>
+              <div>{getRemainingDeliveryTime(order.estimated_delivery_time)}</div>
+            </div>
           </div>
         </div>
       )}

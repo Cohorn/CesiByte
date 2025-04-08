@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
@@ -39,6 +40,9 @@ const Register = () => {
   const { toast } = useToast();
   const { createRestaurant } = useRestaurant();
 
+  // Check if user type is employee, dev, or com_agent
+  const isStaffRole = userType === 'employee' || userType === 'dev' || userType === 'com_agent';
+
   useEffect(() => {
     if (errorMessage) {
       setErrorMessage(null);
@@ -48,12 +52,15 @@ const Register = () => {
   const validateCoordinates = () => {
     const errors: {[key: string]: string} = {};
     
-    if (isNaN(lat) || lat < -90 || lat > 90) {
-      errors.lat = "Latitude must be between -90 and 90.";
-    }
-    
-    if (isNaN(lng) || lng < -180 || lng > 180) {
-      errors.lng = "Longitude must be between -180 and 180.";
+    // Only validate coordinates for users who need to provide location
+    if (!isStaffRole) {
+      if (isNaN(lat) || lat < -90 || lat > 90) {
+        errors.lat = "Latitude must be between -90 and 90.";
+      }
+      
+      if (isNaN(lng) || lng < -180 || lng > 180) {
+        errors.lng = "Longitude must be between -180 and 180.";
+      }
     }
     
     setValidationErrors(errors);
@@ -192,7 +199,7 @@ const Register = () => {
         referral_code: referralCode || undefined
       };
       
-      if (userType !== 'employee' && userType !== 'dev' && userType !== 'com_agent') {
+      if (!isStaffRole) {
         userData.address = address;
         userData.lat = lat;
         userData.lng = lng;
@@ -270,6 +277,10 @@ const Register = () => {
               navigate('/employee/dashboard');
             } else if (userType === 'courier') {
               navigate('/courier/available');
+            } else if (userType === 'dev') {
+              navigate('/employee/dashboard');
+            } else if (userType === 'com_agent') {
+              navigate('/employee/dashboard');
             } else {
               navigate('/');
             }
@@ -429,7 +440,7 @@ const Register = () => {
                 )}
               </div>
               
-              {userType !== 'employee' && (
+              {!isStaffRole && (
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="address">Address</Label>
