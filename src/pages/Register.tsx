@@ -13,6 +13,14 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/lib/supabase';
 import { useRestaurant } from '@/frontend/hooks';
 
+interface ApiError extends Error {
+  response?: {
+    data?: any;
+    status?: number;
+    message?: string;
+  };
+}
+
 const Register = () => {
   const [searchParams] = useSearchParams();
   const defaultType = searchParams.get('type') as UserType || 'customer';
@@ -25,20 +33,21 @@ const Register = () => {
   const [lng, setLng] = useState(0);
   const [userType, setUserType] = useState<UserType>(defaultType);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [referralCode, setReferralCode] = useState('');
   
-  const { signUp, user, isLoading } = useAuth();
+  const { signUp, user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { createRestaurant } = useRestaurant();
 
   useEffect(() => {
     if (errorMessage) {
-      setErrorMessage(null);
+      setError(null);
     }
   }, [email, password, name, address, userType]);
 
@@ -161,15 +170,13 @@ const Register = () => {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const handleSubmit = async (data: RegisterFormValues) => {
     if (!validateCoordinates()) {
       return;
     }
     
-    setIsSubmitting(true);
-    setErrorMessage(null);
+    setIsLoading(true);
+    setError(null);
     
     try {
       const userReferralCode = generateReferralCode();
@@ -199,18 +206,16 @@ const Register = () => {
       
       if (error) {
         console.error("Registration error:", error);
-        let errorMsg = error.message || "Registration failed";
         
-        if (error.response && error.response.data && error.response.data.error) {
-          errorMsg += `: ${error.response.data.error}`;
+        const apiError = error as ApiError;
+        
+        if (apiError.response?.data?.message) {
+          setError(apiError.response.data.message);
+        } else if (apiError.response?.message) {
+          setError(apiError.response.message);
+        } else {
+          setError("An error occurred during registration. Please try again.");
         }
-        
-        setErrorMessage(errorMsg);
-        toast({
-          title: "Error",
-          description: errorMsg,
-          variant: "destructive"
-        });
       } else {
         if (userType === 'restaurant') {
           try {
@@ -267,20 +272,20 @@ const Register = () => {
           }, 500);
         }
       }
-    } catch (error: any) {
-      console.error("Unexpected registration error:", error);
-      setErrorMessage("An unexpected error occurred during registration");
+    } catch (err) {
+      console.error("Unexpected registration error:", err);
+      setError("An unexpected error occurred during registration");
       toast({
         title: "Error",
         description: "An unexpected error occurred during registration",
         variant: "destructive"
       });
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
     }
   };
 
-  if (user && !isLoading) {
+  if (user && !authLoading) {
     return <Navigate to="/" />;
   }
 
@@ -499,7 +504,7 @@ const Register = () => {
               <Button
                 type="submit"
                 className="w-full"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isLoading}
               >
                 {isSubmitting ? 'Creating Account...' : 'Register'}
               </Button>

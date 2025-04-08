@@ -9,13 +9,16 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { AlertCircle, Clock, MapPin, Star } from 'lucide-react';
+import { AlertCircle, Clock, MapPin, Star, Edit, Plus, Trash2 } from 'lucide-react';
 import { MenuItem, SimpleUser } from '@/lib/database.types';
 import { useReviews } from '@/frontend/hooks/useReviews';
 import RestaurantReviewsList from '@/components/RestaurantReviewsList';
 import { calculateDistance, formatDistance } from '@/lib/distanceUtils';
 import { format } from 'date-fns';
 import { distanceToTime } from '@/utils/orderUtils';
+import MenuItemEditor from '@/components/restaurant/MenuItemEditor';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { restaurantApi } from '@/api/services';
 
 const RestaurantMenu = () => {
   const { id } = useParams<{ id: string }>();
@@ -42,6 +45,15 @@ const RestaurantMenu = () => {
   const [isLoadingReviewers, setIsLoadingReviewers] = useState(false);
   const [distance, setDistance] = useState<number | null>(null);
   const [estimatedTime, setEstimatedTime] = useState<string | null>(null);
+  
+  // Menu item editor state
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorMode, setEditorMode] = useState<'add' | 'edit'>('add');
+  const [currentItem, setCurrentItem] = useState<MenuItem | undefined>(undefined);
+  
+  // Delete confirmation state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<MenuItem | null>(null);
   
   // Check if current user is the restaurant owner
   const isRestaurantOwner = user?.user_type === 'restaurant';
@@ -188,6 +200,57 @@ const RestaurantMenu = () => {
     }
   };
   
+  // Menu editor handlers
+  const openAddItemEditor = () => {
+    setEditorMode('add');
+    setCurrentItem(undefined);
+    setEditorOpen(true);
+  };
+  
+  const openEditItemEditor = (item: MenuItem) => {
+    setEditorMode('edit');
+    setCurrentItem(item);
+    setEditorOpen(true);
+  };
+  
+  const openDeleteDialog = (item: MenuItem) => {
+    setItemToDelete(item);
+    setDeleteDialogOpen(true);
+  };
+  
+  const handleDeleteItem = async () => {
+    if (!itemToDelete || !restaurant) return;
+    
+    try {
+      await restaurantApi.deleteMenuItem(restaurant.id, itemToDelete.id);
+      toast({
+        title: "Success",
+        description: "Menu item deleted successfully"
+      });
+      
+      // Refresh menu items
+      if (restaurantData.fetchRestaurant) {
+        await restaurantData.fetchRestaurant(restaurant.id, true);
+      }
+    } catch (error) {
+      console.error("Error deleting menu item:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete menu item",
+        variant: "destructive"
+      });
+    } finally {
+      setDeleteDialogOpen(false);
+      setItemToDelete(null);
+    }
+  };
+  
+  const refreshMenu = async () => {
+    if (restaurant && restaurantData.fetchRestaurant) {
+      await restaurantData.fetchRestaurant(restaurant.id, true);
+    }
+  };
+  
   const renderMenuItems = (items: MenuItem[]) => {
     return items.map(item => (
       <div key={item.id} className="flex justify-between py-3 border-b last:border-0">
@@ -197,38 +260,59 @@ const RestaurantMenu = () => {
           <p className="mt-1 font-bold">${item.price.toFixed(2)}</p>
         </div>
         <div>
-          {item.available && !isRestaurantOwner ? (
+          {isRestaurantOwner ? (
             <div className="flex items-center space-x-2">
-              {getCartItemQuantity(item.id) > 0 && (
-                <>
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    onClick={() => handleRemoveFromCart(item.id)}
-                    className="h-8 w-8"
-                  >
-                    -
-                  </Button>
-                  <span className="w-6 text-center">{getCartItemQuantity(item.id)}</span>
-                </>
-              )}
               <Button 
                 variant="outline" 
-                size="icon" 
-                onClick={() => handleAddToCart(item)}
-                className="h-8 w-8"
+                size="sm" 
+                onClick={() => openEditItemEditor(item)}
+                className="h-8 flex items-center"
               >
-                +
+                <Edit className="h-4 w-4 mr-1" /> Edit
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => openDeleteDialog(item)}
+                className="h-8 text-red-500 hover:text-red-700 flex items-center"
+              >
+                <Trash2 className="h-4 w-4" />
               </Button>
             </div>
           ) : (
-            <Button 
-              variant="outline" 
-              disabled={!item.available || isRestaurantOwner}
-              className="text-sm"
-            >
-              {!item.available ? "Unavailable" : (isRestaurantOwner ? "Edit" : "Add")}
-            </Button>
+            item.available ? (
+              <div className="flex items-center space-x-2">
+                {getCartItemQuantity(item.id) > 0 && (
+                  <>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={() => handleRemoveFromCart(item.id)}
+                      className="h-8 w-8"
+                    >
+                      -
+                    </Button>
+                    <span className="w-6 text-center">{getCartItemQuantity(item.id)}</span>
+                  </>
+                )}
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={() => handleAddToCart(item)}
+                  className="h-8 w-8"
+                >
+                  +
+                </Button>
+              </div>
+            ) : (
+              <Button 
+                variant="outline" 
+                disabled={!item.available}
+                className="text-sm"
+              >
+                Unavailable
+              </Button>
+            )
           )}
         </div>
       </div>
@@ -304,10 +388,31 @@ const RestaurantMenu = () => {
               </CardHeader>
               
               <CardContent>
-                <h2 className="text-lg font-medium mb-4">Menu</h2>
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-lg font-medium">Menu</h2>
+                  {isRestaurantOwner && (
+                    <Button 
+                      onClick={openAddItemEditor}
+                      className="flex items-center"
+                      size="sm"
+                    >
+                      <Plus className="h-4 w-4 mr-1" /> Add Item
+                    </Button>
+                  )}
+                </div>
                 
                 {menuItems.length === 0 ? (
-                  <p className="text-gray-500">This restaurant has not added any menu items yet.</p>
+                  <div className="text-center py-10">
+                    <p className="text-gray-500 mb-4">This restaurant has not added any menu items yet.</p>
+                    {isRestaurantOwner && (
+                      <Button 
+                        onClick={openAddItemEditor}
+                        className="flex items-center mx-auto"
+                      >
+                        <Plus className="h-4 w-4 mr-2" /> Add Your First Menu Item
+                      </Button>
+                    )}
+                  </div>
                 ) : (
                   <>
                     {availableItems.length > 0 && (
@@ -412,6 +517,37 @@ const RestaurantMenu = () => {
           )}
         </div>
       </div>
+      
+      {/* Menu Item Editor Modal */}
+      {isRestaurantOwner && restaurant && (
+        <MenuItemEditor 
+          restaurantId={restaurant.id}
+          item={currentItem}
+          isOpen={editorOpen}
+          onClose={() => setEditorOpen(false)}
+          onSave={refreshMenu}
+          mode={editorMode}
+        />
+      )}
+      
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the menu item "{itemToDelete?.name}". 
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteItem} className="bg-red-500 hover:bg-red-600">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
