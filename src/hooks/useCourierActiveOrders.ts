@@ -1,9 +1,7 @@
-
 // This is a simplified version for demonstration
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { OrderStatus } from '@/lib/database.types';
-import { useAuth } from '@/lib/AuthContext';
 
 export interface ActiveOrder {
   id: string;
@@ -24,9 +22,6 @@ export interface ActiveOrder {
   restaurant_address: string;
   restaurant_lat: number;
   restaurant_lng: number;
-  // Courier location
-  courier_lat?: number;
-  courier_lng?: number;
 }
 
 interface Restaurant {
@@ -60,7 +55,6 @@ export function useCourierActiveOrders(courierId: string | null) {
   const [averageRating, setAverageRating] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const { user } = useAuth();
 
   const fetchActiveOrders = useCallback(async () => {
     if (!courierId) return [];
@@ -86,13 +80,11 @@ export function useCourierActiveOrders(courierId: string | null) {
         return {
           ...order,
           // Default delivery_pin if not present
-          delivery_pin: order.delivery_pin || '0000', 
+          delivery_pin: '0000', 
           restaurant_name: order.restaurants?.name || 'Unknown Restaurant',
           restaurant_address: order.restaurants?.address || 'Unknown Address',
           restaurant_lat: order.restaurants?.lat || 0,
           restaurant_lng: order.restaurants?.lng || 0,
-          courier_lat: user?.lat || 0,
-          courier_lng: user?.lng || 0,
         } as ActiveOrder;
       });
       
@@ -111,7 +103,7 @@ export function useCourierActiveOrders(courierId: string | null) {
       setLoading(false);
       return [];
     }
-  }, [courierId, user?.lat, user?.lng]);
+  }, [courierId]);
 
   // Fetch courier reviews
   const fetchReviews = useCallback(async () => {

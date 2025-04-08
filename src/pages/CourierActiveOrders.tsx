@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { useCourierActiveOrders } from '@/hooks/useCourierActiveOrders';
 import NavBar from '@/components/NavBar';
@@ -12,16 +12,14 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import DeliveryPinInput from '@/components/courier/DeliveryPinInput';
 import { useOrders } from '@/hooks/useOrders';
-import { useToast } from '@/hooks/use-toast';
 
 const CourierActiveOrders: React.FC = () => {
   const { user } = useAuth();
-  const { activeOrders, loading, error, refetch, updateOrderStatus } = useCourierActiveOrders(user?.id || null);
+  const { activeOrders, loading, error, refetch, updateOrderStatus } = useCourierActiveOrders(user?.id || '');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  const [isVerifying, setIsVerifying] = useState(false);
-  const { toast } = useToast();
+  const [verifyingPin, setVerifyingPin] = useState(false);
   
-  // Fetch past orders separately with a more specific type
+  // Fetch past orders separately
   const { 
     orders: pastOrders, 
     isLoading: pastOrdersLoading, 
@@ -32,39 +30,31 @@ const CourierActiveOrders: React.FC = () => {
     status: ['delivered', 'completed'] as OrderStatus[]
   });
 
-  // To prevent excessive refetching, add a debounce/controlled refresh
-  useEffect(() => {
-    // Initial fetch when component mounts
-    if (user?.id) {
-      console.log('Fetching active orders for courier:', user.id);
-      refetch();
-    }
-  }, [user?.id, refetch]);
-
-  const handlePinVerify = async (orderId: string, pin: string) => {
-    console.log(`Verifying pin for order ${orderId}: ${pin}`);
-    if (!orderId || !verifyDeliveryPin) {
-      return { success: false, message: "Verification not available" };
-    }
+  const handlePinSubmit = async (orderId: string, pin: string) => {
+    if (!orderId) return { success: false, message: "No order selected" };
     
-    setIsVerifying(true);
+    setVerifyingPin(true);
     
     try {
-      const result = await verifyDeliveryPin(orderId, pin);
-      console.log('Pin verification result:', result);
-      
-      if (result.success) {
-        refetch(); // Refresh the orders list
-        setSelectedOrderId(null);
-        return { success: true };
+      if (verifyDeliveryPin) {
+        const result = await verifyDeliveryPin(orderId, pin);
+        if (result.success) {
+          // Handle success
+          refetch();
+          return { success: true };
+        } else {
+          return { success: false, message: result.message || "Invalid PIN" };
+        }
       } else {
-        return { success: false, message: result.message || "Invalid PIN" };
+        console.error("verifyDeliveryPin function not available");
+        return { success: false, message: "Verification not available" };
       }
     } catch (error) {
       console.error("Error verifying PIN:", error);
       return { success: false, message: "Verification failed" };
     } finally {
-      setIsVerifying(false);
+      setVerifyingPin(false);
+      setSelectedOrderId(null);
     }
   };
   
@@ -72,8 +62,7 @@ const CourierActiveOrders: React.FC = () => {
     setSelectedOrderId(orderId);
   };
 
-  // Show a more stable loading state to prevent flickering
-  if ((loading && activeOrders.length === 0) || (pastOrdersLoading && !pastOrders?.length)) {
+  if (loading || pastOrdersLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
         <NavBar />
@@ -98,7 +87,7 @@ const CourierActiveOrders: React.FC = () => {
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>
-              {displayError?.message || "Failed to load orders"}
+              {displayError?.message}
               <div className="mt-2">
                 <Button 
                   onClick={() => refetch()} 
@@ -135,10 +124,10 @@ const CourierActiveOrders: React.FC = () => {
               </Card>
             ) : (
               <div className="space-y-4">
-                {activeOrders.map(activeOrder => (
+                {activeOrders.map(order => (
                   <ActiveOrderCard 
-                    key={activeOrder.id}
-                    activeOrder={activeOrder}
+                    key={order.id}
+                    activeOrder={order}
                     onUpdateStatus={updateOrderStatus}
                     onMarkDelivered={handleMarkDelivered}
                   />
@@ -182,7 +171,7 @@ const CourierActiveOrders: React.FC = () => {
             orderId={selectedOrderId}
             isOpen={!!selectedOrderId}
             onClose={() => setSelectedOrderId(null)}
-            onVerify={handlePinVerify}
+            onVerify={handlePinSubmit}
           />
         )}
       </div>
