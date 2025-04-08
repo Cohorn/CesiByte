@@ -5,6 +5,7 @@ import { MapPin, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { calculateDistance, formatDistance } from '@/lib/distanceUtils';
 import { OrderStatus } from '@/lib/database.types';
+import DeliveryPinInput from './DeliveryPinInput';
 
 interface ActiveOrderProps {
   id: string;
@@ -115,6 +116,3 @@ const ActiveOrderCard: React.FC<ActiveOrderProps> = ({
 };
 
 export default ActiveOrderCard;
-
-// Import DeliveryPinInput at the top
-import DeliveryPinInput from './DeliveryPinInput';

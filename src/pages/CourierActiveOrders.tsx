@@ -7,16 +7,24 @@ import { OrderStatus } from '@/lib/database.types';
 import ActiveOrderCard from '@/components/courier/ActiveOrderCard';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import DeliveryPinInput from '@/components/courier/DeliveryPinInput';
 import { useOrders } from '@/hooks/useOrders';
+import { useToast } from '@/hooks/use-toast';
 
 const CourierActiveOrders: React.FC = () => {
   const { user } = useAuth();
-  const { activeOrders, loading, error, refetch, updateOrderStatus } = useCourierActiveOrders(user?.id || null);
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const { toast } = useToast();
+  const { 
+    activeOrders, 
+    loading, 
+    error, 
+    refetch, 
+    updateOrderStatus 
+  } = useCourierActiveOrders(user?.id || null);
+  
+  const [isRefetching, setIsRefetching] = useState(false);
   const [userLocation, setUserLocation] = useState({ lat: 0, lng: 0 });
   
   // Fetch past orders separately
@@ -38,8 +46,13 @@ const CourierActiveOrders: React.FC = () => {
   }, [user]);
 
   const handleStatusUpdate = async (orderId: string, status: OrderStatus) => {
-    await updateOrderStatus(orderId, status);
-    refetch(); // Refresh the list after updating
+    const success = await updateOrderStatus(orderId, status);
+    if (success) {
+      toast({
+        title: "Status Updated",
+        description: `Order status updated to ${status.replace(/_/g, ' ')}`,
+      });
+    }
   };
 
   const handlePinVerification = async (orderId: string, pin: string) => {
@@ -49,23 +62,35 @@ const CourierActiveOrders: React.FC = () => {
     }
     
     try {
-      const result = await verifyDeliveryPin(orderId, pin);
-      if (result.success) {
-        refetch(); // Refresh the list after successful verification
-      }
-      return result;
+      return await verifyDeliveryPin(orderId, pin);
     } catch (error) {
       console.error("Error verifying PIN:", error);
       return { success: false, message: "Verification failed" };
     }
   };
 
-  if (loading || pastOrdersLoading) {
+  const handleRefresh = async () => {
+    setIsRefetching(true);
+    try {
+      await refetch();
+    } finally {
+      setIsRefetching(false);
+    }
+  };
+
+  // Show loading state
+  if (loading && !isRefetching) {
     return (
       <div className="min-h-screen bg-gray-50">
         <NavBar />
         <div className="container mx-auto py-8">
-          <h1 className="text-2xl font-bold mb-4">Your Active Deliveries</h1>
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-2xl font-bold">Your Active Deliveries</h1>
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={true}>
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              Loading...
+            </Button>
+          </div>
           <Card className="p-8 text-center">
             <p className="text-gray-500">Loading orders...</p>
           </Card>
@@ -74,25 +99,41 @@ const CourierActiveOrders: React.FC = () => {
     );
   }
 
-  if (error || pastOrdersError) {
-    const displayError = error || pastOrdersError;
+  // Show error state
+  if (error && !isRefetching) {
     return (
       <div className="min-h-screen bg-gray-50">
         <NavBar />
         <div className="container mx-auto py-8">
-          <h1 className="text-2xl font-bold mb-4">Your Active Deliveries</h1>
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-2xl font-bold">Your Active Deliveries</h1>
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefetching}>
+              {isRefetching ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Refreshing...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh
+                </>
+              )}
+            </Button>
+          </div>
           <Alert variant="destructive" className="mb-4">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>
-              {displayError instanceof Error ? displayError.message : "An error occurred"}
+              {error instanceof Error ? error.message : "An error occurred while loading your deliveries"}
               <div className="mt-2">
                 <Button 
-                  onClick={() => refetch()} 
+                  onClick={handleRefresh} 
                   variant="outline"
                   className="mt-2"
+                  disabled={isRefetching}
                 >
-                  Try Again
+                  {isRefetching ? "Refreshing..." : "Try Again"}
                 </Button>
               </div>
             </AlertDescription>
@@ -106,7 +147,22 @@ const CourierActiveOrders: React.FC = () => {
     <div className="min-h-screen bg-gray-50">
       <NavBar />
       <div className="container mx-auto py-8">
-        <h1 className="text-2xl font-bold mb-4">Your Deliveries</h1>
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-2xl font-bold">Your Deliveries</h1>
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefetching}>
+            {isRefetching ? (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                Refreshing...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </>
+            )}
+          </Button>
+        </div>
         
         <Tabs defaultValue="active" className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-4">
@@ -146,7 +202,19 @@ const CourierActiveOrders: React.FC = () => {
           </TabsContent>
           
           <TabsContent value="past">
-            {!pastOrders || pastOrders.length === 0 ? (
+            {pastOrdersLoading ? (
+              <Card className="p-8 text-center">
+                <p className="text-gray-500">Loading past deliveries...</p>
+              </Card>
+            ) : pastOrdersError ? (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>
+                  Could not load past deliveries. Please try again.
+                </AlertDescription>
+              </Alert>
+            ) : !pastOrders || pastOrders.length === 0 ? (
               <Card className="p-8 text-center">
                 <p className="text-gray-500">You don't have any past deliveries.</p>
               </Card>

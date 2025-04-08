@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { OrderStatus } from '@/lib/database.types';
+import { useToast } from '@/hooks/use-toast';
 
 export interface ActiveOrder {
   id: string;
@@ -54,8 +55,9 @@ export function useCourierActiveOrders(courierId: string | null) {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [reviewers, setReviewers] = useState<Reviewer[]>([]);
   const [averageRating, setAverageRating] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const { toast } = useToast();
 
   const fetchActiveOrders = useCallback(async () => {
     if (!courierId) {
@@ -77,7 +79,17 @@ export function useCourierActiveOrders(courierId: string | null) {
         .eq('courier_id', courierId)
         .in('status', ['picked_up', 'on_the_way']);
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching active orders:', error);
+        throw error;
+      }
+      
+      if (!data) {
+        setActiveOrders([]);
+        setRestaurants([]);
+        setLoading(false);
+        return [];
+      }
       
       // Process to add restaurant data to main object
       const processedOrders = data.map(order => {
@@ -105,10 +117,17 @@ export function useCourierActiveOrders(courierId: string | null) {
     } catch (err) {
       console.error('Error fetching active orders:', err);
       setError(err instanceof Error ? err : new Error('Failed to fetch active orders'));
+      
+      toast({
+        title: "Error",
+        description: "Could not fetch active orders. Please try again.",
+        variant: "destructive",
+      });
+      
       setLoading(false);
       return [];
     }
-  }, [courierId]);
+  }, [courierId, toast]);
 
   // Fetch courier reviews
   const fetchReviews = useCallback(async () => {
@@ -120,7 +139,10 @@ export function useCourierActiveOrders(courierId: string | null) {
         .select('*')
         .eq('courier_id', courierId);
         
-      if (reviewsError) throw reviewsError;
+      if (reviewsError) {
+        console.error("Error fetching courier reviews:", reviewsError);
+        return;
+      }
       
       if (reviewsData && reviewsData.length > 0) {
         setReviews(reviewsData);
@@ -137,9 +159,9 @@ export function useCourierActiveOrders(courierId: string | null) {
           .select('id, name')
           .in('id', userIds);
           
-        if (usersError) throw usersError;
-        
-        if (usersData) {
+        if (usersError) {
+          console.error("Error fetching reviewers:", usersError);
+        } else if (usersData) {
           setReviewers(usersData);
         }
       } else {
@@ -163,16 +185,34 @@ export function useCourierActiveOrders(courierId: string | null) {
         .eq('id', orderId)
         .eq('courier_id', courierId);
         
-      if (error) throw error;
-      
-      // Refetch orders to update the UI
-      fetchActiveOrders();
-      return true;
+      if (error) {
+        console.error('Error updating order status:', error);
+        toast({
+          title: "Error",
+          description: "Could not update order status. Please try again.",
+          variant: "destructive",
+        });
+        return false;
+      } else {
+        toast({
+          title: "Success",
+          description: `Order status updated to ${newStatus.replace(/_/g, ' ')}`,
+        });
+        
+        // Refetch orders to update the UI
+        fetchActiveOrders();
+        return true;
+      }
     } catch (err) {
       console.error('Error updating order status:', err);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      });
       return false;
     }
-  }, [courierId, fetchActiveOrders]);
+  }, [courierId, toast, fetchActiveOrders]);
 
   useEffect(() => {
     if (courierId) {
