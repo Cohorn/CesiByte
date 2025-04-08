@@ -46,15 +46,10 @@ const Analytics = () => {
         description: "Welcome to the analytics dashboard",
       });
     } else {
-      //toast({
-        //title: "Access Denied",
-        //description: "Invalid password",
-        //variant: "destructive"
-        setIsAuthenticated(true);
-        localStorage.setItem('analyticsAuth', 'true');
-        toast({
-          title: "Access Granted",
-          description: "Welcome to the analytics dashboard",
+      toast({
+        title: "Access Denied",
+        description: "Invalid password",
+        variant: "destructive"
       });
     }
   };

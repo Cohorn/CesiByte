@@ -63,11 +63,6 @@ const NavBar: React.FC = () => {
           icon: <ShoppingBag className="mr-1 h-4 w-4" />,
           label: 'Orders',
         },
-        {
-          path: '/restaurant/analytics',
-          icon: <ShoppingBag className="mr-1 h-4 w-4" />,
-          label: 'Analytics',
-        },
       ],
       courier: [
         {
