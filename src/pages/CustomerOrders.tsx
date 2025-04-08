@@ -107,7 +107,12 @@ const CustomerOrders: React.FC = () => {
       const ordersWithRestaurants = processOrdersWithRestaurants(orders);
       setProcessedOrders(ordersWithRestaurants);
       
-      console.log("Processed orders with restaurant data:", ordersWithRestaurants);
+      // Check for completed orders with couriers
+      const completedWithCourier = ordersWithRestaurants.filter(
+        order => order.status === 'completed' && order.courier_id
+      );
+      
+      console.log('Customer has completed orders with couriers:', completedWithCourier.length);
     } else {
       setProcessedOrders([]);
     }
@@ -131,6 +136,8 @@ const CustomerOrders: React.FC = () => {
   const handleReviewCourier = async (orderId: string, courierId: string) => {
     if (!user) return;
     
+    console.log(`Handling review for courier ${courierId} on order ${orderId}`);
+    
     try {
       const result = await submitReview({
         user_id: user.id,
@@ -144,6 +151,8 @@ const CustomerOrders: React.FC = () => {
           title: "Review Submitted",
           description: "Thank you for reviewing your courier",
         });
+      } else {
+        throw new Error(result.error || "Unknown error");
       }
     } catch (error) {
       console.error("Error submitting review:", error);

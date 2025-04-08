@@ -44,6 +44,15 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
     setReviewDialogOpen(false);
   };
 
+  // Debug log to check why the review button might not be showing
+  console.log(`Order ${order.id} review conditions:`, {
+    isCustomer,
+    status: order.status,
+    hasCourierId: !!order.courier_id,
+    hasReviewCallback: !!onReviewCourier,
+    canReviewCourier
+  });
+
   return (
     <div className="bg-white rounded shadow p-4">
       <div className="flex items-center justify-between mb-2">
