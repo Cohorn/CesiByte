@@ -12,12 +12,14 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import DeliveryPinInput from '@/components/courier/DeliveryPinInput';
 import { useOrders } from '@/hooks/useOrders';
+import { useToast } from '@/hooks/use-toast';
 
 const CourierActiveOrders: React.FC = () => {
   const { user } = useAuth();
-  const { activeOrders, loading, error, refetch, updateOrderStatus } = useCourierActiveOrders(user?.id || '');
+  const { activeOrders, loading, error, refetch, updateOrderStatus } = useCourierActiveOrders(user?.id || null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [verifyingPin, setVerifyingPin] = useState(false);
+  const { toast } = useToast();
   
   // Fetch past orders separately
   const { 
@@ -124,10 +126,10 @@ const CourierActiveOrders: React.FC = () => {
               </Card>
             ) : (
               <div className="space-y-4">
-                {activeOrders.map(order => (
+                {activeOrders.map(activeOrder => (
                   <ActiveOrderCard 
-                    key={order.id}
-                    activeOrder={order}
+                    key={activeOrder.id}
+                    activeOrder={activeOrder}
                     onUpdateStatus={updateOrderStatus}
                     onMarkDelivered={handleMarkDelivered}
                   />

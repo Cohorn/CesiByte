@@ -1,149 +1,88 @@
 
-import React, { useState, useEffect } from 'react';
-import { Check, X } from 'lucide-react';
+import React, { useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
+import { KeyRound } from 'lucide-react';
 
-interface DeliveryPinInputProps {
+export interface DeliveryPinInputProps {
   orderId: string;
   isOpen: boolean;
   onClose: () => void;
-  onVerify: (orderId: string, pin: string) => Promise<{ success: boolean, message?: string }>;
+  onVerify: (orderId: string, pin: string) => Promise<{ success: boolean; message?: string }>;
 }
 
-const DeliveryPinInput: React.FC<DeliveryPinInputProps> = ({
-  orderId,
-  isOpen,
-  onClose,
-  onVerify
-}) => {
+const DeliveryPinInput: React.FC<DeliveryPinInputProps> = ({ orderId, isOpen, onClose, onVerify }) => {
   const [pin, setPin] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-  const [attempts, setAttempts] = useState(0);
-  
-  // Reset state when dialog opens
-  useEffect(() => {
-    if (isOpen) {
-      setPin('');
-      setError(null);
-      setIsVerifying(false);
-      setSuccess(false);
-      setAttempts(0);
-    }
-  }, [isOpen]);
 
-  const handleVerify = async () => {
-    if (pin.length !== 4) {
-      setError('Please enter a 4-digit PIN');
-      return;
-    }
-
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setIsVerifying(true);
     setError(null);
 
     try {
       const result = await onVerify(orderId, pin);
-      
       if (result.success) {
-        setSuccess(true);
-        // Wait a moment before closing to show success state
-        setTimeout(() => {
-          onClose();
-        }, 1500);
+        setPin('');
+        onClose();
       } else {
-        setAttempts(prev => prev + 1);
-        setError(result.message || 'Invalid PIN. Please try again.');
+        setError(result.message || 'Verification failed');
       }
-    } catch (err: any) {
-      console.error('Error during pin verification:', err);
-      setError('Failed to verify PIN. Please try again.');
-      setAttempts(prev => prev + 1);
+    } catch (err) {
+      setError('An unexpected error occurred');
+      console.error('Error verifying PIN:', err);
     } finally {
       setIsVerifying(false);
     }
   };
 
-  const handleReset = () => {
-    setPin('');
-    setError(null);
-  };
-
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => {
-      if (!open && !isVerifying) onClose();
-    }}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Enter Delivery PIN</DialogTitle>
+          <DialogTitle className="flex items-center">
+            <KeyRound className="mr-2 h-5 w-5" />
+            Enter Delivery PIN
+          </DialogTitle>
         </DialogHeader>
-        
-        <div className="flex flex-col items-center space-y-4 py-4">
-          <p className="text-sm text-gray-500 text-center mb-2">
-            Ask the customer for their 4-digit delivery PIN to confirm delivery
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Ask the customer for their delivery PIN to complete this delivery
           </p>
-          
-          <InputOTP 
-            maxLength={4} 
-            value={pin} 
-            onChange={setPin}
-            disabled={isVerifying || success}
-          >
-            <InputOTPGroup>
-              <InputOTPSlot index={0} />
-              <InputOTPSlot index={1} />
-              <InputOTPSlot index={2} />
-              <InputOTPSlot index={3} />
-            </InputOTPGroup>
-          </InputOTP>
-          
+
+          <Input
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={4}
+            placeholder="Enter 4-digit PIN"
+            value={pin}
+            onChange={(e) => setPin(e.target.value)}
+            className="text-center text-xl tracking-widest"
+            autoFocus
+          />
+
           {error && (
-            <p className="text-sm text-red-500">{error}</p>
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
-          
-          {attempts > 0 && !success && !error && (
-            <p className="text-sm text-amber-500">Attempt {attempts}: Please try again</p>
-          )}
-          
-          {success && (
-            <div className="flex items-center text-green-500 font-medium">
-              <Check className="mr-2 h-5 w-5" />
-              Delivery confirmed!
-            </div>
-          )}
-        </div>
-        
-        <DialogFooter className="flex justify-between">
-          <div className="flex gap-2">
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={handleReset}
-              disabled={isVerifying || pin.length === 0 || success}
-            >
-              <X className="mr-2 h-4 w-4" />
-              Clear
+
+          <div className="flex justify-end space-x-2">
+            <Button type="button" variant="outline" onClick={onClose} disabled={isVerifying}>
+              Cancel
             </Button>
-            
-            <Button 
-              type="submit" 
-              onClick={handleVerify}
-              disabled={isVerifying || pin.length !== 4 || success}
-              className={`${isVerifying ? "opacity-80" : ""} ${success ? "bg-green-500" : ""}`}
-            >
-              <Check className="mr-2 h-4 w-4" />
-              {isVerifying ? "Verifying..." : success ? "Verified!" : "Verify PIN"}
+            <Button type="submit" disabled={!pin || pin.length < 4 || isVerifying}>
+              {isVerifying ? 'Verifying...' : 'Verify & Complete Delivery'}
             </Button>
           </div>
-        </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

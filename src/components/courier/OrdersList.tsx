@@ -8,13 +8,15 @@ interface OrdersListProps {
   restaurants: { [id: string]: Restaurant };
   userLocation: { lat: number; lng: number };
   onAcceptOrder: (orderId: string) => void;
+  canUpdateStatus?: boolean;
 }
 
 const OrdersList: React.FC<OrdersListProps> = ({
   orders,
   restaurants,
   userLocation,
-  onAcceptOrder
+  onAcceptOrder,
+  canUpdateStatus = false
 }) => {
   if (orders.length === 0) {
     return <p>No available orders</p>;
