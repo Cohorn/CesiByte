@@ -1,11 +1,26 @@
-import { useState, useEffect, useCallback } from 'react';
+
+import { useState, useEffect, useCallback, createContext, useContext, ReactNode } from 'react';
 import { authApi } from '@/api/services/authService';
 import { User, UserType } from '@/lib/database.types';
 import { useToast } from '@/hooks/use-toast';
 import { userApi } from '@/api/services/userService';
 import { supabase } from '@/lib/supabase';
+import { isValidUserType } from '@/utils/userRegistrationFix';
 
-export function useAuth() {
+// Create the context
+const AuthContext = createContext<ReturnType<typeof useAuthProvider> | undefined>(undefined);
+
+// Utility functions for checking user roles
+export const isDeveloper = (userType: UserType): boolean => {
+  return userType === 'dev';
+};
+
+export const isCommercialAgent = (userType: UserType): boolean => {
+  return userType === 'com_agent';
+};
+
+// Provider hook that creates auth object and handles state
+function useAuthProvider() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<Error | null>(null);
@@ -104,11 +119,19 @@ export function useAuth() {
     try {
       console.log("Attempting signup with data:", { email, userData });
       
+      // Check if the user_type is valid
+      const userType = userData.user_type || 'customer';
+      const isValid = await isValidUserType(userType);
+      
+      if (!isValid) {
+        throw new Error(`Invalid user_type: ${userType}`);
+      }
+      
       const registerData = {
         email,
         password,
         name: userData.name || '',
-        user_type: userData.user_type || 'customer' as UserType,
+        user_type: userType as UserType,
         address: userData.address || '',
         lat: userData.lat || 0,
         lng: userData.lng || 0,
@@ -312,4 +335,19 @@ export function useAuth() {
     deleteAccount,
     clearAuthError,
   };
+}
+
+// Provider component that wraps your app and makes auth object available
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const auth = useAuthProvider();
+  return <AuthContext.Provider value={auth}>{children}</AuthContext.Provider>;
+}
+
+// Hook for components to get the auth object and re-render when it changes
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    return useAuthProvider();
+  }
+  return context;
 }

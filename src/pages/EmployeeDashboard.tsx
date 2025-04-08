@@ -1,8 +1,6 @@
-
 import React from 'react';
 import { Navigate, Link } from 'react-router-dom';
-import { useAuth } from '@/lib/AuthContext';
-import { isDeveloper, isCommercialAgent } from '@/lib/AuthContext';
+import { useAuth, isDeveloper, isCommercialAgent } from '@/lib/AuthContext';
 import NavBar from '@/components/NavBar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';

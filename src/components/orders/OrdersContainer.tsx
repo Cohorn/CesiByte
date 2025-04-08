@@ -124,7 +124,7 @@ const OrdersContainer = () => {
             </div>
           ) : (
             activeOrders.map((order: Order) => (
-              <OrderListItem key={order.id} order={order} showDetails={true} />
+              <OrderListItem key={order.id} order={order} />
             ))
           )}
         </TabsContent>
@@ -136,7 +136,7 @@ const OrdersContainer = () => {
             </div>
           ) : (
             pastOrders.map((order: Order) => (
-              <OrderListItem key={order.id} order={order} showDetails={true} />
+              <OrderListItem key={order.id} order={order} />
             ))
           )}
         </TabsContent>

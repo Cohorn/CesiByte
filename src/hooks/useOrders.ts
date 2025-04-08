@@ -115,7 +115,7 @@ export const useOrders = (options: OrdersOptions = {}) => {
       // Create relevant notifications for all parties involved
       if (user) {
         // Access the updated order correctly
-        const updatedOrder = result && result.data ? result.data : orders.find(o => o.id === orderId);
+        const updatedOrder = result || orders.find(o => o.id === orderId);
         
         if (updatedOrder) {
           // For customer notification
