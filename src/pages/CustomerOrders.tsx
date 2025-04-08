@@ -199,6 +199,7 @@ const CustomerOrders: React.FC = () => {
               restaurantNames={restaurantNames}
               showTabs={true}
               onReviewCourier={handleReviewCourier}
+              canUpdateStatus={false} // Explicitly disable status updates for customers
             />
           </Card>
         )}

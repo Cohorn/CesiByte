@@ -15,7 +15,7 @@ import { useOrders } from '@/hooks/useOrders';
 
 const CourierActiveOrders: React.FC = () => {
   const { user } = useAuth();
-  const { activeOrders, isLoading, error, refetch, updateOrderStatus } = useCourierActiveOrders();
+  const { activeOrders, loading, error, refetch, updateOrderStatus } = useCourierActiveOrders();
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [verifyingPin, setVerifyingPin] = useState(false);
   
@@ -57,7 +57,7 @@ const CourierActiveOrders: React.FC = () => {
     setSelectedOrderId(orderId);
   };
 
-  if (isLoading || pastOrdersLoading) {
+  if (loading || pastOrdersLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
         <NavBar />
@@ -163,7 +163,7 @@ const CourierActiveOrders: React.FC = () => {
         {/* PIN verification dialog */}
         {selectedOrderId && (
           <DeliveryPinInput
-            open={!!selectedOrderId}
+            isOpen={!!selectedOrderId}
             onClose={() => setSelectedOrderId(null)}
             onSubmit={handlePinSubmit}
             isVerifying={verifyingPin}

@@ -13,6 +13,7 @@ interface OrdersListProps {
   restaurantNames?: Record<string, string>; 
   showTabs?: boolean;
   onReviewCourier?: (orderId: string, courierId: string) => void;
+  canUpdateStatus?: boolean;
 }
 
 const OrdersList: React.FC<OrdersListProps> = ({ 
@@ -22,7 +23,8 @@ const OrdersList: React.FC<OrdersListProps> = ({
   emptyMessage = "No orders found.",
   restaurantNames = {},
   showTabs = false,
-  onReviewCourier
+  onReviewCourier,
+  canUpdateStatus = false
 }) => {
   if (orders.length === 0) {
     return (
@@ -48,6 +50,7 @@ const OrdersList: React.FC<OrdersListProps> = ({
             isCurrentOrder={isCurrentOrders}
             restaurantName={restaurantNames[order.restaurant_id]}
             onReviewCourier={onReviewCourier}
+            canUpdateStatus={canUpdateStatus}
           />
         ))}
       </div>
@@ -76,6 +79,7 @@ const OrdersList: React.FC<OrdersListProps> = ({
               isCurrentOrder={true}
               restaurantName={restaurantNames[order.restaurant_id]}
               onReviewCourier={onReviewCourier}
+              canUpdateStatus={canUpdateStatus}
             />
           ))
         )}
@@ -95,6 +99,7 @@ const OrdersList: React.FC<OrdersListProps> = ({
               isCurrentOrder={false}
               restaurantName={restaurantNames[order.restaurant_id]}
               onReviewCourier={onReviewCourier}
+              canUpdateStatus={canUpdateStatus}
             />
           ))
         )}

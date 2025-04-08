@@ -15,6 +15,7 @@ interface OrderListItemProps {
   isCurrentOrder?: boolean;
   restaurantName?: string;
   onReviewCourier?: (orderId: string, courierId: string) => void;
+  canUpdateStatus?: boolean;
 }
 
 const OrderListItem: React.FC<OrderListItemProps> = ({ 
@@ -22,7 +23,8 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
   onUpdateStatus,
   isCurrentOrder = true,
   restaurantName,
-  onReviewCourier
+  onReviewCourier,
+  canUpdateStatus = false
 }) => {
   const { user } = useAuth();
   const isCustomer = user?.id === order.user_id;
@@ -89,7 +91,7 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
         <strong>Total:</strong> ${order.total_price?.toFixed(2)}
       </div>
       
-      {isCurrentOrder && (
+      {isCurrentOrder && canUpdateStatus && (
         <OrderStatusUpdate 
           orderId={order.id}
           currentStatus={order.status}
