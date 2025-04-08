@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
@@ -15,6 +14,9 @@ import EditProfileForm from '@/components/EditProfileForm';
 import DeleteAccountDialog from '@/components/DeleteAccountDialog';
 import RestaurantImageUpload from '@/components/restaurant/RestaurantImageUpload';
 import { userApi } from '@/api/services/userService';
+import ReferralCodeDisplay from '@/components/ReferralCodeDisplay';
+import NotificationsDropdown from '@/components/notifications/NotificationsDropdown';
+import { useState } from 'react';
 
 const Profile = () => {
   const { user, updateProfile, signOut } = useAuth();
@@ -24,6 +26,7 @@ const Profile = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { restaurant, fetchRestaurant, updateRestaurant } = useRestaurant();
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
     if (user && user.user_type === 'restaurant') {
@@ -141,11 +144,9 @@ const Profile = () => {
     return <Navigate to="/login" />;
   }
 
-  // Check if user has valid location data
   const hasValidLocation = user.lat != null && !isNaN(user.lat) && 
                           user.lng != null && !isNaN(user.lng);
   
-  // Inside the Profile component
   const mapLocations = hasValidLocation ? [
     {
       id: user.id,
@@ -225,7 +226,18 @@ const Profile = () => {
               </CardContent>
               <CardFooter className="flex flex-col">
                 <Separator className="my-4" />
-                <DeleteAccountDialog onConfirm={handleDeleteAccount} />
+                <Button 
+                  variant="destructive" 
+                  className="w-full"
+                  onClick={() => setIsDeleteDialogOpen(true)}
+                >
+                  Delete Account
+                </Button>
+                <DeleteAccountDialog 
+                  open={isDeleteDialogOpen}
+                  onOpenChange={setIsDeleteDialogOpen}
+                  onConfirm={handleDeleteAccount}
+                />
               </CardFooter>
             </Card>
 
@@ -273,6 +285,16 @@ const Profile = () => {
                 </CardFooter>
               </Card>
             )}
+
+            <Card className="mt-6">
+              <CardContent className="pt-6">
+                <ReferralCodeDisplay 
+                  userId={user.id} 
+                  userName={user.name}
+                  existingCode={user.referral_code}
+                />
+              </CardContent>
+            </Card>
           </div>
 
           <div className="md:col-span-2">
@@ -316,6 +338,12 @@ const Profile = () => {
                         <p className="text-sm font-medium">Longitude</p>
                         <p className="text-gray-500">{hasValidLocation ? user.lng : 'Not available'}</p>
                       </div>
+                      {user.referral_code && (
+                        <div>
+                          <p className="text-sm font-medium">Referral Code</p>
+                          <p className="text-gray-500">{user.referral_code}</p>
+                        </div>
+                      )}
                     </div>
 
                     {hasValidLocation && (

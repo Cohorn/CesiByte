@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
@@ -7,6 +6,7 @@ import { Utensils, ShoppingBag, Truck, User, LogOut, Menu, X } from 'lucide-reac
 import SitemapBackButton from './SitemapBackButton';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
+import NotificationsDropdown from './notifications/NotificationsDropdown';
 
 const NavBar: React.FC = () => {
   const { user, signOut } = useAuth();
@@ -18,13 +18,11 @@ const NavBar: React.FC = () => {
     return location.pathname === path;
   };
 
-  // Check if user is an employee
   const isEmployee = user?.user_type === 'employee';
   const showSitemapButton = isEmployee && location.pathname !== '/employee/sitemap';
 
   const toggleMobileMenu = () => setMobileMenuOpen(!mobileMenuOpen);
 
-  // Define navigation items based on user type
   const getNavItems = () => {
     if (!user) {
       return (
@@ -85,10 +83,8 @@ const NavBar: React.FC = () => {
       ],
     };
     
-    // Get navigation items based on user type
     const userNavItems = navItems[user.user_type] || [];
     
-    // Add profile link
     const profilePath = isEmployee ? '/employee/profile' : '/profile';
     
     return (
@@ -143,42 +139,48 @@ const NavBar: React.FC = () => {
   };
 
   return (
-    <nav className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        <div className="flex items-center space-x-2 md:space-x-4">
-          <Link to="/" className="flex items-center space-x-2">
-            <div className="flex items-center">
-              <span className="inline-block bg-yellow-300 text-black font-bold rounded-l-md px-2 py-1">C</span>
-              <span className="font-bold text-xl">esiByte</span>
-            </div>
-            <span className="text-xs text-muted-foreground italic hidden sm:inline-block">Food for thought, Engineer's favourite</span>
-          </Link>
-          {!isMobile && showSitemapButton && <SitemapBackButton />}
-        </div>
-        
-        {isMobile ? (
-          <>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={toggleMobileMenu}
-              className="z-50"
-            >
-              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </Button>
+    <nav className="bg-white shadow-sm">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between h-16">
+          <div className="flex">
+            <Link to="/" className="flex items-center space-x-2">
+              <div className="flex items-center">
+                <span className="inline-block bg-yellow-300 text-black font-bold rounded-l-md px-2 py-1">C</span>
+                <span className="font-bold text-xl">esiByte</span>
+              </div>
+              <span className="text-xs text-muted-foreground italic hidden sm:inline-block">Food for thought, Engineer's favourite</span>
+            </Link>
+            {!isMobile && showSitemapButton && <SitemapBackButton />}
+          </div>
+          
+          <div className="flex items-center">
+            {user && <NotificationsDropdown />}
             
-            {mobileMenuOpen && (
-              <div className="fixed inset-0 top-16 z-40 bg-background p-4 flex flex-col space-y-4 animate-fade-in">
+            {isMobile ? (
+              <>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={toggleMobileMenu}
+                  className="z-50"
+                >
+                  {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                </Button>
+                
+                {mobileMenuOpen && (
+                  <div className="fixed inset-0 top-16 z-40 bg-background p-4 flex flex-col space-y-4 animate-fade-in">
+                    {getNavItems()}
+                    {showSitemapButton && <SitemapBackButton className="w-full justify-start" />}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="flex items-center space-x-1 md:space-x-2">
                 {getNavItems()}
-                {showSitemapButton && <SitemapBackButton className="w-full justify-start" />}
               </div>
             )}
-          </>
-        ) : (
-          <div className="flex items-center space-x-1 md:space-x-2">
-            {getNavItems()}
           </div>
-        )}
+        </div>
       </div>
     </nav>
   );

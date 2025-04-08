@@ -3,6 +3,7 @@ import { apiClient } from '../client';
 import { Order, OrderStatus } from '@/lib/database.types';
 import { orderCacheService } from './orderCache';
 import { mqttClient } from '@/lib/mqtt-client';
+import { calculateEstimatedDeliveryTime } from '@/utils/deliveryTimeUtils';
 
 // Import order data processor functions
 import { processOrders, processOrderItems } from './orderDataProcessor';
@@ -174,6 +175,27 @@ export const orderApi = {
   
   createOrder: async (orderData: Partial<Order>): Promise<Order> => {
     try {
+      // Add estimated delivery time if restaurant and delivery locations are available
+      if (orderData.restaurant_id && orderData.delivery_lat != null && orderData.delivery_lng != null) {
+        // Get restaurant location from backend
+        try {
+          const restaurantResponse = await apiClient.get(`/restaurants/${orderData.restaurant_id}`);
+          const restaurant = restaurantResponse.data;
+          
+          if (restaurant && restaurant.lat != null && restaurant.lng != null) {
+            orderData.estimated_delivery_time = calculateEstimatedDeliveryTime(
+              restaurant.lat,
+              restaurant.lng,
+              orderData.delivery_lat,
+              orderData.delivery_lng
+            );
+          }
+        } catch (error) {
+          console.error('Error fetching restaurant for delivery time calculation:', error);
+          // Continue without estimated time if fetch fails
+        }
+      }
+      
       const response = await apiClient.post('/orders', orderData);
       return response.data;
     } catch (error) {

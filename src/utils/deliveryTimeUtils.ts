@@ -1,0 +1,41 @@
+
+import { getDistanceInKm } from '@/lib/distanceUtils';
+
+/**
+ * Constants for time calculation
+ */
+const PREPARATION_TIME_MINUTES = 25; // 25 minutes for food preparation
+const COURIER_SPEED_KM_PER_HOUR = 20; // 20 km/h average speed
+
+/**
+ * Calculate estimated delivery time based on restaurant and customer locations
+ * @param restaurantLat Restaurant latitude
+ * @param restaurantLng Restaurant longitude
+ * @param customerLat Customer latitude
+ * @param customerLng Customer longitude
+ * @returns Estimated delivery time in ISO string format
+ */
+export const calculateEstimatedDeliveryTime = (
+  restaurantLat: number,
+  restaurantLng: number,
+  customerLat: number,
+  customerLng: number
+): string => {
+  // Calculate distance between restaurant and customer in kilometers
+  const distanceKm = getDistanceInKm(
+    { lat: restaurantLat, lng: restaurantLng },
+    { lat: customerLat, lng: customerLng }
+  );
+  
+  // Calculate travel time in minutes (distance / speed * 60)
+  const travelTimeMinutes = (distanceKm / COURIER_SPEED_KM_PER_HOUR) * 60;
+  
+  // Total estimated time = preparation time + travel time
+  const totalEstimatedMinutes = PREPARATION_TIME_MINUTES + travelTimeMinutes;
+  
+  // Create a date object for the estimated delivery time
+  const now = new Date();
+  const estimatedDeliveryTime = new Date(now.getTime() + totalEstimatedMinutes * 60000);
+  
+  return estimatedDeliveryTime.toISOString();
+};

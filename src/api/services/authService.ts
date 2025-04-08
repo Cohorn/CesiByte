@@ -1,6 +1,7 @@
 
 import { apiClient } from '../client';
 import { User, UserType } from '@/lib/database.types';
+import { generateReferralCode } from '@/utils/referralUtils';
 
 export interface LoginCredentials {
   email: string;
@@ -15,6 +16,7 @@ export interface RegisterData {
   lat: number;
   lng: number;
   user_type: UserType;
+  referral_code?: string;
 }
 
 export const authApi = {
@@ -56,7 +58,9 @@ export const authApi = {
       // For employee registration, set dummy address, lat, lng values
       const registrationData = { ...data };
       
-      if (registrationData.user_type === 'employee') {
+      if (registrationData.user_type === 'employee' || 
+          registrationData.user_type === 'dev' || 
+          registrationData.user_type === 'com_agent') {
         registrationData.address = '';
         registrationData.lat = 0;
         registrationData.lng = 0;
@@ -103,6 +107,12 @@ export const authApi = {
   updateProfile: async (userId: string, updates: Partial<User>) => {
     try {
       console.log('Updating user profile with ID:', userId);
+      
+      // Generate referral code if not present
+      if (!updates.referral_code && updates.name) {
+        updates.referral_code = generateReferralCode(userId, updates.name);
+      }
+      
       const response = await apiClient.put(`/auth/profile/${userId}`, updates);
       console.log('Profile update successful');
       return response.data;

@@ -5,12 +5,16 @@ import { RefreshCw } from 'lucide-react';
 
 interface NoOrdersPromptProps {
   onRefresh: () => void;
+  message?: string;
 }
 
-const NoOrdersPrompt: React.FC<NoOrdersPromptProps> = ({ onRefresh }) => {
+const NoOrdersPrompt: React.FC<NoOrdersPromptProps> = ({ 
+  onRefresh,
+  message = "No orders yet."
+}) => {
   return (
     <div className="bg-white rounded shadow p-8 text-center">
-      <p className="text-gray-500 mb-4">No orders yet.</p>
+      <p className="text-gray-500 mb-4">{message}</p>
       <Button 
         variant="outline" 
         onClick={onRefresh}

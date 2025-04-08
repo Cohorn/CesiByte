@@ -1,172 +1,103 @@
 
-import React from 'react';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
-import * as z from 'zod';
-import { User } from '@/lib/database.types';
-import { useToast } from '@/hooks/use-toast';
-import { 
-  Form, FormControl, FormField, FormItem, 
-  FormLabel, FormMessage 
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Save } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { User } from '@/lib/database.types';
 
-const profileSchema = z.object({
-  name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
-  email: z.string().email({ message: 'Must be a valid email address.' }),
-  address: z.string().min(2, { message: 'Address must be at least 2 characters.' }),
-  lat: z.number().or(z.string().transform((val) => parseFloat(val)))
-    .refine((val) => !isNaN(val) && val >= -90 && val <= 90, {
-      message: 'Latitude must be between -90 and 90.',
-    }),
-  lng: z.number().or(z.string().transform((val) => parseFloat(val)))
-    .refine((val) => !isNaN(val) && val >= -180 && val <= 180, {
-      message: 'Longitude must be between -180 and 180.',
-    }),
-});
-
-type ProfileFormData = z.infer<typeof profileSchema>;
-
-interface EditProfileFormProps {
+export interface EditProfileFormProps {
   user: User;
-  onSubmit: (data: ProfileFormData) => Promise<void>;
+  onSubmit: (formData: any) => Promise<void>;
   isLoading: boolean;
 }
 
-const EditProfileForm: React.FC<EditProfileFormProps> = ({ 
-  user, 
-  onSubmit,
-  isLoading
-}) => {
-  const { toast } = useToast();
-  
-  const form = useForm<ProfileFormData>({
-    resolver: zodResolver(profileSchema),
-    defaultValues: {
-      name: user.name || '',
-      email: user.email || '',
-      address: user.address || '',
-      lat: user.lat || 0,
-      lng: user.lng || 0,
-    },
-  });
+const EditProfileForm: React.FC<EditProfileFormProps> = ({ user, onSubmit, isLoading }) => {
+  const [name, setName] = useState(user.name);
+  const [email, setEmail] = useState(user.email);
+  const [address, setAddress] = useState(user.address);
+  const [lat, setLat] = useState<number>(user.lat || 0);
+  const [lng, setLng] = useState<number>(user.lng || 0);
 
-  const handleSubmit = async (data: ProfileFormData) => {
-    try {
-      await onSubmit(data);
-    } catch (error) {
-      console.error("Form submission error:", error);
-      toast({
-        title: "Error",
-        description: "There was a problem updating your profile.",
-        variant: "destructive",
-      });
-    }
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    await onSubmit({
+      name,
+      email,
+      address,
+      lat,
+      lng
+    });
   };
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Name</FormLabel>
-              <FormControl>
-                <Input placeholder="Your name" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="name">Name</Label>
+        <Input
+          id="name"
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
         />
-
-        <FormField
-          control={form.control}
-          name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Email</FormLabel>
-              <FormControl>
-                <Input type="email" placeholder="Your email" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
+      </div>
+      
+      <div className="space-y-2">
+        <Label htmlFor="email">Email</Label>
+        <Input
+          id="email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
         />
-
-        <FormField
-          control={form.control}
-          name="address"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Address</FormLabel>
-              <FormControl>
-                <Input placeholder="Your address" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
+      </div>
+      
+      <div className="space-y-2">
+        <Label htmlFor="address">Address</Label>
+        <Input
+          id="address"
+          type="text"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          required={!['employee', 'dev', 'com_agent'].includes(user.user_type)}
+          disabled={['employee', 'dev', 'com_agent'].includes(user.user_type)}
         />
-
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="lat"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Latitude</FormLabel>
-                <FormControl>
-                  <Input 
-                    type="number" 
-                    step="any" 
-                    placeholder="Latitude" 
-                    {...field}
-                    onChange={e => field.onChange(parseFloat(e.target.value))}
-                    min="-90"
-                    max="90"
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="lng"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Longitude</FormLabel>
-                <FormControl>
-                  <Input 
-                    type="number" 
-                    step="any" 
-                    placeholder="Longitude" 
-                    {...field}
-                    onChange={e => field.onChange(parseFloat(e.target.value))}
-                    min="-180"
-                    max="180"
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
+      </div>
+      
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="lat">Latitude</Label>
+          <Input
+            id="lat"
+            type="number"
+            step="any"
+            value={lat}
+            onChange={(e) => setLat(parseFloat(e.target.value) || 0)}
+            required={!['employee', 'dev', 'com_agent'].includes(user.user_type)}
+            disabled={['employee', 'dev', 'com_agent'].includes(user.user_type)}
           />
         </div>
-
-        <Button 
-          type="submit" 
-          className="w-full"
-          disabled={isLoading}
-        >
-          <Save className="h-4 w-4 mr-2" />
-          {isLoading ? 'Saving...' : 'Save Profile'}
-        </Button>
-      </form>
-    </Form>
+        
+        <div className="space-y-2">
+          <Label htmlFor="lng">Longitude</Label>
+          <Input
+            id="lng"
+            type="number"
+            step="any"
+            value={lng}
+            onChange={(e) => setLng(parseFloat(e.target.value) || 0)}
+            required={!['employee', 'dev', 'com_agent'].includes(user.user_type)}
+            disabled={['employee', 'dev', 'com_agent'].includes(user.user_type)}
+          />
+        </div>
+      </div>
+      
+      <Button type="submit" disabled={isLoading}>
+        {isLoading ? 'Saving...' : 'Save Changes'}
+      </Button>
+    </form>
   );
 };
 

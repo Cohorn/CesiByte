@@ -1,5 +1,4 @@
-
-export type UserType = 'customer' | 'restaurant' | 'courier' | 'employee';
+export type UserType = 'customer' | 'restaurant' | 'courier' | 'employee' | 'dev' | 'com_agent';
 
 export type MapLocationType = 'restaurant' | 'courier' | 'user';
 
@@ -12,6 +11,8 @@ export type User = {
   lat: number;
   lng: number;
   created_at: string;
+  referral_code?: string;
+  referred_by?: string;
 };
 
 export type SimpleUser = {
@@ -67,6 +68,7 @@ export type Order = {
   created_at: string;
   updated_at: string;
   delivery_pin: string;
+  estimated_delivery_time?: string;
 };
 
 export type OrderItem = {
@@ -84,6 +86,17 @@ export type Review = {
   rating: number;
   comment?: string;
   created_at: string;
+};
+
+export type Notification = {
+  id: string;
+  user_id: string;
+  title: string;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+  type: 'order' | 'system' | 'referral';
+  related_id?: string;
 };
 
 export interface Database {
