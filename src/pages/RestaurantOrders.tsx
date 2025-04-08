@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import NavBar from '@/components/NavBar';
@@ -59,7 +58,7 @@ const RestaurantOrders = () => {
 
   // Fetch restaurant data if user is logged in and is a restaurant owner
   useEffect(() => {
-    if (user?.user_type === 'restaurant' && !restaurant) {
+    if (user?.user_type === 'restaurant') {
       console.log("RestaurantOrders - Fetching restaurant data for user:", user.id);
       fetchRestaurant(user.id, true).then(result => {
         console.log("RestaurantOrders - Restaurant fetch result:", result);
@@ -74,7 +73,7 @@ const RestaurantOrders = () => {
         }
       });
     }
-  }, [user, restaurant, fetchRestaurant, refetch]);
+  }, [user, fetchRestaurant, refetch]);
 
   // If restaurant is already loaded on component mount, fetch orders automatically
   useEffect(() => {
@@ -162,7 +161,7 @@ const RestaurantOrders = () => {
     }
   };
 
-  const handleUpdateOrderStatus = async (orderId: string, status: OrderStatus) => {
+  const handleUpdateStatus = async (orderId: string, status: OrderStatus) => {
     try {
       const result = await updateOrderStatus(orderId, status);
       return result;
@@ -210,7 +209,7 @@ const RestaurantOrders = () => {
         ) : (
           <OrderTabs 
             orders={orders} 
-            onUpdateStatus={handleUpdateOrderStatus}
+            onUpdateStatus={handleUpdateStatus}
             canUpdateStatus={true}
           />
         )}

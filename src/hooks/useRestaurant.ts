@@ -33,18 +33,40 @@ export const useRestaurant = (id?: string | null) => {
     setError(null);
     
     try {
-      console.log(`Fetching restaurant data for ID: ${id}`);
+      let restaurantData;
+      console.log(`Checking if ID ${id} is a user ID or restaurant ID...`);
       
-      // Use getRestaurant instead of getRestaurantById
-      const restaurantData = await restaurantApi.getRestaurant(id);
-      console.log('Restaurant data received:', restaurantData);
-      setRestaurant(restaurantData);
+      // First try to get restaurant directly by ID (if this is a restaurant ID)
+      try {
+        console.log(`Trying to fetch restaurant with ID: ${id}`);
+        restaurantData = await restaurantApi.getRestaurant(id);
+        console.log('Restaurant found directly:', restaurantData);
+      } catch (directFetchErr) {
+        console.log('Not a direct restaurant ID, trying as user ID...');
+        // If that fails, try to get restaurant by user ID
+        try {
+          console.log(`Fetching restaurant for user ID: ${id}`);
+          restaurantData = await restaurantApi.getRestaurantByUser(id);
+          console.log('Restaurant found by user ID:', restaurantData);
+        } catch (userFetchErr) {
+          console.error("Failed to fetch restaurant by user ID:", userFetchErr);
+          throw userFetchErr;
+        }
+      }
       
-      // Use getMenuItems instead of getMenuItemsByRestaurantId
-      console.log(`Fetching menu items for restaurant ID: ${id}`);
-      const menuData = await restaurantApi.getMenuItems(id);
-      console.log('Menu items received:', menuData);
-      setMenuItems(menuData);
+      if (restaurantData) {
+        console.log('Restaurant data received:', restaurantData);
+        setRestaurant(restaurantData);
+        
+        // Now fetch menu items using the restaurant ID
+        console.log(`Fetching menu items for restaurant ID: ${restaurantData.id}`);
+        const menuData = await restaurantApi.getMenuItems(restaurantData.id);
+        console.log('Menu items received:', menuData);
+        setMenuItems(menuData);
+      } else {
+        console.error("No restaurant data returned");
+        throw new Error("Could not find restaurant");
+      }
       
       setLoading(false);
       return restaurantData;
@@ -69,9 +91,13 @@ export const useRestaurant = (id?: string | null) => {
     if (id) {
       console.log(`useRestaurant hook: Fetching data for restaurant ID: ${id}`);
       fetchRestaurant(id);
+    } else if (user && user.user_type === 'restaurant') {
+      console.log(`useRestaurant hook: User is restaurant type, fetching with user ID: ${user.id}`);
+      fetchRestaurant(user.id);
     }
-  }, [id, fetchRestaurant]);
+  }, [id, user, fetchRestaurant]);
   
+  // Cart functionality
   const addToCart = (item: CartItem) => {
     setCart(prev => {
       const existingItemIndex = prev.findIndex(i => i.menu_item_id === item.menu_item_id);
@@ -145,7 +171,7 @@ export const useRestaurant = (id?: string | null) => {
       
       console.log('Creating order with data:', orderData);
       
-      // Call the API to create the order - use the correct method
+      // Call the API to create the order
       const newOrder = await restaurantApi.createOrder(orderData);
       console.log('Order created successfully:', newOrder);
       
