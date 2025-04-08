@@ -14,6 +14,7 @@ interface OrdersListProps {
   onReviewCourier?: (orderId: string, courierId: string, data: { rating: number; comment: string }) => void;
   canUpdateStatus?: boolean;
   previousOrderStatuses?: Record<string, OrderStatus>;
+  emptyMessage?: string; // Added this property
 }
 
 const OrdersList: React.FC<OrdersListProps> = ({ 
@@ -24,7 +25,8 @@ const OrdersList: React.FC<OrdersListProps> = ({
   showTabs = false,
   onReviewCourier,
   canUpdateStatus = false,
-  previousOrderStatuses = {}
+  previousOrderStatuses = {},
+  emptyMessage = "No orders found" // Use this as default
 }) => {
   const [activeTab, setActiveTab] = useState("active");
   
@@ -45,7 +47,7 @@ const OrdersList: React.FC<OrdersListProps> = ({
     return (
       <div className="space-y-4">
         {processedOrders.length === 0 ? (
-          <p className="text-center text-gray-500 my-8">No orders found</p>
+          <p className="text-center text-gray-500 my-8">{emptyMessage}</p>
         ) : (
           processedOrders.map(order => (
             <OrderListItem 

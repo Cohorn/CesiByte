@@ -55,7 +55,6 @@ const OrderListItem: React.FC<OrderListItemProps> = ({
         toast({
           title: "Order Status Updated",
           description: `Your order is now ${order.status.replace(/_/g, ' ')}`,
-          icon: <Bell className="h-4 w-4" />
         });
       }
       
