@@ -28,10 +28,7 @@ import OrderManagement from '@/pages/employee/OrderManagement';
 import UserDetail from '@/pages/employee/UserDetail';
 import Sitemap from '@/pages/employee/Sitemap';
 import Analytics from '@/pages/Analytics';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import './App.css';
-
-const queryClient = new QueryClient();
 
 function App() {
   const router = createBrowserRouter([
@@ -150,12 +147,10 @@ function App() {
   ]);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <RouterProvider router={router} />
-        <Toaster />
-      </AuthProvider>
-    </QueryClientProvider>
+    <AuthProvider>
+      <RouterProvider router={router} />
+      <Toaster />
+    </AuthProvider>
   );
 }
 
