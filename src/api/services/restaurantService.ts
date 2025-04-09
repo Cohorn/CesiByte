@@ -3,8 +3,8 @@ import { apiClient } from '../client';
 import { Restaurant, MenuItem } from '@/lib/database.types';
 import { supabase } from '@/lib/supabase';
 
-// Constants
-const RESTAURANT_IMAGES_BUCKET = 'Restaurant Images';
+// Constants - using a consistent name
+const RESTAURANT_IMAGES_BUCKET = 'restaurant_images';
 
 // Define the restaurant API
 export const restaurantApi = {
@@ -230,16 +230,23 @@ export const restaurantApi = {
         return false;
       }
       
-      // Check for either bucket name
+      // Log all available buckets for debugging
+      console.log("Available buckets:", buckets.map(b => `${b.id} (${b.name})`).join(', '));
+      
+      // Check for any of the known bucket names with case-insensitive matching
       const bucketExists = buckets.some(bucket => 
-        bucket.id === 'restaurant_images' || 
-        bucket.id === 'Restaurant Images'
+        bucket.id.toLowerCase() === 'restaurant_images' || 
+        bucket.id.toLowerCase() === 'restaurant images' ||
+        bucket.name.toLowerCase() === 'restaurant_images' || 
+        bucket.name.toLowerCase() === 'restaurant images'
       );
       
       if (bucketExists) {
         const bucket = buckets.find(b => 
-          b.id === 'restaurant_images' || 
-          b.id === 'Restaurant Images'
+          b.id.toLowerCase() === 'restaurant_images' || 
+          b.id.toLowerCase() === 'restaurant images' ||
+          b.name.toLowerCase() === 'restaurant_images' || 
+          b.name.toLowerCase() === 'restaurant images'
         );
         
         console.log(`Found restaurant images bucket: ${bucket?.id}`);

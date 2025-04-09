@@ -8,12 +8,14 @@ interface ImageUploadAreaProps {
   isUploading: boolean;
   bucketReady: boolean;
   onFileSelect: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  errorMessage?: string;
 }
 
 const ImageUploadArea: React.FC<ImageUploadAreaProps> = ({
   isUploading,
   bucketReady,
-  onFileSelect
+  onFileSelect,
+  errorMessage
 }) => {
   return (
     <div className="border-2 border-dashed border-gray-300 rounded-md p-4 text-center">
@@ -46,7 +48,7 @@ const ImageUploadArea: React.FC<ImageUploadAreaProps> = ({
         <Alert variant="destructive" className="mt-3">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            Image upload service not available. Our team has been notified.
+            {errorMessage || "Image upload service not available. Our team has been notified."}
           </AlertDescription>
         </Alert>
       )}

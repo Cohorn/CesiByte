@@ -6,12 +6,15 @@ import { useToast } from '@/hooks/use-toast';
 export const useStorageBucket = (bucketName: string) => {
   const [bucketReady, setBucketReady] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
+  const [actualBucketId, setActualBucketId] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     const checkBucket = async () => {
       setIsChecking(true);
       try {
+        console.log(`Checking for storage bucket: "${bucketName}"`);
+        
         // Try to list buckets to check if the storage is accessible
         const { data: buckets, error: listError } = await supabase.storage.listBuckets();
         
@@ -21,13 +24,25 @@ export const useStorageBucket = (bucketName: string) => {
           return;
         }
         
-        // Check if our target bucket exists
+        if (!buckets || buckets.length === 0) {
+          console.error('No buckets found in storage');
+          setBucketReady(false);
+          return;
+        }
+        
+        console.log('Available buckets:', buckets.map(b => `${b.id} (${b.name})`).join(', '));
+        
+        // Check if our target bucket exists (either by exact name or case insensitive match)
         const targetBucket = buckets?.find(bucket => 
-          bucket.name === bucketName || bucket.id === bucketName
+          bucket.name === bucketName || 
+          bucket.id === bucketName || 
+          bucket.id.toLowerCase() === bucketName.toLowerCase() ||
+          bucket.name.toLowerCase() === bucketName.toLowerCase()
         );
         
         if (targetBucket) {
           console.log(`Bucket found: ${targetBucket.id} (${targetBucket.name})`);
+          setActualBucketId(targetBucket.id);
           
           // Verify access by trying to list files
           const { error: listFilesError } = await supabase.storage
@@ -58,8 +73,10 @@ export const useStorageBucket = (bucketName: string) => {
     checkBucket();
   }, [bucketName, toast]);
 
-  const verifyBucketAccess = async (): Promise<boolean> => {
-    if (bucketReady) return true;
+  const verifyBucketAccess = async (): Promise<{success: boolean, bucketId: string | null}> => {
+    if (bucketReady && actualBucketId) {
+      return { success: true, bucketId: actualBucketId };
+    }
     
     try {
       // Try one more time to check if the bucket exists
@@ -67,16 +84,20 @@ export const useStorageBucket = (bucketName: string) => {
       
       if (listError) {
         console.error('Error accessing storage:', listError);
-        return false;
+        return { success: false, bucketId: null };
       }
       
+      // Look for the bucket with more flexible matching
       const targetBucket = buckets?.find(bucket => 
-        bucket.name === bucketName || bucket.id === bucketName
+        bucket.name === bucketName || 
+        bucket.id === bucketName || 
+        bucket.id.toLowerCase() === bucketName.toLowerCase() ||
+        bucket.name.toLowerCase() === bucketName.toLowerCase()
       );
       
       if (!targetBucket) {
         console.error(`Bucket not found with name/id: ${bucketName}`);
-        return false;
+        return { success: false, bucketId: null };
       }
       
       // Verify access by trying to list files
@@ -86,16 +107,17 @@ export const useStorageBucket = (bucketName: string) => {
         
       if (listFilesError) {
         console.error(`Error accessing bucket ${targetBucket.id}:`, listFilesError);
-        return false;
+        return { success: false, bucketId: null };
       }
       
       setBucketReady(true);
-      return true;
+      setActualBucketId(targetBucket.id);
+      return { success: true, bucketId: targetBucket.id };
     } catch (error) {
       console.error('Error verifying bucket access:', error);
-      return false;
+      return { success: false, bucketId: null };
     }
   };
 
-  return { bucketReady, isChecking, verifyBucketAccess };
+  return { bucketReady, isChecking, verifyBucketAccess, actualBucketId };
 };
