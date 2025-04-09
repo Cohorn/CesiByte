@@ -63,6 +63,7 @@ const RestaurantMenu = () => {
 
   const { user } = useAuth();
   
+  // Fetch restaurant reviews
   const { reviews, reviewers, averageRating, isLoading: reviewsLoading } = useReviews({ 
     restaurantId: restaurantId 
   });
@@ -115,6 +116,7 @@ const RestaurantMenu = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // Check file size
     if (file.size > MAX_IMAGE_SIZE) {
       toast({
         title: "Error",
@@ -124,6 +126,7 @@ const RestaurantMenu = () => {
       return;
     }
 
+    // Check file type
     if (!file.type.startsWith('image/')) {
       toast({
         title: "Error",
@@ -133,6 +136,7 @@ const RestaurantMenu = () => {
       return;
     }
 
+    // Create a preview URL
     const previewUrl = URL.createObjectURL(file);
     setImagePreview(previewUrl);
     setImageFile(file);
@@ -158,108 +162,36 @@ const RestaurantMenu = () => {
     setIsUploading(true);
     
     try {
-      const { data: buckets, error: listError } = await supabase.storage.listBuckets();
-      
-      if (listError) {
-        console.error('Error listing buckets:', listError);
-        toast({
-          title: "Error",
-          description: "Storage service unavailable. Please try again later.",
-          variant: "destructive"
-        });
-        return null;
-      }
-      
-      if (!buckets || buckets.length === 0) {
-        console.error('No storage buckets found');
-        toast({
-          title: "Error",
-          description: "No storage buckets available. Please contact support.",
-          variant: "destructive"
-        });
-        return null;
-      }
-      
-      console.log('Available buckets for menu upload:', buckets.map(b => `${b.id} (${b.name})`).join(', '));
-      
-      let targetBucket = buckets.find(b => 
-        b.id.toLowerCase() === 'restaurant_images' || 
-        b.name.toLowerCase() === 'restaurant images'
-      );
-      
-      if (!targetBucket) {
-        for (const bucket of buckets) {
-          const { error: listFilesError } = await supabase.storage
-            .from(bucket.id)
-            .list();
-            
-          if (!listFilesError) {
-            console.log(`Found working bucket: ${bucket.id}`);
-            targetBucket = bucket;
-            break;
-          }
-        }
-      }
-      
-      if (!targetBucket) {
-        console.error('No usable storage bucket found');
-        toast({
-          title: "Error",
-          description: "Storage configuration issue. Please contact support.",
-          variant: "destructive"
-        });
-        return null;
-      }
-      
-      const bucketId = targetBucket.id;
-      console.log(`Using bucket for upload: ${bucketId}`);
-      
+      // Create a unique file name to avoid collisions
       const fileExt = imageFile.name.split('.').pop();
-      const fileName = `${Math.random().toString(36).substring(2, 15)}-${Date.now()}.${fileExt}`;
+      const fileName = `${uuidv4()}.${fileExt}`;
       const filePath = `menu_items/${restaurantId}/${fileName}`;
       
-      console.log(`Uploading menu item image to ${bucketId}/${filePath}`);
-      
+      // Upload the image to Supabase Storage
       const { error: uploadError, data } = await supabase.storage
-        .from(bucketId)
-        .upload(filePath, imageFile, {
-          cacheControl: '3600',
-          upsert: true
-        });
+        .from('restaurant_images')
+        .upload(filePath, imageFile);
       
       if (uploadError) {
-        console.error("Upload error:", uploadError);
         toast({
           title: "Error",
-          description: `Upload failed: ${uploadError.message}`,
+          description: "Could not upload image. Please try again.",
           variant: "destructive"
         });
         return null;
       }
       
-      if (!data?.path) {
-        console.error('Upload succeeded but no file path was returned');
-        toast({
-          title: "Error",
-          description: "Upload succeeded but no file path was returned",
-          variant: "destructive"
-        });
-        return null;
-      }
-      
+      // Get the public URL of the uploaded image
       const { data: { publicUrl } } = supabase.storage
-        .from(bucketId)
-        .getPublicUrl(data.path);
+        .from('restaurant_images')
+        .getPublicUrl(filePath);
       
-      console.log("Image uploaded successfully:", publicUrl);
       return publicUrl;
     } catch (error) {
       console.error('Error uploading image:', error);
       toast({
         title: "Error",
-        description: error instanceof Error 
-          ? `Upload error: ${error.message}` 
-          : "An unexpected error occurred during upload.",
+        description: "An unexpected error occurred during upload.",
         variant: "destructive"
       });
       return null;
@@ -398,6 +330,7 @@ const RestaurantMenu = () => {
     setEditDialogOpen(true);
   };
 
+  // Redirect if user is not logged in or is not a restaurant
   if (!user || user.user_type !== 'restaurant') {
     return <Navigate to="/" />;
   }
@@ -622,6 +555,7 @@ const RestaurantMenu = () => {
         </div>
       </main>
 
+      {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
