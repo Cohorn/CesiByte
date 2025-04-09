@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
@@ -151,14 +150,13 @@ const RestaurantSetup = () => {
     
     setIsSubmitting(true);
     try {
-      // Create the restaurant data object with the required user_id
       const restaurantData = {
         name: data.name,
         address: data.address,
-        lat: user.lat || 0, // Use user's coordinates from registration
-        lng: user.lng || 0, // Use user's coordinates from registration
-        user_id: user.id, // Explicitly include the user ID
-        image_url: data.image_url || null // Optional image URL
+        lat: user.lat || 0,
+        lng: user.lng || 0,
+        user_id: user.id,
+        image_url: data.image_url || null
       };
       
       console.log("Submitting restaurant data:", restaurantData);
@@ -166,10 +164,8 @@ const RestaurantSetup = () => {
       let result;
       
       if (restaurant) {
-        // Update existing restaurant
         result = await updateRestaurant(restaurantData);
       } else {
-        // Create new restaurant
         result = await createRestaurant(restaurantData);
       }
 
@@ -180,7 +176,6 @@ const RestaurantSetup = () => {
         });
         
         if (!restaurant) {
-          // Newly created - navigate to menu
           navigate('/restaurant/menu');
         }
       }

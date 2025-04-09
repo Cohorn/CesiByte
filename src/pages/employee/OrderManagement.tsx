@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { orderApi } from '@/api/services/orderService';
 import { Order, OrderStatus } from '@/lib/database.types';
+import { Link } from 'react-router-dom';
 import {
   Table,
   TableBody,
@@ -27,7 +28,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { ORDER_STATUS_DISPLAY } from '@/utils/orderUtils';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -35,6 +35,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { 
   Calendar, 
+  ChevronLeft,
   Edit, 
   Eye, 
   Filter, 
@@ -68,9 +69,20 @@ const OrderManagement: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      // Fetch all orders from the API
-      const response = await orderApi.getOrdersByStatus('all' as any);
-      setOrders(response);
+      // Use a different approach to fetch orders that won't try to use '/orders' directly
+      const activeOrdersPromise = orderApi.getOrdersByStatus(['created', 'accepted_by_restaurant', 'preparing', 'ready_for_pickup', 'picked_up', 'on_the_way']);
+      const completedOrdersPromise = orderApi.getOrdersByStatus(['delivered', 'completed']);
+      const cancelledOrdersPromise = orderApi.getOrdersByStatus(['cancelled']);
+      
+      const [activeOrders, completedOrders, cancelledOrders] = await Promise.all([
+        activeOrdersPromise,
+        completedOrdersPromise,
+        cancelledOrdersPromise
+      ]);
+      
+      // Combine the results
+      const allOrders = [...activeOrders, ...completedOrders, ...cancelledOrders];
+      setOrders(allOrders);
     } catch (err: any) {
       console.error('Error fetching orders:', err);
       setError(err.message || 'Failed to fetch orders');
@@ -170,7 +182,15 @@ const OrderManagement: React.FC = () => {
   return (
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Order Management</h1>
+        <div className="flex items-center space-x-4">
+          <Button asChild variant="outline" size="sm" className="flex items-center gap-2">
+            <Link to="/employee/dashboard">
+              <ChevronLeft className="h-4 w-4" />
+              <span>Back to Dashboard</span>
+            </Link>
+          </Button>
+          <h1 className="text-2xl font-bold">Order Management</h1>
+        </div>
         <Button 
           onClick={handleRefresh}
           variant="outline"

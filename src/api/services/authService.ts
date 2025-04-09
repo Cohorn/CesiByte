@@ -1,3 +1,4 @@
+
 import { apiClient } from '../client';
 import { User, UserType, EmployeeRoleType } from '@/lib/database.types';
 import { generateReferralCode } from '@/utils/referralUtils';
@@ -126,6 +127,19 @@ export const authApi = {
       return response.data;
     } catch (error) {
       console.error('User type update failed:', error);
+      throw error;
+    }
+  },
+
+  // Added deleteUser method if needed
+  deleteUser: async (userId: string) => {
+    try {
+      console.log('Deleting user account with ID:', userId);
+      const response = await apiClient.delete(`/auth/user/${userId}`);
+      console.log('User deletion successful');
+      return response.data;
+    } catch (error) {
+      console.error('User deletion failed:', error);
       throw error;
     }
   }

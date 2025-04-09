@@ -1,5 +1,5 @@
 
-import { RouterProvider, createBrowserRouter } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import { AuthProvider } from '@/lib/AuthContext';
 import { Toaster } from '@/components/ui/toaster';
 import Index from '@/pages/Index';
@@ -31,128 +31,41 @@ import Analytics from '@/pages/Analytics';
 import './App.css';
 
 function App() {
-  const router = createBrowserRouter([
-    {
-      path: '/',
-      element: <Index />
-    },
-    {
-      path: '/login',
-      element: <Login />
-    },
-    {
-      path: '/register',
-      element: <Register />
-    },
-    {
-      path: '/profile',
-      element: <Profile />
-    },
-    {
-      path: '/restaurant/setup',
-      element: <RestaurantSetup />
-    },
-    {
-      path: '/restaurant/orders',
-      element: <RestaurantOrders />
-    },
-    {
-      path: '/restaurant/menu',
-      element: <RestaurantMenu />
-    },
-    {
-      path: '/analytics',
-      element: <Analytics />
-    },
-    {
-      path: '/restaurants',
-      element: <Restaurants />
-    },
-    {
-      path: '/restaurants/:id',
-      element: <RestaurantDetail />
-    },
-    {
-      path: '/restaurants/:id/menu',
-      element: <RestaurantMenu />
-    },
-    {
-      path: '/orders',
-      element: <CustomerOrders />
-    },
-    {
-      path: '/courier',
-      element: <CourierDashboard />
-    },
-    {
-      path: '/courier/orders',
-      element: <CourierDashboard />
-    },
-    {
-      path: '/courier/available-orders',
-      element: <CourierAvailableOrders />
-    },
-    {
-      path: '/courier/active-orders',
-      element: <CourierActiveOrders />
-    },
-    {
-      path: '/employee/login',
-      element: <EmployeeLogin />
-    },
-    {
-      path: '/employee',
-      element: <EmployeeDashboard />
-    },
-    {
-      path: '/employee/dashboard',
-      element: <EmployeeDashboard />
-    },
-    {
-      path: '/employee/profile',
-      element: <EmployeeProfile />
-    },
-    {
-      path: '/employee/api-playground',
-      element: <ApiPlayground />
-    },
-    {
-      path: '/employee/component-library',
-      element: <ComponentLibrary />
-    },
-    {
-      path: '/employee/customers',
-      element: <CustomerManagement />
-    },
-    {
-      path: '/employee/restaurants',
-      element: <RestaurantManagement />
-    },
-    {
-      path: '/employee/couriers',
-      element: <CourierManagement />
-    },
-    {
-      path: '/employee/couriers/:id',
-      element: <UserDetail />
-    },
-    {
-      path: '/employee/orders',
-      element: <OrderManagement />
-    },
-    {
-      path: '/employee/sitemap',
-      element: <Sitemap />
-    },
-    {
-      path: '*',
-      element: <NotFound />
-    }
-  ]);
-
   return (
     <AuthProvider>
-      <RouterProvider router={router} />
+      <Routes>
+        <Route path="/" element={<Index />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/restaurant/setup" element={<RestaurantSetup />} />
+        <Route path="/restaurant/orders" element={<RestaurantOrders />} />
+        <Route path="/restaurant/menu" element={<RestaurantMenu />} />
+        <Route path="/analytics" element={<Analytics />} />
+        <Route path="/restaurants" element={<Restaurants />} />
+        <Route path="/restaurants/:id" element={<RestaurantDetail />} />
+        <Route path="/restaurant/:id" element={<RestaurantDetail />} />
+        <Route path="/restaurants/:id/menu" element={<RestaurantMenu />} />
+        <Route path="/restaurant/:id/menu" element={<RestaurantMenu />} />
+        <Route path="/orders" element={<CustomerOrders />} />
+        <Route path="/courier" element={<CourierDashboard />} />
+        <Route path="/courier/orders" element={<CourierDashboard />} />
+        <Route path="/courier/available-orders" element={<CourierAvailableOrders />} />
+        <Route path="/courier/active-orders" element={<CourierActiveOrders />} />
+        <Route path="/employee/login" element={<EmployeeLogin />} />
+        <Route path="/employee" element={<EmployeeDashboard />} />
+        <Route path="/employee/dashboard" element={<EmployeeDashboard />} />
+        <Route path="/employee/profile" element={<EmployeeProfile />} />
+        <Route path="/employee/api-playground" element={<ApiPlayground />} />
+        <Route path="/employee/component-library" element={<ComponentLibrary />} />
+        <Route path="/employee/customers" element={<CustomerManagement />} />
+        <Route path="/employee/restaurants" element={<RestaurantManagement />} />
+        <Route path="/employee/couriers" element={<CourierManagement />} />
+        <Route path="/employee/couriers/:id" element={<UserDetail />} />
+        <Route path="/employee/orders" element={<OrderManagement />} />
+        <Route path="/employee/sitemap" element={<Sitemap />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
       <Toaster />
     </AuthProvider>
   );

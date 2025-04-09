@@ -6,7 +6,7 @@ import NavBar from '@/components/NavBar';
 import Map from '@/components/Map';
 import { Restaurant } from '@/lib/database.types';
 import { useToast } from '@/hooks/use-toast';
-import { MapPin, Star, RefreshCw, AlertTriangle, Image } from 'lucide-react';
+import { MapPin, Star, RefreshCw, AlertTriangle } from 'lucide-react';
 import { calculateDistance, formatDistance } from '@/lib/distanceUtils';
 import { restaurantApi } from '@/api/services';
 import { Button } from '@/components/ui/button';

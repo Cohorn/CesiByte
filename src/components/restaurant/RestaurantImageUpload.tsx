@@ -3,11 +3,10 @@ import React, { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import ImageUploadPreview from './ImageUploadPreview';
 import ImageUploadArea from './ImageUploadArea';
-import { useStorageBucket } from '@/hooks/useStorageBucket';
-import { supabase } from '@/lib/supabase';
-
-// Define the bucket name as a constant
-const RESTAURANT_IMAGES_BUCKET = 'restaurant_images';
+import { useStorage } from '@/hooks/useStorage';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 
 interface RestaurantImageUploadProps {
   currentImageUrl?: string | null;
@@ -20,68 +19,15 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
   onImageUpload,
   onImageRemove
 }) => {
-  const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
-  const { 
-    bucketReady, 
-    verifyBucketAccess, 
-    actualBucketId, 
-    errorMessage 
-  } = useStorageBucket(RESTAURANT_IMAGES_BUCKET);
-
-  // Function to get a working bucket ID
-  const getWorkingBucketId = async () => {
-    try {
-      console.log('Attempting to get a working bucket ID');
-      
-      // First try the primary bucket
-      const { success, bucketId, error } = await verifyBucketAccess();
-      
-      if (success && bucketId) {
-        console.log(`Using verified bucket: ${bucketId}`);
-        return bucketId;
-      }
-      
-      // If that fails, check all available buckets directly
-      console.log(`Bucket verification failed: ${error}. Checking all available buckets...`);
-      const { data: buckets, error: listError } = await supabase.storage.listBuckets();
-      
-      if (listError) {
-        console.error('Error listing buckets:', listError);
-        throw new Error('Cannot access storage service');
-      }
-      
-      if (!buckets || buckets.length === 0) {
-        throw new Error('No storage buckets available');
-      }
-      
-      console.log('Available buckets:', buckets.map(b => `${b.id} (${b.name})`).join(', '));
-      
-      // Try any bucket
-      for (const bucket of buckets) {
-        // Try to verify access to this bucket
-        const { error: listFilesError } = await supabase.storage
-          .from(bucket.id)
-          .list();
-          
-        if (!listFilesError) {
-          console.log(`Found working bucket: ${bucket.id}`);
-          return bucket.id;
-        }
-      }
-      
-      throw new Error('No accessible storage buckets found');
-    } catch (error) {
-      console.error('Error finding a working bucket:', error);
-      throw error;
-    }
-  };
-
+  const { bucketReady, isUploading, errorMessage, uploadFile, uploadProgress } = useStorage('restaurant_images');
+  const [imageUrl, setImageUrl] = useState('');
+  
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
     
-    // Check file size (max 5MB)
+    // Check file size (5MB max)
     if (file.size > 5 * 1024 * 1024) {
       toast({
         title: "Error",
@@ -102,64 +48,46 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
       return;
     }
     
-    setIsUploading(true);
-    
     try {
-      // Get a working bucket ID
-      const bucketId = await getWorkingBucketId();
+      // Upload the file to the restaurants folder
+      const uploadedUrl = await uploadFile(file, 'restaurants');
       
-      if (!bucketId) {
-        throw new Error('Could not find a working storage bucket');
-      }
-      
-      // Create a unique file name
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random().toString(36).substring(2, 15)}-${Date.now()}.${fileExt}`;
-      const filePath = `restaurants/${fileName}`;
-      
-      console.log(`Uploading file to ${bucketId}/${filePath}`);
-      
-      // Upload file to Supabase Storage
-      const { data, error: uploadError } = await supabase.storage
-        .from(bucketId)
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: true
+      if (uploadedUrl) {
+        onImageUpload(uploadedUrl);
+        toast({
+          title: "Success",
+          description: "Image uploaded successfully",
         });
-      
-      if (uploadError) {
-        console.error('Error uploading image:', uploadError);
-        throw uploadError;
+      } else {
+        throw new Error('Upload failed');
       }
-      
-      if (!data?.path) {
-        throw new Error('Upload succeeded but no file path was returned');
-      }
-      
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from(bucketId)
-        .getPublicUrl(data.path);
-      
-      console.log('Image uploaded successfully, public URL:', publicUrl);
-      onImageUpload(publicUrl);
-      
-      toast({
-        title: "Success",
-        description: "Image uploaded successfully",
-      });
     } catch (error) {
       console.error('Error uploading image:', error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to upload image. Please try again later.",
+        description: "Failed to upload image. Please try again later or use an image URL.",
         variant: "destructive",
       });
     } finally {
-      setIsUploading(false);
       // Reset the file input
       event.target.value = '';
     }
+  };
+
+  const handleUrlSubmit = () => {
+    if (!imageUrl.trim()) return;
+    
+    if (!imageUrl.startsWith('http')) {
+      toast({
+        title: "Error",
+        description: "Please enter a valid URL starting with http:// or https://",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    onImageUpload(imageUrl);
+    setImageUrl('');
   };
 
   return (
@@ -167,12 +95,37 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
       {currentImageUrl ? (
         <ImageUploadPreview imageUrl={currentImageUrl} onRemove={onImageRemove} />
       ) : (
-        <ImageUploadArea 
-          isUploading={isUploading} 
-          bucketReady={true} // Always show the upload area
-          onFileSelect={handleImageUpload}
-          errorMessage={errorMessage}
-        />
+        <div className="space-y-4">
+          <ImageUploadArea 
+            isUploading={isUploading} 
+            bucketReady={bucketReady} 
+            onFileSelect={handleImageUpload}
+            errorMessage={errorMessage || undefined}
+            uploadProgress={uploadProgress}
+          />
+          
+          <div className="mt-3">
+            <Label htmlFor="image-url" className="text-sm text-gray-700">
+              Or enter an image URL
+            </Label>
+            <div className="flex mt-1 gap-2">
+              <Input
+                id="image-url"
+                placeholder="https://example.com/image.jpg"
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                onClick={handleUrlSubmit}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              >
+                Add URL
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

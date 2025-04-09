@@ -54,7 +54,7 @@ const pages: SitemapPage[] = [
   { title: 'User Detail', path: '/employee/customers/1', description: 'View and edit user details', icon: User, userType: 'employee', category: 'Employee' },
   { title: 'Analytics', path: '/analytics', description: 'Platform statistics and data', icon: BarChart, userType: 'employee', category: 'Employee' },
   { title: 'API Playground', path: '/employee/api-playground', description: 'Test API endpoints directly', icon: Terminal, userType: 'employee', category: 'Employee' },
-  { title: 'Component Library', path: '/employee/components', description: 'Browse and download UI components', icon: Layers, userType: 'employee', category: 'Employee' },
+  { title: 'Component Library', path: '/employee/component-library', description: 'Browse and download UI components', icon: Layers, userType: 'employee', category: 'Employee' },
   { title: 'Sitemap', path: '/employee/sitemap', description: 'Navigation overview of all pages', icon: MapPin, userType: 'employee', category: 'Employee' },
   { title: 'Not Found', path: '/404', description: 'Error page for 404 routes', icon: AlertCircle, userType: 'all', category: 'System' },
 ];

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Navigate, Link } from 'react-router-dom';
 import { useAuth, isDeveloper } from '@/lib/AuthContext';
@@ -16,7 +15,6 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-// Sample component data
 const components = [
   { 
     name: 'Button', 
@@ -108,20 +106,16 @@ const ComponentLibrary = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [copiedComponent, setCopiedComponent] = useState<string | null>(null);
   
-  // Redirect if not logged in
   if (!user) {
     return <Navigate to="/employee/login" />;
   } 
   
-  // Redirect non-developer users
   if (!isDeveloper(user)) {
     return <Navigate to="/employee/dashboard" />;
   }
 
-  // Get unique categories
   const categories = ['all', ...new Set(components.map(comp => comp.category))];
 
-  // Filter components based on search and category
   const filteredComponents = components.filter(component => {
     const matchesSearch = 
       component.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -140,15 +134,12 @@ const ComponentLibrary = () => {
       description: `${name} component code copied to clipboard`,
     });
     
-    // Reset the copied state after 2 seconds
     setTimeout(() => {
       setCopiedComponent(null);
     }, 2000);
   };
 
   const handleDownloadLibrary = () => {
-    // In a real application, this would generate and download a package
-    // with the selected components
     toast({
       title: "Feature in Progress",
       description: "Component library download functionality is being developed",

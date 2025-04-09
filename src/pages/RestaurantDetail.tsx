@@ -24,7 +24,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 
 const RestaurantDetail = () => {
-  const { restaurantId } = useParams();
+  const { id: restaurantId } = useParams();
   const { user } = useAuth();
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -45,13 +45,24 @@ const RestaurantDetail = () => {
     const fetchRestaurantData = async () => {
       setLoading(true);
       try {
+        console.log('Fetching restaurant with ID:', restaurantId);
+        
+        if (!restaurantId) {
+          throw new Error('Restaurant ID is missing');
+        }
+
         const { data: restaurantData, error: restaurantError } = await supabase
           .from('restaurants')
           .select('*')
           .eq('id', restaurantId)
           .single();
 
-        if (restaurantError) throw restaurantError;
+        if (restaurantError) {
+          console.error('Error fetching restaurant:', restaurantError);
+          throw restaurantError;
+        }
+        
+        console.log('Restaurant data fetched:', restaurantData);
         setRestaurant(restaurantData);
 
         const { data: menuData, error: menuError } = await supabase
@@ -139,7 +150,6 @@ const RestaurantDetail = () => {
 
   const totalPrice = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
-  // Generate a random 4-digit PIN for delivery confirmation
   const generatePin = () => {
     return Math.floor(1000 + Math.random() * 9000).toString();
   };
@@ -164,7 +174,6 @@ const RestaurantDetail = () => {
     }
 
     try {
-      // Generate a delivery PIN for the order
       const deliveryPin = generatePin();
       console.log("Placing order with delivery PIN:", deliveryPin);
 
@@ -178,7 +187,7 @@ const RestaurantDetail = () => {
         delivery_address: user.address,
         delivery_lat: user.lat,
         delivery_lng: user.lng,
-        delivery_pin: deliveryPin // Add the delivery PIN
+        delivery_pin: deliveryPin
       });
 
       if (error) throw error;
@@ -216,12 +225,24 @@ const RestaurantDetail = () => {
     await deleteReview(reviewId);
   };
 
-  if (!restaurant) {
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <NavBar />
+        <div className="container mx-auto px-4 py-8 flex justify-center items-center">
+          <p>Loading restaurant details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!restaurant && !loading) {
     return (
       <div className="min-h-screen flex flex-col">
         <NavBar />
         <div className="container mx-auto px-4 py-8">
-          <p>Restaurant not found</p>
+          <h1 className="text-2xl font-bold mb-4">Restaurant Not Found</h1>
+          <p>The restaurant you're looking for doesn't exist or has been removed.</p>
         </div>
       </div>
     );

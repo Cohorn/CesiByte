@@ -193,7 +193,7 @@ const EmployeeDashboard = () => {
                 </CardHeader>
                 <CardContent>
                   <Button asChild className="w-full">
-                    <Link to="/employee/components">Component Library</Link>
+                    <Link to="/employee/component-library">Component Library</Link>
                   </Button>
                 </CardContent>
               </Card>

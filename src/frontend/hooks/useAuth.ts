@@ -1,5 +1,5 @@
 
-import { useAuth } from '@/lib/AuthContext';
+import { useAuth, isEmployeeType, isDeveloper, isCommercialAgent } from '@/lib/AuthContext';
 
-// Re-export the useAuth hook from the main hooks directory
-export { useAuth };
+// Re-export the useAuth hook and utility functions from the main context
+export { useAuth, isEmployeeType, isDeveloper, isCommercialAgent };
