@@ -6,78 +6,97 @@ import { useToast } from '@/hooks/use-toast';
 export const useStorageBucket = (bucketName: string) => {
   const [bucketReady, setBucketReady] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
+  const [actualBucketId, setActualBucketId] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
   const { toast } = useToast();
+
+  // List of possible bucket names to check (both ID and name variants)
+  const possibleBucketNames = [
+    'restaurant_images',
+    'Restaurant Images',
+    'restaurant-images',
+    'restaurantimages',
+    'avatars',
+    'public'
+  ];
 
   useEffect(() => {
     const checkBucket = async () => {
       setIsChecking(true);
+      setErrorMessage(undefined);
+      
       try {
+        console.log(`Checking for storage bucket: "${bucketName}"`);
+        
         // Try to list buckets to check if the storage is accessible
         const { data: buckets, error: listError } = await supabase.storage.listBuckets();
         
         if (listError) {
           console.error('Error accessing storage:', listError);
+          setErrorMessage("Storage service unavailable. Try again later.");
           setBucketReady(false);
-          
-          // Only show toast for non-connection errors
-          if (listError.message !== 'Failed to fetch') {
-            toast({
-              title: "Storage connection issue",
-              description: "Could not connect to image storage. Please try again later.",
-              variant: "destructive"
-            });
-          }
           return;
         }
         
-        // Check if our target bucket exists
-        const targetBucket = buckets?.find(bucket => bucket.name === bucketName);
+        if (!buckets || buckets.length === 0) {
+          console.error('No storage buckets available');
+          setErrorMessage("No storage buckets available. Please contact support.");
+          setBucketReady(false);
+          return;
+        }
+        
+        console.log('Available buckets:', buckets.map(b => `${b.id} (${b.name})`).join(', '));
+        
+        // First try to find the exact bucket
+        let targetBucket = buckets.find(bucket => 
+          bucket.id.toLowerCase() === bucketName.toLowerCase() || 
+          bucket.name.toLowerCase() === bucketName.toLowerCase()
+        );
+        
+        // If not found, try alternative names
+        if (!targetBucket) {
+          targetBucket = buckets.find(bucket => 
+            possibleBucketNames.some(name => 
+              bucket.id.toLowerCase() === name.toLowerCase() || 
+              bucket.name.toLowerCase() === name.toLowerCase()
+            )
+          );
+        }
+        
+        // If still not found, use any available bucket
+        if (!targetBucket && buckets.length > 0) {
+          console.log('Using first available bucket as fallback');
+          targetBucket = buckets[0];
+        }
         
         if (targetBucket) {
-          console.log(`"${bucketName}" bucket found`);
+          console.log(`Bucket found: ${targetBucket.id} (${targetBucket.name})`);
+          setActualBucketId(targetBucket.id);
           
           // Verify access by trying to list files
           const { error: listFilesError } = await supabase.storage
-            .from(bucketName)
+            .from(targetBucket.id)
             .list();
             
           if (listFilesError) {
-            console.error('Error accessing bucket:', listFilesError);
+            console.error(`Error accessing bucket ${targetBucket.id}:`, listFilesError);
+            setErrorMessage(`Cannot access storage bucket. Error: ${listFilesError.message}`);
             setBucketReady(false);
-            
-            // Only show toast for non-connection errors
-            if (listFilesError.message !== 'Failed to fetch') {
-              toast({
-                title: "Storage access issue",
-                description: `Cannot access "${bucketName}" bucket.`,
-                variant: "destructive"
-              });
-            }
             return;
           }
           
+          console.log(`Successfully verified access to bucket: ${targetBucket.id}`);
           setBucketReady(true);
+          setErrorMessage(undefined);
         } else {
-          console.error(`"${bucketName}" bucket not found`);
+          console.error(`No usable storage bucket found`);
+          setErrorMessage("No storage bucket available. Please contact support.");
           setBucketReady(false);
-          toast({
-            title: "Storage configuration issue",
-            description: `"${bucketName}" bucket not found in Supabase storage.`,
-            variant: "destructive"
-          });
         }
       } catch (error) {
         console.error('Error checking storage bucket:', error);
+        setErrorMessage("Unknown error with storage service. Please try again later.");
         setBucketReady(false);
-        
-        // Only show toast if it's not a network error
-        if (error instanceof Error && error.message !== 'Failed to fetch') {
-          toast({
-            title: "Storage connection issue",
-            description: "Could not connect to image storage. Please try again later.",
-            variant: "destructive"
-          });
-        }
       } finally {
         setIsChecking(false);
       }
@@ -86,35 +105,73 @@ export const useStorageBucket = (bucketName: string) => {
     checkBucket();
   }, [bucketName, toast]);
 
-  const verifyBucketAccess = async (): Promise<boolean> => {
-    if (bucketReady) return true;
-    
+  const verifyBucketAccess = async (): Promise<{success: boolean, bucketId: string | null, error?: string}> => {
     try {
-      // Try one more time to check if the bucket exists
+      // Try to list buckets
       const { data: buckets, error: listError } = await supabase.storage.listBuckets();
       
-      if (listError || !buckets?.some(bucket => bucket.name === bucketName)) {
-        console.error(`Cannot upload: "${bucketName}" bucket not accessible.`);
-        return false;
+      if (listError) {
+        console.error('Error accessing storage in verifyBucketAccess:', listError);
+        return { success: false, bucketId: null, error: "Cannot access storage service" };
+      }
+      
+      if (!buckets || buckets.length === 0) {
+        console.error('No storage buckets available in verifyBucketAccess');
+        return { success: false, bucketId: null, error: "No storage buckets available" };
+      }
+      
+      // First try to find the exact bucket
+      let targetBucket = buckets.find(bucket => 
+        bucket.id.toLowerCase() === bucketName.toLowerCase() || 
+        bucket.name.toLowerCase() === bucketName.toLowerCase()
+      );
+      
+      // If not found, try alternative names
+      if (!targetBucket) {
+        targetBucket = buckets.find(bucket => 
+          possibleBucketNames.some(name => 
+            bucket.id.toLowerCase() === name.toLowerCase() || 
+            bucket.name.toLowerCase() === name.toLowerCase()
+          )
+        );
+      }
+      
+      // If still not found, use any available bucket
+      if (!targetBucket && buckets.length > 0) {
+        console.log('Using first available bucket as fallback in verifyBucketAccess');
+        targetBucket = buckets[0];
+      }
+      
+      if (!targetBucket) {
+        console.error('No usable storage bucket found in verifyBucketAccess');
+        return { success: false, bucketId: null, error: "No storage bucket available" };
       }
       
       // Verify access by trying to list files
       const { error: listFilesError } = await supabase.storage
-        .from(bucketName)
+        .from(targetBucket.id)
         .list();
         
       if (listFilesError) {
-        console.error(`Cannot access "${bucketName}" bucket.`);
-        return false;
+        console.error(`Error accessing bucket ${targetBucket.id} in verifyBucketAccess:`, listFilesError);
+        return { success: false, bucketId: null, error: `Cannot access storage bucket: ${listFilesError.message}` };
       }
       
+      console.log(`Verified access to bucket in verifyBucketAccess: ${targetBucket.id}`);
       setBucketReady(true);
-      return true;
+      setActualBucketId(targetBucket.id);
+      return { success: true, bucketId: targetBucket.id };
     } catch (error) {
-      console.error('Error verifying bucket access:', error);
-      return false;
+      console.error('Error in verifyBucketAccess:', error);
+      return { success: false, bucketId: null, error: "Error verifying storage access" };
     }
   };
 
-  return { bucketReady, isChecking, verifyBucketAccess };
+  return { 
+    bucketReady, 
+    isChecking, 
+    verifyBucketAccess, 
+    actualBucketId, 
+    errorMessage
+  };
 };

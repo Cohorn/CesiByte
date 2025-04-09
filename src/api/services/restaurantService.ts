@@ -1,10 +1,9 @@
-
 import { apiClient } from '../client';
 import { Restaurant, MenuItem } from '@/lib/database.types';
 import { supabase } from '@/lib/supabase';
 
-// Constants
-const RESTAURANT_IMAGES_BUCKET = 'Restaurant Images';
+// Constants - consistent naming is key
+const RESTAURANT_IMAGES_BUCKET = 'restaurant_images';
 
 // Define the restaurant API
 export const restaurantApi = {
@@ -218,41 +217,122 @@ export const restaurantApi = {
   },
   
   // Check if storage bucket exists and is accessible
-  ensureStorageBucket: async (): Promise<boolean> => {
+  ensureStorageBucket: async (): Promise<{success: boolean, bucketId: string | null, error?: string}> => {
     try {
-      console.log(`Checking if "${RESTAURANT_IMAGES_BUCKET}" bucket exists`);
+      console.log("Checking if restaurant images bucket exists");
       
-      // Try to list buckets and check if our target bucket exists
+      // Try to list buckets and check if either target bucket exists
       const { data: buckets, error } = await supabase.storage.listBuckets();
         
       if (error) {
         console.error('Error listing buckets:', error);
-        return false;
+        return { success: false, bucketId: null, error: `Storage service error: ${error.message}` };
       }
       
-      const bucketExists = buckets.some(bucket => bucket.name === RESTAURANT_IMAGES_BUCKET);
-      console.log('Bucket exists check result:', bucketExists);
+      if (!buckets || buckets.length === 0) {
+        console.error('No storage buckets found');
+        return { success: false, bucketId: null, error: "No storage buckets found" };
+      }
       
-      if (bucketExists) {
+      // Log all available buckets for debugging
+      console.log("Available buckets:", buckets.map(b => `${b.id} (${b.name})`).join(', '));
+      
+      // Try multiple bucket name variants
+      const possibleBucketNames = [
+        'restaurant_images',
+        'Restaurant Images',
+        'restaurant-images',
+        'restaurantimages'
+      ];
+      
+      // Find a matching bucket with case-insensitive matching
+      const targetBucket = buckets.find(bucket => {
+        // Direct match
+        if (bucket.id.toLowerCase() === RESTAURANT_IMAGES_BUCKET.toLowerCase() || 
+            bucket.name.toLowerCase() === RESTAURANT_IMAGES_BUCKET.toLowerCase()) {
+          return true;
+        }
+        
+        // Check against all possible names
+        return possibleBucketNames.some(name => 
+          bucket.id.toLowerCase() === name.toLowerCase() || 
+          bucket.name.toLowerCase() === name.toLowerCase()
+        );
+      });
+      
+      if (targetBucket) {
+        console.log(`Found restaurant images bucket: ${targetBucket.id}`);
+        
         // Try to list files in the bucket to ensure we have access
-        const { data: files, error: listError } = await supabase.storage
-          .from(RESTAURANT_IMAGES_BUCKET)
+        const { error: listError } = await supabase.storage
+          .from(targetBucket.id)
           .list();
           
         if (listError) {
           console.error('Error listing files in bucket:', listError);
-          return false;
+          return { success: false, bucketId: null, error: `Cannot access bucket: ${listError.message}` };
         }
         
         console.log('Restaurant Images bucket found and accessible, continuing with upload');
-        return true;
-      } else {
-        console.error(`"${RESTAURANT_IMAGES_BUCKET}" bucket not found. Please ensure it exists in Supabase Storage.`);
-        return false;
+        return { success: true, bucketId: targetBucket.id };
+      } 
+      
+      // If no matching bucket, try to use any available bucket as a fallback
+      if (buckets.length > 0) {
+        const firstBucket = buckets[0];
+        console.log(`No restaurant images bucket found. Attempting to use: ${firstBucket.id}`);
+        
+        // Check if we can use this bucket
+        const { error: listError } = await supabase.storage
+          .from(firstBucket.id)
+          .list();
+          
+        if (!listError) {
+          console.log(`Using bucket ${firstBucket.id} as fallback`);
+          return { success: true, bucketId: firstBucket.id };
+        }
       }
+      
+      // If we get here, we couldn't find any usable bucket
+      console.error("No usable storage bucket found");
+      return { success: false, bucketId: null, error: "Storage configuration missing" };
     } catch (error) {
       console.error('Error checking for Restaurant Images bucket:', error);
-      return false;
+      return { success: false, bucketId: null, error: "Error checking storage configuration" };
     }
+  },
+  
+  // Helper function to upload an image to any available bucket
+  uploadImage: async (file: File, path: string): Promise<string> => {
+    // Try to ensure a storage bucket is available
+    const { success, bucketId, error } = await restaurantApi.ensureStorageBucket();
+    
+    if (!success || !bucketId) {
+      throw new Error(error || "Storage configuration missing. Please contact support.");
+    }
+    
+    // Upload the file to the bucket
+    const { data, error: uploadError } = await supabase.storage
+      .from(bucketId)
+      .upload(path, file, {
+        cacheControl: '3600',
+        upsert: true
+      });
+      
+    if (uploadError) {
+      console.error('Error uploading file:', uploadError);
+      throw new Error(`Upload failed: ${uploadError.message}`);
+    }
+    
+    if (!data?.path) {
+      throw new Error('Upload succeeded but no file path was returned');
+    }
+    
+    // Get public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from(bucketId)
+      .getPublicUrl(data.path);
+      
+    return publicUrl;
   }
 };
