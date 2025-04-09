@@ -21,6 +21,8 @@ import { UserType } from '@/lib/database.types';
 import { useToast } from '@/hooks/use-toast';
 import Map from '@/components/Map';
 import { registerUserWithReferral } from '@/utils/userRegistrationFix';
+// Import Tabs components (adjust the import path to your project structure)
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const formSchema = z.object({
   name: z.string().min(2, {
@@ -37,12 +39,15 @@ const formSchema = z.object({
   }),
   userType: z.enum(['customer', 'restaurant', 'courier', 'employee']),
   referralCode: z.string().optional(),
+  lat: z.preprocess((a) => parseFloat(a as string), z.number()),
+  lng: z.preprocess((a) => parseFloat(a as string), z.number()),
 });
 
 const Register = () => {
   const { user, isLoading: authLoading } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [userType, setUserType] = useState<UserType>('customer');
+  // Initial userLocation set to default coordinates (e.g. New York City)
   const [userLocation, setUserLocation] = useState({ lat: 40.7128, lng: -74.0060 });
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const { toast } = useToast();
@@ -70,12 +75,26 @@ const Register = () => {
       address: '',
       userType: 'customer',
       referralCode: referralCode,
+      lat: userLocation.lat,
+      lng: userLocation.lng,
     },
   });
 
   useEffect(() => {
     form.setValue('referralCode', referralCode);
   }, [referralCode, form]);
+
+  // Update the form values when a location is selected on the map
+  const handleLocationSelected = (lat: number, lng: number, address: string) => {
+    setUserLocation({ lat, lng });
+    form.setValue('address', address);
+    form.setValue('lat', lat);
+    form.setValue('lng', lng);
+  };
+
+  const handleMapLoad = () => {
+    setIsMapLoaded(true);
+  };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsSubmitting(true);
@@ -86,8 +105,8 @@ const Register = () => {
         email: values.email, 
         password: values.password,
         address: values.address,
-        lat: userLocation.lat,
-        lng: userLocation.lng,
+        lat: values.lat,
+        lng: values.lng,
         userType: values.userType as UserType,
         referralCode: values.referralCode
       });
@@ -122,15 +141,6 @@ const Register = () => {
   const handleUserTypeChange = (value: UserType) => {
     setUserType(value);
     form.setValue('userType', value);
-  };
-
-  const handleLocationSelected = (lat: number, lng: number, address: string) => {
-    setUserLocation({ lat, lng });
-    form.setValue('address', address);
-  };
-
-  const handleMapLoad = () => {
-    setIsMapLoaded(true);
   };
 
   if (!authLoading && user) {
@@ -262,6 +272,7 @@ const Register = () => {
                     <FormLabel>Address</FormLabel>
                     <FormControl>
                       <div className="space-y-2">
+                        {/* Address input with map icon */}
                         <div className="relative">
                           <MapPin className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
                           <Input
@@ -270,19 +281,58 @@ const Register = () => {
                             {...field}
                           />
                         </div>
-                        <div className="h-48 rounded-md overflow-hidden border border-gray-300">
-                          <Map
-                            lat={userLocation.lat}
-                            lng={userLocation.lng}
-                            onLocationSelected={handleLocationSelected}
-                            onLoad={handleMapLoad}
-                          />
-                        </div>
-                        <p className="text-xs text-gray-500">
-                          {isMapLoaded
-                            ? "Click on the map to set your location"
-                            : "Loading map..."}
-                        </p>
+                        {/* Tabs for Map & Manual Coordinates */}
+                        <Tabs defaultValue="map" className="w-full">
+                          <TabsList className="grid w-full grid-cols-2">
+                            <TabsTrigger value="map">Map</TabsTrigger>
+                            <TabsTrigger value="coordinates">Coordinates</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="map">
+                            <div className="h-48 rounded-md overflow-hidden border border-gray-300">
+                              <Map
+                                lat={userLocation.lat}
+                                lng={userLocation.lng}
+                                onLocationSelected={handleLocationSelected}
+                                onLoad={handleMapLoad}
+                              />
+                            </div>
+                            <p className="text-xs text-gray-500">
+                              {isMapLoaded
+                                ? "Click on the map to set your location"
+                                : "Loading map..."}
+                            </p>
+                          </TabsContent>
+                          <TabsContent value="coordinates">
+                            <div className="space-y-2">
+                              <FormField
+                                control={form.control}
+                                name="lat"
+                                render={({ field: latField }) => (
+                                  <FormItem>
+                                    <FormLabel>Latitude</FormLabel>
+                                    <FormControl>
+                                      <Input type="number" placeholder="Latitude" {...latField} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={form.control}
+                                name="lng"
+                                render={({ field: lngField }) => (
+                                  <FormItem>
+                                    <FormLabel>Longitude</FormLabel>
+                                    <FormControl>
+                                      <Input type="number" placeholder="Longitude" {...lngField} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                          </TabsContent>
+                        </Tabs>
                       </div>
                     </FormControl>
                     <FormMessage />
