@@ -220,9 +220,9 @@ export const restaurantApi = {
   // Check if storage bucket exists and is accessible
   ensureStorageBucket: async (): Promise<boolean> => {
     try {
-      console.log(`Checking if "${RESTAURANT_IMAGES_BUCKET}" bucket exists`);
+      console.log("Checking if restaurant images bucket exists");
       
-      // Try to list buckets and check if our target bucket exists
+      // Try to list buckets and check if either target bucket exists
       const { data: buckets, error } = await supabase.storage.listBuckets();
         
       if (error) {
@@ -230,13 +230,23 @@ export const restaurantApi = {
         return false;
       }
       
-      const bucketExists = buckets.some(bucket => bucket.name === RESTAURANT_IMAGES_BUCKET);
-      console.log('Bucket exists check result:', bucketExists);
+      // Check for either bucket name
+      const bucketExists = buckets.some(bucket => 
+        bucket.id === 'restaurant_images' || 
+        bucket.id === 'Restaurant Images'
+      );
       
       if (bucketExists) {
+        const bucket = buckets.find(b => 
+          b.id === 'restaurant_images' || 
+          b.id === 'Restaurant Images'
+        );
+        
+        console.log(`Found restaurant images bucket: ${bucket?.id}`);
+        
         // Try to list files in the bucket to ensure we have access
-        const { data: files, error: listError } = await supabase.storage
-          .from(RESTAURANT_IMAGES_BUCKET)
+        const { error: listError } = await supabase.storage
+          .from(bucket!.id)
           .list();
           
         if (listError) {
@@ -247,7 +257,8 @@ export const restaurantApi = {
         console.log('Restaurant Images bucket found and accessible, continuing with upload');
         return true;
       } else {
-        console.error(`"${RESTAURANT_IMAGES_BUCKET}" bucket not found. Please ensure it exists in Supabase Storage.`);
+        console.error("Restaurant images bucket not found. Available buckets:", 
+          buckets.map(b => b.id).join(', '));
         return false;
       }
     } catch (error) {

@@ -18,66 +18,38 @@ export const useStorageBucket = (bucketName: string) => {
         if (listError) {
           console.error('Error accessing storage:', listError);
           setBucketReady(false);
-          
-          // Only show toast for non-connection errors
-          if (listError.message !== 'Failed to fetch') {
-            toast({
-              title: "Storage connection issue",
-              description: "Could not connect to image storage. Please try again later.",
-              variant: "destructive"
-            });
-          }
           return;
         }
         
         // Check if our target bucket exists
-        const targetBucket = buckets?.find(bucket => bucket.name === bucketName);
+        const targetBucket = buckets?.find(bucket => 
+          bucket.name === bucketName || bucket.id === bucketName
+        );
         
         if (targetBucket) {
-          console.log(`"${bucketName}" bucket found`);
+          console.log(`Bucket found: ${targetBucket.id} (${targetBucket.name})`);
           
           // Verify access by trying to list files
           const { error: listFilesError } = await supabase.storage
-            .from(bucketName)
+            .from(targetBucket.id)
             .list();
             
           if (listFilesError) {
-            console.error('Error accessing bucket:', listFilesError);
+            console.error(`Error accessing bucket ${targetBucket.id}:`, listFilesError);
             setBucketReady(false);
-            
-            // Only show toast for non-connection errors
-            if (listFilesError.message !== 'Failed to fetch') {
-              toast({
-                title: "Storage access issue",
-                description: `Cannot access "${bucketName}" bucket.`,
-                variant: "destructive"
-              });
-            }
             return;
           }
           
+          console.log(`Successfully verified access to bucket: ${targetBucket.id}`);
           setBucketReady(true);
         } else {
-          console.error(`"${bucketName}" bucket not found`);
+          console.error(`Bucket not found with name/id: ${bucketName}`);
+          console.log('Available buckets:', buckets?.map(b => `${b.id} (${b.name})`).join(', '));
           setBucketReady(false);
-          toast({
-            title: "Storage configuration issue",
-            description: `"${bucketName}" bucket not found in Supabase storage.`,
-            variant: "destructive"
-          });
         }
       } catch (error) {
         console.error('Error checking storage bucket:', error);
         setBucketReady(false);
-        
-        // Only show toast if it's not a network error
-        if (error instanceof Error && error.message !== 'Failed to fetch') {
-          toast({
-            title: "Storage connection issue",
-            description: "Could not connect to image storage. Please try again later.",
-            variant: "destructive"
-          });
-        }
       } finally {
         setIsChecking(false);
       }
@@ -93,18 +65,27 @@ export const useStorageBucket = (bucketName: string) => {
       // Try one more time to check if the bucket exists
       const { data: buckets, error: listError } = await supabase.storage.listBuckets();
       
-      if (listError || !buckets?.some(bucket => bucket.name === bucketName)) {
-        console.error(`Cannot upload: "${bucketName}" bucket not accessible.`);
+      if (listError) {
+        console.error('Error accessing storage:', listError);
+        return false;
+      }
+      
+      const targetBucket = buckets?.find(bucket => 
+        bucket.name === bucketName || bucket.id === bucketName
+      );
+      
+      if (!targetBucket) {
+        console.error(`Bucket not found with name/id: ${bucketName}`);
         return false;
       }
       
       // Verify access by trying to list files
       const { error: listFilesError } = await supabase.storage
-        .from(bucketName)
+        .from(targetBucket.id)
         .list();
         
       if (listFilesError) {
-        console.error(`Cannot access "${bucketName}" bucket.`);
+        console.error(`Error accessing bucket ${targetBucket.id}:`, listFilesError);
         return false;
       }
       

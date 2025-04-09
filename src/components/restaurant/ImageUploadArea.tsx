@@ -1,7 +1,8 @@
 
 import React from 'react';
 import { Input } from '@/components/ui/input';
-import { Upload, Loader2 } from 'lucide-react';
+import { Upload, Loader2, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface ImageUploadAreaProps {
   isUploading: boolean;
@@ -39,12 +40,16 @@ const ImageUploadArea: React.FC<ImageUploadAreaProps> = ({
         <span className="text-xs text-gray-400 mt-1">
           JPG, PNG, GIF up to 5MB
         </span>
-        {!bucketReady && (
-          <span className="text-xs text-red-500 mt-2">
-            Image upload not available. Please try again later.
-          </span>
-        )}
       </label>
+      
+      {!bucketReady && (
+        <Alert variant="destructive" className="mt-3">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Image upload service not available. Our team has been notified.
+          </AlertDescription>
+        </Alert>
+      )}
     </div>
   );
 };

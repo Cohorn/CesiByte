@@ -5,10 +5,9 @@ import ImageUploadPreview from './ImageUploadPreview';
 import ImageUploadArea from './ImageUploadArea';
 import { useStorageBucket } from '@/hooks/useStorageBucket';
 import { supabase } from '@/lib/supabase';
-import { restaurantApi } from '@/api/services/restaurantService';
 
 // Define the bucket name as a constant
-const RESTAURANT_IMAGES_BUCKET = 'Restaurant Images';
+const RESTAURANT_IMAGES_BUCKET = 'restaurant_images';
 
 interface RestaurantImageUploadProps {
   currentImageUrl?: string | null;
@@ -29,10 +28,27 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
   useEffect(() => {
     const checkBucket = async () => {
       try {
-        const bucketExists = await restaurantApi.ensureStorageBucket();
-        setBucketReady(bucketExists);
-        if (!bucketExists) {
-          console.error(`"${RESTAURANT_IMAGES_BUCKET}" bucket not found or not accessible`);
+        // List all buckets to find the correct one
+        const { data: buckets, error } = await supabase.storage.listBuckets();
+        
+        if (error) {
+          console.error('Error checking buckets:', error);
+          setBucketReady(false);
+          return;
+        }
+        
+        // Check if either bucket exists
+        const bucket = buckets?.find(b => 
+          b.id === RESTAURANT_IMAGES_BUCKET || 
+          b.id === 'Restaurant Images'
+        );
+        
+        if (bucket) {
+          console.log(`Restaurant images bucket found: ${bucket.id}`);
+          setBucketReady(true);
+        } else {
+          console.error(`Restaurant images bucket not found`);
+          setBucketReady(false);
           toast({
             title: "Storage Error",
             description: "Image upload is currently unavailable. Please try again later.",
@@ -76,13 +92,21 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
     setIsUploading(true);
     
     try {
-      // Verify bucket exists before proceeding
-      if (!bucketReady) {
-        const bucketExists = await restaurantApi.ensureStorageBucket();
-        if (!bucketExists) {
-          throw new Error(`Cannot upload: "${RESTAURANT_IMAGES_BUCKET}" bucket not accessible.`);
-        }
-        setBucketReady(true);
+      // List all buckets to determine which one to use
+      const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
+      
+      if (bucketsError) {
+        throw new Error(`Cannot access storage: ${bucketsError.message}`);
+      }
+      
+      // Find the restaurant images bucket (either name could exist)
+      const bucket = buckets?.find(b => 
+        b.id === RESTAURANT_IMAGES_BUCKET || 
+        b.id === 'Restaurant Images'
+      );
+      
+      if (!bucket) {
+        throw new Error(`Restaurant images bucket not found`);
       }
       
       // Create a unique file name
@@ -90,11 +114,11 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
       const fileName = `${Math.random().toString(36).substring(2, 15)}-${Date.now()}.${fileExt}`;
       const filePath = `restaurants/${fileName}`;
       
-      console.log(`Uploading file to ${RESTAURANT_IMAGES_BUCKET}/${filePath}`);
+      console.log(`Uploading file to ${bucket.id}/${filePath}`);
       
       // Upload file to Supabase Storage
       const { data, error: uploadError } = await supabase.storage
-        .from(RESTAURANT_IMAGES_BUCKET)
+        .from(bucket.id)
         .upload(filePath, file, {
           cacheControl: '3600',
           upsert: true
@@ -111,7 +135,7 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
       
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
-        .from(RESTAURANT_IMAGES_BUCKET)
+        .from(bucket.id)
         .getPublicUrl(data.path);
       
       console.log('Image uploaded successfully, public URL:', publicUrl);

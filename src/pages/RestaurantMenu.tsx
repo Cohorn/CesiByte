@@ -63,7 +63,6 @@ const RestaurantMenu = () => {
 
   const { user } = useAuth();
   
-  // Fetch restaurant reviews
   const { reviews, reviewers, averageRating, isLoading: reviewsLoading } = useReviews({ 
     restaurantId: restaurantId 
   });
@@ -116,7 +115,6 @@ const RestaurantMenu = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Check file size
     if (file.size > MAX_IMAGE_SIZE) {
       toast({
         title: "Error",
@@ -126,7 +124,6 @@ const RestaurantMenu = () => {
       return;
     }
 
-    // Check file type
     if (!file.type.startsWith('image/')) {
       toast({
         title: "Error",
@@ -136,7 +133,6 @@ const RestaurantMenu = () => {
       return;
     }
 
-    // Create a preview URL
     const previewUrl = URL.createObjectURL(file);
     setImagePreview(previewUrl);
     setImageFile(file);
@@ -162,17 +158,46 @@ const RestaurantMenu = () => {
     setIsUploading(true);
     
     try {
-      // Create a unique file name to avoid collisions
+      const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
+      
+      if (bucketsError) {
+        toast({
+          title: "Error",
+          description: "Could not access storage buckets",
+          variant: "destructive"
+        });
+        return null;
+      }
+      
+      const bucket = buckets?.find(b => 
+        b.id === 'restaurant_images' || 
+        b.id === 'Restaurant Images'
+      );
+      
+      if (!bucket) {
+        toast({
+          title: "Error",
+          description: "Restaurant images storage not available",
+          variant: "destructive"
+        });
+        return null;
+      }
+      
       const fileExt = imageFile.name.split('.').pop();
       const fileName = `${uuidv4()}.${fileExt}`;
       const filePath = `menu_items/${restaurantId}/${fileName}`;
       
-      // Upload the image to Supabase Storage
+      console.log(`Uploading menu item image to ${bucket.id}/${filePath}`);
+      
       const { error: uploadError, data } = await supabase.storage
-        .from('restaurant_images')
-        .upload(filePath, imageFile);
+        .from(bucket.id)
+        .upload(filePath, imageFile, {
+          cacheControl: '3600',
+          upsert: true
+        });
       
       if (uploadError) {
+        console.error("Upload error:", uploadError);
         toast({
           title: "Error",
           description: "Could not upload image. Please try again.",
@@ -181,11 +206,15 @@ const RestaurantMenu = () => {
         return null;
       }
       
-      // Get the public URL of the uploaded image
-      const { data: { publicUrl } } = supabase.storage
-        .from('restaurant_images')
-        .getPublicUrl(filePath);
+      if (!data?.path) {
+        throw new Error('Upload succeeded but no file path was returned');
+      }
       
+      const { data: { publicUrl } } = supabase.storage
+        .from(bucket.id)
+        .getPublicUrl(data.path);
+      
+      console.log("Image uploaded successfully:", publicUrl);
       return publicUrl;
     } catch (error) {
       console.error('Error uploading image:', error);
@@ -330,7 +359,6 @@ const RestaurantMenu = () => {
     setEditDialogOpen(true);
   };
 
-  // Redirect if user is not logged in or is not a restaurant
   if (!user || user.user_type !== 'restaurant') {
     return <Navigate to="/" />;
   }
@@ -555,7 +583,6 @@ const RestaurantMenu = () => {
         </div>
       </main>
 
-      {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
