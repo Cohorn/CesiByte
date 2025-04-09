@@ -21,49 +21,81 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
   onImageRemove
 }) => {
   const [isUploading, setIsUploading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
   const { toast } = useToast();
-  const { bucketReady, verifyBucketAccess, actualBucketId } = useStorageBucket(RESTAURANT_IMAGES_BUCKET);
+  const { 
+    bucketReady, 
+    verifyBucketAccess, 
+    actualBucketId, 
+    errorMessage 
+  } = useStorageBucket(RESTAURANT_IMAGES_BUCKET);
 
-  // Check if bucket exists on component mount and set appropriate error messages
-  useEffect(() => {
-    const checkBucket = async () => {
-      try {
-        // List all buckets to find the correct one
-        const { data: buckets, error } = await supabase.storage.listBuckets();
-        
-        if (error) {
-          console.error('Error checking buckets:', error);
-          setErrorMessage("Storage service unavailable. Try again later.");
-          return;
-        }
-        
-        if (!buckets || buckets.length === 0) {
-          console.error('No storage buckets available');
-          setErrorMessage("Storage configuration missing. Please contact support.");
-          return;
-        }
-        
-        // Check if either bucket exists
-        const bucket = buckets?.find(b => 
-          b.id === RESTAURANT_IMAGES_BUCKET || 
-          b.id === 'Restaurant Images' ||
-          b.name === RESTAURANT_IMAGES_BUCKET || 
-          b.name === 'Restaurant Images'
+  // Function to get a working bucket ID
+  const getWorkingBucketId = async () => {
+    try {
+      // First try the primary bucket
+      const { success, bucketId, error } = await verifyBucketAccess();
+      
+      if (success && bucketId) {
+        console.log(`Using verified bucket: ${bucketId}`);
+        return bucketId;
+      }
+      
+      // If that fails, check all available buckets directly
+      console.log(`Bucket verification failed: ${error}. Checking all available buckets...`);
+      const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+      
+      if (listError) {
+        console.error('Error listing buckets:', listError);
+        throw new Error('Cannot access storage service');
+      }
+      
+      if (!buckets || buckets.length === 0) {
+        throw new Error('No storage buckets available');
+      }
+      
+      console.log('Available buckets:', buckets.map(b => `${b.id} (${b.name})`).join(', '));
+      
+      // Try to find any usable bucket for images
+      const fallbackBucketNames = ['restaurant_images', 'Restaurant Images', 'public', 'avatars'];
+      
+      for (const name of fallbackBucketNames) {
+        const bucket = buckets.find(b => 
+          b.id.toLowerCase() === name.toLowerCase() || 
+          b.name.toLowerCase() === name.toLowerCase()
         );
         
-        if (!bucket) {
-          console.error(`Restaurant images bucket not found. Available buckets: ${buckets.map(b => b.id).join(', ')}`);
-          setErrorMessage("Image storage is not properly configured. Please contact support.");
+        if (bucket) {
+          // Try to verify access to this bucket
+          const { error: listFilesError } = await supabase.storage
+            .from(bucket.id)
+            .list();
+            
+          if (!listFilesError) {
+            console.log(`Found working bucket: ${bucket.id}`);
+            return bucket.id;
+          }
         }
-      } catch (error) {
-        console.error('Error checking bucket:', error);
-        setErrorMessage("Unknown error with storage service. Please try again later.");
       }
-    };
-    
-    checkBucket();
-  }, []);
+      
+      // If we can't find any specific bucket, try the first available bucket
+      if (buckets.length > 0) {
+        const firstBucket = buckets[0];
+        const { error: listFilesError } = await supabase.storage
+          .from(firstBucket.id)
+          .list();
+          
+        if (!listFilesError) {
+          console.log(`Using first available bucket as fallback: ${firstBucket.id}`);
+          return firstBucket.id;
+        }
+      }
+      
+      throw new Error('No accessible storage buckets found');
+    } catch (error) {
+      console.error('Error finding a working bucket:', error);
+      throw error;
+    }
+  };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -93,105 +125,49 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
     setIsUploading(true);
     
     try {
-      // Verify bucket access once more before upload
-      const { success, bucketId } = await verifyBucketAccess();
+      // Get a working bucket ID
+      const bucketId = await getWorkingBucketId();
       
-      if (!success || !bucketId) {
-        // List available buckets for debugging
-        const { data: availableBuckets, error: bucketsError } = await supabase.storage.listBuckets();
-        
-        if (bucketsError) {
-          throw new Error(`Cannot access storage: ${bucketsError.message}`);
-        }
-        
-        console.log("Available buckets:", availableBuckets?.map(b => `${b.id} (${b.name})`).join(', '));
-        
-        // Try to use any available bucket that might work
-        const alternateBucket = availableBuckets?.find(b => 
-          b.id === 'restaurant_images' || 
-          b.id === 'Restaurant Images'
-        );
-        
-        if (!alternateBucket) {
-          throw new Error(`No suitable image storage bucket found`);
-        }
-        
-        console.log(`Using alternate bucket: ${alternateBucket.id}`);
-        
-        // Create a unique file name
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${Math.random().toString(36).substring(2, 15)}-${Date.now()}.${fileExt}`;
-        const filePath = `restaurants/${fileName}`;
-        
-        console.log(`Uploading file to ${alternateBucket.id}/${filePath}`);
-        
-        // Upload file to Supabase Storage
-        const { data, error: uploadError } = await supabase.storage
-          .from(alternateBucket.id)
-          .upload(filePath, file, {
-            cacheControl: '3600',
-            upsert: true
-          });
-        
-        if (uploadError) {
-          console.error('Error uploading image:', uploadError);
-          throw uploadError;
-        }
-        
-        if (!data?.path) {
-          throw new Error('Upload succeeded but no file path was returned');
-        }
-        
-        // Get public URL
-        const { data: { publicUrl } } = supabase.storage
-          .from(alternateBucket.id)
-          .getPublicUrl(data.path);
-        
-        console.log('Image uploaded successfully to alternate bucket, public URL:', publicUrl);
-        onImageUpload(publicUrl);
-        
-        toast({
-          title: "Success",
-          description: "Image uploaded successfully",
-        });
-      } else {
-        // Create a unique file name
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${Math.random().toString(36).substring(2, 15)}-${Date.now()}.${fileExt}`;
-        const filePath = `restaurants/${fileName}`;
-        
-        console.log(`Uploading file to verified bucket ${bucketId}/${filePath}`);
-        
-        // Upload file to Supabase Storage
-        const { data, error: uploadError } = await supabase.storage
-          .from(bucketId)
-          .upload(filePath, file, {
-            cacheControl: '3600',
-            upsert: true
-          });
-        
-        if (uploadError) {
-          console.error('Error uploading image:', uploadError);
-          throw uploadError;
-        }
-        
-        if (!data?.path) {
-          throw new Error('Upload succeeded but no file path was returned');
-        }
-        
-        // Get public URL
-        const { data: { publicUrl } } = supabase.storage
-          .from(bucketId)
-          .getPublicUrl(data.path);
-        
-        console.log('Image uploaded successfully, public URL:', publicUrl);
-        onImageUpload(publicUrl);
-        
-        toast({
-          title: "Success",
-          description: "Image uploaded successfully",
-        });
+      if (!bucketId) {
+        throw new Error('Could not find a working storage bucket');
       }
+      
+      // Create a unique file name
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2, 15)}-${Date.now()}.${fileExt}`;
+      const filePath = `restaurants/${fileName}`;
+      
+      console.log(`Uploading file to ${bucketId}/${filePath}`);
+      
+      // Upload file to Supabase Storage
+      const { data, error: uploadError } = await supabase.storage
+        .from(bucketId)
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true
+        });
+      
+      if (uploadError) {
+        console.error('Error uploading image:', uploadError);
+        throw uploadError;
+      }
+      
+      if (!data?.path) {
+        throw new Error('Upload succeeded but no file path was returned');
+      }
+      
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from(bucketId)
+        .getPublicUrl(data.path);
+      
+      console.log('Image uploaded successfully, public URL:', publicUrl);
+      onImageUpload(publicUrl);
+      
+      toast({
+        title: "Success",
+        description: "Image uploaded successfully",
+      });
     } catch (error) {
       console.error('Error uploading image:', error);
       toast({
