@@ -3,3 +3,4 @@
 export * from './useRestaurant';
 export * from './useOrders';
 export * from './useReviews';
+export * from './useAuth';

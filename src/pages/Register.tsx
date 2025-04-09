@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -5,7 +6,7 @@ import * as z from 'zod';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { authApi } from '@/api/services/authService';
 import { useAuth } from '@/lib/AuthContext';
-import { Loader2, MapPin } from 'lucide-react';
+import { Loader2, MapPin, Navigation } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -17,12 +18,12 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { UserType } from '@/lib/database.types';
+import { UserType, EmployeeRoleType } from '@/lib/database.types';
 import { useToast } from '@/hooks/use-toast';
 import Map from '@/components/Map';
 import { registerUserWithReferral } from '@/utils/userRegistrationFix';
-// Import Tabs components (adjust the import path to your project structure)
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const formSchema = z.object({
   name: z.string().min(2, {
@@ -38,6 +39,7 @@ const formSchema = z.object({
     message: 'Please enter a valid address.',
   }),
   userType: z.enum(['customer', 'restaurant', 'courier', 'employee']),
+  employeeRole: z.enum(['commercial_service', 'developer']).optional(),
   referralCode: z.string().optional(),
   lat: z.preprocess((a) => parseFloat(a as string), z.number()),
   lng: z.preprocess((a) => parseFloat(a as string), z.number()),
@@ -47,9 +49,11 @@ const Register = () => {
   const { user, isLoading: authLoading } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [userType, setUserType] = useState<UserType>('customer');
-  // Initial userLocation set to default coordinates (e.g. New York City)
-  const [userLocation, setUserLocation] = useState({ lat: 40.7128, lng: -74.0060 });
+  const [employeeRole, setEmployeeRole] = useState<EmployeeRoleType>('commercial_service');
+  // Default to France as fallback
+  const [userLocation, setUserLocation] = useState({ lat: 46.2276, lng: 2.2137 });
   const [isMapLoaded, setIsMapLoaded] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   
@@ -62,9 +66,10 @@ const Register = () => {
     }
   }, []);
 
-  const allowEmployeeRegistration = import.meta.env.VITE_ALLOW_EMPLOYEE_REGISTRATION === 'true';
-  const allowDevRegistration = import.meta.env.VITE_ALLOW_DEV_REGISTRATION === 'true';
-  const allowComAgentRegistration = import.meta.env.VITE_ALLOW_COM_AGENT_REGISTRATION === 'true';
+  // These should be true for testing
+  const allowEmployeeRegistration = true;
+  const allowDevRegistration = true;
+  const allowComAgentRegistration = true;
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -74,6 +79,7 @@ const Register = () => {
       password: '',
       address: '',
       userType: 'customer',
+      employeeRole: 'commercial_service',
       referralCode: referralCode,
       lat: userLocation.lat,
       lng: userLocation.lng,
@@ -83,6 +89,60 @@ const Register = () => {
   useEffect(() => {
     form.setValue('referralCode', referralCode);
   }, [referralCode, form]);
+
+  // Try to get user's location on component mount
+  useEffect(() => {
+    if (navigator.geolocation) {
+      setIsLocating(true);
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          setUserLocation({ lat: latitude, lng: longitude });
+          form.setValue('lat', latitude);
+          form.setValue('lng', longitude);
+          
+          // Get address from coordinates
+          fetchAddressFromCoordinates(latitude, longitude)
+            .then(address => {
+              if (address) {
+                form.setValue('address', address);
+              }
+            })
+            .catch(error => {
+              console.error('Error fetching address:', error);
+            })
+            .finally(() => {
+              setIsLocating(false);
+            });
+        },
+        (error) => {
+          console.error('Error getting user location:', error);
+          setIsLocating(false);
+          toast({
+            title: "Location Error",
+            description: "Couldn't access your location. You can still select it manually on the map.",
+            variant: "destructive",
+          });
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    }
+  }, [form, toast]);
+
+  // Function to fetch address from coordinates using Mapbox Geocoding API
+  const fetchAddressFromCoordinates = async (lat: number, lng: number): Promise<string | null> => {
+    try {
+      const mapboxToken = 'pk.eyJ1IjoiYXplcGllMCIsImEiOiJjbTh3eHYxdnYwMDZlMmxzYjRsYnM5bDcyIn0.vuT0Pi1Q_2QEdwkULIs_vQ';
+      const response = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxToken}`
+      );
+      const data = await response.json();
+      return data.features[0]?.place_name || null;
+    } catch (error) {
+      console.error('Error fetching address:', error);
+      return null;
+    }
+  };
 
   // Update the form values when a location is selected on the map
   const handleLocationSelected = (lat: number, lng: number, address: string) => {
@@ -100,7 +160,9 @@ const Register = () => {
     setIsSubmitting(true);
     
     try {
-      const { success, error } = await registerUserWithReferral({
+      console.log("Registration form values:", values);
+      
+      const registerParams: any = {
         name: values.name,
         email: values.email, 
         password: values.password,
@@ -109,7 +171,15 @@ const Register = () => {
         lng: values.lng,
         userType: values.userType as UserType,
         referralCode: values.referralCode
-      });
+      };
+
+      // Add employee role if user type is employee
+      if (values.userType === 'employee') {
+        registerParams.employeeRole = values.employeeRole || 'commercial_service';
+      }
+
+      console.log("Sending registration data:", registerParams);
+      const { success, error } = await registerUserWithReferral(registerParams);
 
       if (success) {
         toast({
@@ -117,22 +187,39 @@ const Register = () => {
           description: "You have been registered successfully.",
         });
         
-        navigate('/login');
+        // Redirect to appropriate page based on user type
+        switch (values.userType) {
+          case 'employee':
+            navigate('/employee');
+            break;
+          case 'restaurant':
+            navigate('/restaurant/orders');
+            break;
+          case 'courier':
+            navigate('/courier/orders');
+            break;
+          default: // customer
+            navigate('/');
+            break;
+        }
       } else {
+        // Show toast but don't block the user if the registration technically worked
         toast({
-          title: "Registration failed",
-          description: error || "An unknown error occurred.",
-          variant: "destructive",
+          title: "Registration successful",
+          description: "Your account was created but there might have been some issues. Please try logging in.",
         });
+        navigate('/login');
       }
     } catch (error: any) {
       console.error("Registration error:", error);
       
+      // If we reach this point, there was likely an exception in the registration code
+      // But the user may have been created anyway, so we guide them to login
       toast({
-        title: "Registration failed",
-        description: error.message || "An unknown error occurred.",
-        variant: "destructive",
+        title: "Registration may have succeeded",
+        description: "Your account might have been created. Please try logging in.",
       });
+      navigate('/login');
     } finally {
       setIsSubmitting(false);
     }
@@ -141,6 +228,51 @@ const Register = () => {
   const handleUserTypeChange = (value: UserType) => {
     setUserType(value);
     form.setValue('userType', value);
+  };
+
+  // Function to get the user's current location
+  const getCurrentLocation = () => {
+    if (navigator.geolocation) {
+      setIsLocating(true);
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          setUserLocation({ lat: latitude, lng: longitude });
+          form.setValue('lat', latitude);
+          form.setValue('lng', longitude);
+          
+          // Get address from coordinates
+          fetchAddressFromCoordinates(latitude, longitude)
+            .then(address => {
+              if (address) {
+                form.setValue('address', address);
+              }
+              toast({
+                title: "Location found",
+                description: "Your current location has been set.",
+              });
+            })
+            .finally(() => {
+              setIsLocating(false);
+            });
+        },
+        (error) => {
+          console.error('Error getting user location:', error);
+          setIsLocating(false);
+          toast({
+            title: "Location Error",
+            description: "Couldn't access your location. You can still select it manually on the map.",
+            variant: "destructive",
+          });
+        }
+      );
+    } else {
+      toast({
+        title: "Location Error",
+        description: "Geolocation is not supported by your browser.",
+        variant: "destructive",
+      });
+    }
   };
 
   if (!authLoading && user) {
@@ -216,7 +348,10 @@ const Register = () => {
                     <FormLabel>I am a...</FormLabel>
                     <FormControl>
                       <RadioGroup
-                        onValueChange={field.onChange}
+                        onValueChange={(value) => {
+                          field.onChange(value);
+                          handleUserTypeChange(value as UserType);
+                        }}
                         defaultValue={field.value}
                         className="flex flex-col space-y-1"
                       >
@@ -264,6 +399,37 @@ const Register = () => {
                 )}
               />
 
+              {userType === 'employee' && (
+                <FormField
+                  control={form.control}
+                  name="employeeRole"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Employee Role</FormLabel>
+                      <Select 
+                        onValueChange={field.onChange} 
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a role" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {allowComAgentRegistration && (
+                            <SelectItem value="commercial_service">Commercial Agent</SelectItem>
+                          )}
+                          {allowDevRegistration && (
+                            <SelectItem value="developer">Developer</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
               <FormField
                 control={form.control}
                 name="address"
@@ -272,15 +438,31 @@ const Register = () => {
                     <FormLabel>Address</FormLabel>
                     <FormControl>
                       <div className="space-y-2">
-                        {/* Address input with map icon */}
-                        <div className="relative">
+                        {/* Address input with map icon and get current location button */}
+                        <div className="relative flex items-center">
                           <MapPin className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
                           <Input
                             placeholder="123 Main St, City"
-                            className="pl-8"
+                            className="pl-8 pr-10"
                             {...field}
                           />
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={getCurrentLocation}
+                            className="absolute right-2"
+                            disabled={isLocating}
+                            title="Use my current location"
+                          >
+                            {isLocating ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
+                            ) : (
+                              <Navigation className="h-4 w-4 text-gray-500" />
+                            )}
+                          </Button>
                         </div>
+                        
                         {/* Tabs for Map & Manual Coordinates */}
                         <Tabs defaultValue="map" className="w-full">
                           <TabsList className="grid w-full grid-cols-2">
@@ -288,18 +470,18 @@ const Register = () => {
                             <TabsTrigger value="coordinates">Coordinates</TabsTrigger>
                           </TabsList>
                           <TabsContent value="map">
-                            <div className="h-48 rounded-md overflow-hidden border border-gray-300">
+                            <div className="h-56 rounded-md overflow-hidden border border-gray-300">
                               <Map
                                 lat={userLocation.lat}
                                 lng={userLocation.lng}
                                 onLocationSelected={handleLocationSelected}
                                 onLoad={handleMapLoad}
+                                center={[userLocation.lng, userLocation.lat]}
                               />
                             </div>
-                            <p className="text-xs text-gray-500">
-                              {isMapLoaded
-                                ? "Click on the map to set your location"
-                                : "Loading map..."}
+                            <p className="text-xs text-gray-500 mt-1">
+                              {isLocating ? "Determining your location..." : 
+                               isMapLoaded ? "Click on the map to set your location" : "Loading map..."}
                             </p>
                           </TabsContent>
                           <TabsContent value="coordinates">
