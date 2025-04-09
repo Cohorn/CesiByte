@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import ImageUploadPreview from './ImageUploadPreview';
 import ImageUploadArea from './ImageUploadArea';
@@ -32,6 +32,8 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
   // Function to get a working bucket ID
   const getWorkingBucketId = async () => {
     try {
+      console.log('Attempting to get a working bucket ID');
+      
       // First try the primary bucket
       const { success, bucketId, error } = await verifyBucketAccess();
       
@@ -55,38 +57,16 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
       
       console.log('Available buckets:', buckets.map(b => `${b.id} (${b.name})`).join(', '));
       
-      // Try to find any usable bucket for images
-      const fallbackBucketNames = ['restaurant_images', 'Restaurant Images', 'public', 'avatars'];
-      
-      for (const name of fallbackBucketNames) {
-        const bucket = buckets.find(b => 
-          b.id.toLowerCase() === name.toLowerCase() || 
-          b.name.toLowerCase() === name.toLowerCase()
-        );
-        
-        if (bucket) {
-          // Try to verify access to this bucket
-          const { error: listFilesError } = await supabase.storage
-            .from(bucket.id)
-            .list();
-            
-          if (!listFilesError) {
-            console.log(`Found working bucket: ${bucket.id}`);
-            return bucket.id;
-          }
-        }
-      }
-      
-      // If we can't find any specific bucket, try the first available bucket
-      if (buckets.length > 0) {
-        const firstBucket = buckets[0];
+      // Try any bucket
+      for (const bucket of buckets) {
+        // Try to verify access to this bucket
         const { error: listFilesError } = await supabase.storage
-          .from(firstBucket.id)
+          .from(bucket.id)
           .list();
           
         if (!listFilesError) {
-          console.log(`Using first available bucket as fallback: ${firstBucket.id}`);
-          return firstBucket.id;
+          console.log(`Found working bucket: ${bucket.id}`);
+          return bucket.id;
         }
       }
       
@@ -189,7 +169,7 @@ const RestaurantImageUpload: React.FC<RestaurantImageUploadProps> = ({
       ) : (
         <ImageUploadArea 
           isUploading={isUploading} 
-          bucketReady={bucketReady} 
+          bucketReady={true} // Always show the upload area
           onFileSelect={handleImageUpload}
           errorMessage={errorMessage}
         />

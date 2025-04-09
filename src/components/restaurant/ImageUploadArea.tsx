@@ -25,11 +25,11 @@ const ImageUploadArea: React.FC<ImageUploadAreaProps> = ({
         accept="image/*"
         className="hidden" 
         onChange={onFileSelect}
-        disabled={isUploading || !bucketReady}
+        disabled={isUploading}
       />
       <label 
         htmlFor="image"
-        className={`cursor-pointer flex flex-col items-center justify-center py-4 ${(!bucketReady || isUploading) ? 'opacity-50 pointer-events-none' : ''}`}
+        className={`cursor-pointer flex flex-col items-center justify-center py-4 ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
       >
         {isUploading ? (
           <Loader2 className="h-10 w-10 text-gray-400 mb-2 animate-spin" />
@@ -44,11 +44,11 @@ const ImageUploadArea: React.FC<ImageUploadAreaProps> = ({
         </span>
       </label>
       
-      {!bucketReady && (
+      {errorMessage && (
         <Alert variant="destructive" className="mt-3">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            {errorMessage || "Image upload service not available. Our team has been notified."}
+            {errorMessage}
           </AlertDescription>
         </Alert>
       )}

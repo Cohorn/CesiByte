@@ -15,7 +15,9 @@ export const useStorageBucket = (bucketName: string) => {
     'restaurant_images',
     'Restaurant Images',
     'restaurant-images',
-    'restaurantimages'
+    'restaurantimages',
+    'avatars',
+    'public'
   ];
 
   useEffect(() => {
@@ -38,27 +40,34 @@ export const useStorageBucket = (bucketName: string) => {
         
         if (!buckets || buckets.length === 0) {
           console.error('No storage buckets available');
-          setErrorMessage("Storage configuration missing. Please contact support.");
+          setErrorMessage("No storage buckets available. Please contact support.");
           setBucketReady(false);
           return;
         }
         
         console.log('Available buckets:', buckets.map(b => `${b.id} (${b.name})`).join(', '));
         
-        // Try to find a matching bucket with flexible matching
-        const targetBucket = buckets.find(bucket => {
-          // Check if bucket ID or name matches our bucket name (case insensitive)
-          if (bucket.id.toLowerCase() === bucketName.toLowerCase() || 
-              bucket.name.toLowerCase() === bucketName.toLowerCase()) {
-            return true;
-          }
-          
-          // Check if bucket ID or name matches any of our possible bucket names
-          return possibleBucketNames.some(name => 
-            bucket.id.toLowerCase() === name.toLowerCase() || 
-            bucket.name.toLowerCase() === name.toLowerCase()
+        // First try to find the exact bucket
+        let targetBucket = buckets.find(bucket => 
+          bucket.id.toLowerCase() === bucketName.toLowerCase() || 
+          bucket.name.toLowerCase() === bucketName.toLowerCase()
+        );
+        
+        // If not found, try alternative names
+        if (!targetBucket) {
+          targetBucket = buckets.find(bucket => 
+            possibleBucketNames.some(name => 
+              bucket.id.toLowerCase() === name.toLowerCase() || 
+              bucket.name.toLowerCase() === name.toLowerCase()
+            )
           );
-        });
+        }
+        
+        // If still not found, use any available bucket
+        if (!targetBucket && buckets.length > 0) {
+          console.log('Using first available bucket as fallback');
+          targetBucket = buckets[0];
+        }
         
         if (targetBucket) {
           console.log(`Bucket found: ${targetBucket.id} (${targetBucket.name})`);
@@ -80,9 +89,8 @@ export const useStorageBucket = (bucketName: string) => {
           setBucketReady(true);
           setErrorMessage(undefined);
         } else {
-          console.error(`Bucket not found with name/id: ${bucketName}`);
-          console.log('Available buckets:', buckets?.map(b => `${b.id} (${b.name})`).join(', '));
-          setErrorMessage("Storage configuration missing. Please contact support.");
+          console.error(`No usable storage bucket found`);
+          setErrorMessage("No storage bucket available. Please contact support.");
           setBucketReady(false);
         }
       } catch (error) {
@@ -98,43 +106,45 @@ export const useStorageBucket = (bucketName: string) => {
   }, [bucketName, toast]);
 
   const verifyBucketAccess = async (): Promise<{success: boolean, bucketId: string | null, error?: string}> => {
-    if (bucketReady && actualBucketId) {
-      return { success: true, bucketId: actualBucketId };
-    }
-    
     try {
-      // Try one more time to check if the bucket exists
+      // Try to list buckets
       const { data: buckets, error: listError } = await supabase.storage.listBuckets();
       
       if (listError) {
-        console.error('Error accessing storage:', listError);
+        console.error('Error accessing storage in verifyBucketAccess:', listError);
         return { success: false, bucketId: null, error: "Cannot access storage service" };
       }
       
       if (!buckets || buckets.length === 0) {
+        console.error('No storage buckets available in verifyBucketAccess');
         return { success: false, bucketId: null, error: "No storage buckets available" };
       }
       
-      console.log('Available buckets during verify:', buckets.map(b => `${b.id} (${b.name})`).join(', '));
+      // First try to find the exact bucket
+      let targetBucket = buckets.find(bucket => 
+        bucket.id.toLowerCase() === bucketName.toLowerCase() || 
+        bucket.name.toLowerCase() === bucketName.toLowerCase()
+      );
       
-      // Try to find a matching bucket with flexible matching
-      const targetBucket = buckets.find(bucket => {
-        // Check if bucket ID or name matches our bucket name (case insensitive)
-        if (bucket.id.toLowerCase() === bucketName.toLowerCase() || 
-            bucket.name.toLowerCase() === bucketName.toLowerCase()) {
-          return true;
-        }
-        
-        // Check if bucket ID or name matches any of our possible bucket names
-        return possibleBucketNames.some(name => 
-          bucket.id.toLowerCase() === name.toLowerCase() || 
-          bucket.name.toLowerCase() === name.toLowerCase()
+      // If not found, try alternative names
+      if (!targetBucket) {
+        targetBucket = buckets.find(bucket => 
+          possibleBucketNames.some(name => 
+            bucket.id.toLowerCase() === name.toLowerCase() || 
+            bucket.name.toLowerCase() === name.toLowerCase()
+          )
         );
-      });
+      }
+      
+      // If still not found, use any available bucket
+      if (!targetBucket && buckets.length > 0) {
+        console.log('Using first available bucket as fallback in verifyBucketAccess');
+        targetBucket = buckets[0];
+      }
       
       if (!targetBucket) {
-        console.error(`No matching bucket found. Available buckets: ${buckets.map(b => b.id).join(', ')}`);
-        return { success: false, bucketId: null, error: "Storage bucket not found" };
+        console.error('No usable storage bucket found in verifyBucketAccess');
+        return { success: false, bucketId: null, error: "No storage bucket available" };
       }
       
       // Verify access by trying to list files
@@ -143,29 +153,25 @@ export const useStorageBucket = (bucketName: string) => {
         .list();
         
       if (listFilesError) {
-        console.error(`Error accessing bucket ${targetBucket.id}:`, listFilesError);
+        console.error(`Error accessing bucket ${targetBucket.id} in verifyBucketAccess:`, listFilesError);
         return { success: false, bucketId: null, error: `Cannot access storage bucket: ${listFilesError.message}` };
       }
       
+      console.log(`Verified access to bucket in verifyBucketAccess: ${targetBucket.id}`);
       setBucketReady(true);
       setActualBucketId(targetBucket.id);
-      setErrorMessage(undefined);
-      console.log(`Verified access to bucket: ${targetBucket.id}`);
       return { success: true, bucketId: targetBucket.id };
     } catch (error) {
-      console.error('Error verifying bucket access:', error);
+      console.error('Error in verifyBucketAccess:', error);
       return { success: false, bucketId: null, error: "Error verifying storage access" };
     }
   };
-
-  const getBucketId = () => actualBucketId;
 
   return { 
     bucketReady, 
     isChecking, 
     verifyBucketAccess, 
     actualBucketId, 
-    getBucketId,
     errorMessage
   };
 };

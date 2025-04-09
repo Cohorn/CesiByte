@@ -158,63 +158,61 @@ const RestaurantMenu = () => {
     setIsUploading(true);
     
     try {
-      const { success, bucketId, error } = await supabase.storage.listBuckets()
-        .then(({ data: buckets, error: listError }) => {
-          if (listError) {
-            console.error('Error listing buckets:', listError);
-            return { success: false, bucketId: null, error: "Cannot access storage service" };
-          }
-          
-          if (!buckets || buckets.length === 0) {
-            console.error('No storage buckets found');
-            return { success: false, bucketId: null, error: "No storage buckets found" };
-          }
-          
-          console.log('Available buckets for menu upload:', buckets.map(b => `${b.id} (${b.name})`).join(', '));
-          
-          const possibleBucketNames = [
-            'restaurant_images',
-            'Restaurant Images',
-            'restaurant-images',
-            'restaurantimages',
-            'public',
-            'avatars'
-          ];
-          
-          let targetBucket = buckets.find(b => 
-            b.id.toLowerCase() === 'restaurant_images' || 
-            b.name.toLowerCase() === 'restaurant_images'
-          );
-          
-          if (!targetBucket) {
-            targetBucket = buckets.find(b => 
-              possibleBucketNames.some(name => 
-                b.id.toLowerCase() === name.toLowerCase() || 
-                b.name.toLowerCase() === name.toLowerCase()
-              )
-            );
-          }
-          
-          if (!targetBucket && buckets.length > 0) {
-            targetBucket = buckets[0];
-          }
-          
-          if (!targetBucket) {
-            return { success: false, bucketId: null, error: "No suitable storage bucket found" };
-          }
-          
-          return { success: true, bucketId: targetBucket.id };
-        });
+      const { data: buckets, error: listError } = await supabase.storage.listBuckets();
       
-      if (!success || !bucketId) {
-        console.error(`Storage bucket error: ${error}`);
+      if (listError) {
+        console.error('Error listing buckets:', listError);
         toast({
           title: "Error",
-          description: "Storage service not available. Please try again later.",
+          description: "Storage service unavailable. Please try again later.",
           variant: "destructive"
         });
         return null;
       }
+      
+      if (!buckets || buckets.length === 0) {
+        console.error('No storage buckets found');
+        toast({
+          title: "Error",
+          description: "No storage buckets available. Please contact support.",
+          variant: "destructive"
+        });
+        return null;
+      }
+      
+      console.log('Available buckets for menu upload:', buckets.map(b => `${b.id} (${b.name})`).join(', '));
+      
+      let targetBucket = buckets.find(b => 
+        b.id.toLowerCase() === 'restaurant_images' || 
+        b.name.toLowerCase() === 'restaurant images'
+      );
+      
+      if (!targetBucket) {
+        for (const bucket of buckets) {
+          const { error: listFilesError } = await supabase.storage
+            .from(bucket.id)
+            .list();
+            
+          if (!listFilesError) {
+            console.log(`Found working bucket: ${bucket.id}`);
+            targetBucket = bucket;
+            break;
+          }
+        }
+      }
+      
+      if (!targetBucket) {
+        console.error('No usable storage bucket found');
+        toast({
+          title: "Error",
+          description: "Storage configuration issue. Please contact support.",
+          variant: "destructive"
+        });
+        return null;
+      }
+      
+      const bucketId = targetBucket.id;
+      console.log(`Using bucket for upload: ${bucketId}`);
       
       const fileExt = imageFile.name.split('.').pop();
       const fileName = `${Math.random().toString(36).substring(2, 15)}-${Date.now()}.${fileExt}`;
