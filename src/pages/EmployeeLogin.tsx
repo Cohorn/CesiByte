@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth, isEmployeeType } from '@/lib/AuthContext';
@@ -19,6 +20,14 @@ const EmployeeLogin = () => {
   const { signIn, user, isLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  useEffect(() => {
+    // Debug logging of current user
+    if (user) {
+      console.log("EmployeeLogin - Current user:", user);
+      console.log("Is employee type:", isEmployeeType(user));
+    }
+  }, [user]);
 
   // Clear error message when inputs change
   useEffect(() => {
@@ -55,19 +64,8 @@ const EmployeeLogin = () => {
           variant: "destructive"
         });
       } else {
-        // Wait for auth to complete and redirect only if user is an employee
-        setTimeout(() => {
-          if (user && isEmployeeType(user)) {
-            navigate('/employee/dashboard');
-          } else {
-            setErrorMessage("Only employees can access this portal");
-            toast({
-              title: "Access Denied",
-              description: "Only employees can access this portal",
-              variant: "destructive"
-            });
-          }
-        }, 500);
+        // Auth will redirect to employee dashboard if user is an employee
+        console.log("Login successful");
       }
     } catch (error: any) {
       console.error("Unexpected error:", error);
@@ -84,6 +82,7 @@ const EmployeeLogin = () => {
 
   // Redirect if already logged in as employee
   if (user && isEmployeeType(user) && !isLoading) {
+    console.log("Already logged in as employee, redirecting to dashboard");
     return <Navigate to="/employee/dashboard" />;
   }
 

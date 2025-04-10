@@ -59,8 +59,17 @@ export const authApi = {
       // For employee registration, set employee_role if not provided
       const registrationData = { ...data };
       
-      if (registrationData.user_type === 'employee' && !registrationData.employee_role) {
-        registrationData.employee_role = 'commercial_service';
+      if (registrationData.user_type === 'employee') {
+        // Ensure employee_role is set to a valid value
+        if (!registrationData.employee_role || 
+            !['commercial_service', 'developer', 'commercial_agent'].includes(registrationData.employee_role as string)) {
+          registrationData.employee_role = 'commercial_service';
+        }
+        // Map 'commercial_agent' to 'commercial_service' if needed
+        if (registrationData.employee_role === 'commercial_agent' as any) {
+          registrationData.employee_role = 'commercial_service';
+        }
+        console.log(`Employee registration with role: ${registrationData.employee_role}`);
       }
       
       console.log('Attempting to register new user with email:', registrationData.email);
@@ -131,15 +140,40 @@ export const authApi = {
     }
   },
 
-  // Added deleteUser method if needed
+  // Updated deleteUser method with better error handling
   deleteUser: async (userId: string) => {
     try {
-      console.log('Deleting user account with ID:', userId);
+      console.log('Deleting user account from auth service with ID:', userId);
+      
+      // Check if we have a token first
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        console.warn('No auth token found when attempting to delete user');
+      }
+      
       const response = await apiClient.delete(`/auth/user/${userId}`);
-      console.log('User deletion successful');
+      console.log('Auth user deletion successful');
+      
+      // Clear auth data
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_email');
+      localStorage.removeItem('auth_password');
+      
       return response.data;
-    } catch (error) {
-      console.error('User deletion failed:', error);
+    } catch (error: any) {
+      console.error('User deletion failed in auth service:', error);
+      
+      // Enhanced error logging
+      if (error.response) {
+        console.error(`Server responded with error ${error.response.status}:`, error.response.data);
+        
+        // If user doesn't exist or is already deleted, consider it a success
+        if (error.response.status === 404) {
+          console.log('User not found in auth system - may already be deleted');
+          return { success: true, message: 'User not found or already deleted' };
+        }
+      }
+      
       throw error;
     }
   }

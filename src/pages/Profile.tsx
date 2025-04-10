@@ -13,12 +13,11 @@ import { Separator } from '@/components/ui/separator';
 import EditProfileForm from '@/components/EditProfileForm';
 import DeleteAccountDialog from '@/components/DeleteAccountDialog';
 import RestaurantImageUpload from '@/components/restaurant/RestaurantImageUpload';
-import { userApi } from '@/api/services/userService';
 import ReferralCodeDisplay from '@/components/ReferralCodeDisplay';
 import NotificationsDropdown from '@/components/notifications/NotificationsDropdown';
 
 const Profile = () => {
-  const { user, updateProfile, signOut } = useAuth();
+  const { user, updateProfile, signOut, deleteAccount } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -65,21 +64,10 @@ const Profile = () => {
   };
 
   const handleDeleteAccount = async () => {
-    if (!user) return;
-    
     try {
-      await userApi.deleteUser(user.id);
-      toast({
-        title: "Account deleted",
-        description: "Your account has been successfully deleted.",
-      });
-      await signOut();
-    } catch (error: any) {
-      toast({
-        title: "Delete failed",
-        description: error.message || "Failed to delete your account.",
-        variant: "destructive",
-      });
+      await deleteAccount();
+    } catch (error) {
+      console.error("Delete account error caught in component:", error);
     }
   };
 

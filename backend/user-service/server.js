@@ -340,6 +340,8 @@ app.delete('/:id', authenticateJWT, async (req, res) => {
   try {
     const { id } = req.params;
     
+    console.log(`Received delete request for user: ${id}`);
+    
     // Check if user exists
     const { data: userData, error: userError } = await supabase
       .from('users')
@@ -348,16 +350,108 @@ app.delete('/:id', authenticateJWT, async (req, res) => {
       .single();
       
     if (userError) {
+      console.log(`User ${id} not found, may already be deleted`);
       return res.status(404).json({ error: 'User not found' });
     }
     
-    // Delete user from database
+    console.log(`Found user ${id} with type: ${userData.user_type}`);
+    
+    // Special handling for restaurant users due to foreign key constraints
+    if (userData.user_type === 'restaurant') {
+      console.log(`User ${id} is a restaurant owner, checking for restaurant data`);
+      
+      // Check for restaurant data
+      const { data: restaurantData, error: restaurantError } = await supabase
+        .from('restaurants')
+        .select('id')
+        .eq('user_id', id);
+        
+      if (!restaurantError && restaurantData && restaurantData.length > 0) {
+        console.log(`Found restaurant data for user ${id}, attempting to delete first`);
+        
+        // Delete restaurant data first to avoid foreign key constraint issues
+        for (const restaurant of restaurantData) {
+          // Delete menu items
+          const { error: menuError } = await supabase
+            .from('menu_items')
+            .delete()
+            .eq('restaurant_id', restaurant.id);
+            
+          if (menuError) {
+            console.error(`Error deleting menu items for restaurant ${restaurant.id}:`, menuError);
+          }
+          
+          // Delete restaurant orders
+          const { error: orderError } = await supabase
+            .from('orders')
+            .delete()
+            .eq('restaurant_id', restaurant.id);
+            
+          if (orderError) {
+            console.error(`Error deleting orders for restaurant ${restaurant.id}:`, orderError);
+          }
+          
+          // Delete restaurant reviews
+          const { error: reviewError } = await supabase
+            .from('reviews')
+            .delete()
+            .eq('restaurant_id', restaurant.id);
+            
+          if (reviewError) {
+            console.error(`Error deleting reviews for restaurant ${restaurant.id}:`, reviewError);
+          }
+        }
+        
+        // Now delete the restaurant record
+        const { error: deleteRestaurantError } = await supabase
+          .from('restaurants')
+          .delete()
+          .eq('user_id', id);
+          
+        if (deleteRestaurantError) {
+          console.error(`Error deleting restaurant for user ${id}:`, deleteRestaurantError);
+          return res.status(400).json({ error: deleteRestaurantError.message });
+        }
+        
+        console.log(`Successfully deleted restaurant data for user ${id}`);
+      }
+    }
+    
+    // Also clean up any orders or reviews associated with this user
+    console.log(`Cleaning up related data for user ${id}`);
+    
+    // Delete user orders
+    await supabase
+      .from('orders')
+      .delete()
+      .eq('user_id', id);
+      
+    // Delete user reviews
+    await supabase
+      .from('reviews')
+      .delete()
+      .eq('user_id', id);
+      
+    // Delete any orders where user is a courier
+    await supabase
+      .from('orders')
+      .delete()
+      .eq('courier_id', id);
+    
+    // Delete any reviews for the user as a courier
+    await supabase
+      .from('reviews')
+      .delete()
+      .eq('courier_id', id);
+      
+    // Finally delete user from database
     const { error: deleteError } = await supabase
       .from('users')
       .delete()
       .eq('id', id);
       
     if (deleteError) {
+      console.error(`Error deleting user ${id}:`, deleteError);
       return res.status(400).json({ error: deleteError.message });
     }
 
@@ -366,10 +460,8 @@ app.delete('/:id', authenticateJWT, async (req, res) => {
     
     if (authDeleteError) {
       console.error('Error deleting user from auth system:', authDeleteError);
-      return res.status(500).json({ 
-        error: 'User profile deleted but auth account could not be removed',
-        details: authDeleteError.message
-      });
+      // Continue anyway as we've deleted the user profile
+      console.log('User profile deleted but auth account could not be removed');
     }
     
     // Publish user deleted event to MQTT

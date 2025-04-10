@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -21,7 +20,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { UserType, EmployeeRoleType } from '@/lib/database.types';
 import { useToast } from '@/hooks/use-toast';
 import Map from '@/components/Map';
-import { registerUserWithReferral } from '@/utils/userRegistrationFix';
+import { registerUserWithReferral, isValidUserType } from '@/utils/userRegistrationFix';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -50,7 +49,6 @@ const Register = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [userType, setUserType] = useState<UserType>('customer');
   const [employeeRole, setEmployeeRole] = useState<EmployeeRoleType>('commercial_service');
-  // Default to France as fallback
   const [userLocation, setUserLocation] = useState({ lat: 46.2276, lng: 2.2137 });
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
@@ -66,7 +64,6 @@ const Register = () => {
     }
   }, []);
 
-  // These should be true for testing
   const allowEmployeeRegistration = true;
   const allowDevRegistration = true;
   const allowComAgentRegistration = true;
@@ -90,7 +87,6 @@ const Register = () => {
     form.setValue('referralCode', referralCode);
   }, [referralCode, form]);
 
-  // Try to get user's location on component mount
   useEffect(() => {
     if (navigator.geolocation) {
       setIsLocating(true);
@@ -101,7 +97,6 @@ const Register = () => {
           form.setValue('lat', latitude);
           form.setValue('lng', longitude);
           
-          // Get address from coordinates
           fetchAddressFromCoordinates(latitude, longitude)
             .then(address => {
               if (address) {
@@ -129,7 +124,6 @@ const Register = () => {
     }
   }, [form, toast]);
 
-  // Function to fetch address from coordinates using Mapbox Geocoding API
   const fetchAddressFromCoordinates = async (lat: number, lng: number): Promise<string | null> => {
     try {
       const mapboxToken = 'pk.eyJ1IjoiYXplcGllMCIsImEiOiJjbTh3eHYxdnYwMDZlMmxzYjRsYnM5bDcyIn0.vuT0Pi1Q_2QEdwkULIs_vQ';
@@ -144,7 +138,6 @@ const Register = () => {
     }
   };
 
-  // Update the form values when a location is selected on the map
   const handleLocationSelected = (lat: number, lng: number, address: string) => {
     setUserLocation({ lat, lng });
     form.setValue('address', address);
@@ -173,7 +166,6 @@ const Register = () => {
         referralCode: values.referralCode
       };
 
-      // Add employee role if user type is employee
       if (values.userType === 'employee') {
         registerParams.employeeRole = values.employeeRole || 'commercial_service';
       }
@@ -187,13 +179,12 @@ const Register = () => {
           description: "You have been registered successfully.",
         });
         
-        // Redirect to appropriate page based on user type
         switch (values.userType) {
           case 'employee':
-            navigate('/employee');
+            navigate('/employee/dashboard');
             break;
           case 'restaurant':
-            navigate('/restaurant/orders');
+            navigate('/restaurant/setup');
             break;
           case 'courier':
             navigate('/courier/orders');
@@ -203,7 +194,6 @@ const Register = () => {
             break;
         }
       } else {
-        // Show toast but don't block the user if the registration technically worked
         toast({
           title: "Registration successful",
           description: "Your account was created but there might have been some issues. Please try logging in.",
@@ -213,8 +203,6 @@ const Register = () => {
     } catch (error: any) {
       console.error("Registration error:", error);
       
-      // If we reach this point, there was likely an exception in the registration code
-      // But the user may have been created anyway, so we guide them to login
       toast({
         title: "Registration may have succeeded",
         description: "Your account might have been created. Please try logging in.",
@@ -230,7 +218,6 @@ const Register = () => {
     form.setValue('userType', value);
   };
 
-  // Function to get the user's current location
   const getCurrentLocation = () => {
     if (navigator.geolocation) {
       setIsLocating(true);
@@ -241,7 +228,6 @@ const Register = () => {
           form.setValue('lat', latitude);
           form.setValue('lng', longitude);
           
-          // Get address from coordinates
           fetchAddressFromCoordinates(latitude, longitude)
             .then(address => {
               if (address) {
@@ -277,9 +263,9 @@ const Register = () => {
 
   if (!authLoading && user) {
     if (user.user_type === 'employee') {
-      return <Navigate to="/employee" />;
+      return <Navigate to="/employee/dashboard" />;
     } else if (user.user_type === 'restaurant') {
-      return <Navigate to="/restaurant/orders" />;
+      return <Navigate to="/restaurant/setup" />;
     } else if (user.user_type === 'courier') {
       return <Navigate to="/courier/orders" />;
     } else {
@@ -438,7 +424,6 @@ const Register = () => {
                     <FormLabel>Address</FormLabel>
                     <FormControl>
                       <div className="space-y-2">
-                        {/* Address input with map icon and get current location button */}
                         <div className="relative flex items-center">
                           <MapPin className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
                           <Input
@@ -463,7 +448,6 @@ const Register = () => {
                           </Button>
                         </div>
                         
-                        {/* Tabs for Map & Manual Coordinates */}
                         <Tabs defaultValue="map" className="w-full">
                           <TabsList className="grid w-full grid-cols-2">
                             <TabsTrigger value="map">Map</TabsTrigger>

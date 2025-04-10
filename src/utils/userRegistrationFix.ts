@@ -4,7 +4,7 @@ import { UserType, EmployeeRoleType } from '@/lib/database.types';
 import { notificationService } from '@/services/notificationService';
 
 // Add this function that was missing and causing error in AuthContext.tsx
-export const isValidUserType = async (userType: string): Promise<boolean> => {
+export const isValidUserType = (userType: string): boolean => {
   const validUserTypes = ['customer', 'restaurant', 'courier', 'employee'];
   return validUserTypes.includes(userType);
 };
@@ -41,12 +41,16 @@ export const registerUserWithReferral = async (params: RegisterUserParams): Prom
     // Add employee role if user type is employee
     if (params.userType === 'employee' && params.employeeRole) {
       registerParams.employee_role = params.employeeRole;
+      console.log("Setting employee role:", params.employeeRole);
     }
 
     console.log("Registering user with params:", registerParams);
     
     try {
-      const { success, error } = await authApi.register(registerParams);
+      const response = await authApi.register(registerParams);
+      console.log("Registration response:", response);
+      const success = response.success || !!response.token;
+      const error = response.error;
 
       // If registration was successful and a referral code was provided
       if (success && params.referralCode) {
@@ -72,21 +76,21 @@ export const registerUserWithReferral = async (params: RegisterUserParams): Prom
         }
       }
 
-      return { success: true, error };
+      return { success, error };
     } catch (apiError: any) {
       console.error("API registration error:", apiError);
       
       // If error is from API but the registration might have succeeded
       return { 
-        success: true, // Assume success to let the user proceed
-        error: "Registration may have been successful despite errors. Please try logging in."
+        success: false, 
+        error: apiError.message || "Registration failed. Please try again."
       };
     }
   } catch (error: any) {
     console.error("Error in user registration:", error);
     return { 
-      success: true, // Changed to true to allow user to continue
-      error: "Registration may have completed. Please try logging in."
+      success: false, 
+      error: error.message || "Registration failed. Please try again."
     };
   }
 };

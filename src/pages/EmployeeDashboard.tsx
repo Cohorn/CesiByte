@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Navigate, Link } from 'react-router-dom';
 import { useAuth, isEmployeeType, isDeveloper, isCommercialAgent } from '@/lib/AuthContext';
 import NavBar from '@/components/NavBar';
@@ -17,13 +17,29 @@ const EmployeeDashboard = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   
+  useEffect(() => {
+    if (user) {
+      console.log("EmployeeDashboard - Current user:", user);
+      console.log("Is employee type:", isEmployeeType(user));
+      console.log("Is developer:", isDeveloper(user));
+      console.log("Is commercial agent:", isCommercialAgent(user));
+    }
+  }, [user]);
+  
   // Redirect if not logged in
   if (!user) {
+    console.log("No user found, redirecting to login");
     return <Navigate to="/employee/login" />;
   } 
   
   // Redirect non-employee users
   if (!isEmployeeType(user)) {
+    console.log("User is not an employee, redirecting to home");
+    toast({
+      title: "Access Denied",
+      description: "This section is only accessible to employees",
+      variant: "destructive"
+    });
     return <Navigate to="/" />;
   }
 
@@ -35,6 +51,8 @@ const EmployeeDashboard = () => {
   const roleDisplayName = isDeveloper(user) ? 'Developer' : 
                           isCommercialAgent(user) ? 'Commercial Agent' : 
                           'Employee';
+
+  console.log("Showing dashboard for:", roleDisplayName);
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
